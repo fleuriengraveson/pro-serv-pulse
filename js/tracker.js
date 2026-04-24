@@ -76,6 +76,28 @@ document.addEventListener("keyup", (e) => {
 	if (e.key === "Shift") isShiftDown = false;
 });
 
+/* Global click-outside handler — runs once, handles both views */
+document.addEventListener("click", (e) => {
+	/* Ignore clicks inside dropdowns and popovers */
+	if (e.target.closest(".edit-dropdown")) return;
+	if (e.target.closest(".week-popover")) return;
+
+	/* Ignore clicks on time blocks (they have their own handlers) */
+	if (e.target.closest(".time-block-empty")) return;
+	if (e.target.closest(".time-block-filled")) return;
+	if (e.target.closest(".week-block")) return;
+	if (e.target.closest(".time-row")) return;
+
+	/* Ignore clicks on nav buttons and controls */
+	if (e.target.closest("button")) return;
+	if (e.target.closest("input")) return;
+	if (e.target.closest("select")) return;
+
+	/* If we get here, the click was outside everything — close whatever's open */
+	closeDropdown();
+	closeWeekPopover();
+});
+
 /* ============================================================================
  * INITIALIZATION
  * ========================================================================= */
@@ -543,49 +565,49 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 
 	dropdown.innerHTML = html;
 
-	/* Append to the tracker container first (hidden) so we can measure it */
-	const container = document.getElementById("view-tracker");
-	container.style.position = "relative";
-	dropdown.style.position = "absolute";
+	/* Append to body with fixed positioning to avoid container overflow issues */
+	dropdown.style.position = "fixed";
 	dropdown.style.visibility = "hidden";
-	container.appendChild(dropdown);
+	document.body.appendChild(dropdown);
 
 	/* Measure everything */
 	const blockRect = blockEl.getBoundingClientRect();
-	const containerRect = container.getBoundingClientRect();
 	const dropdownRect = dropdown.getBoundingClientRect();
 	const viewportWidth = window.innerWidth;
 	const viewportHeight = window.innerHeight;
 
-	/* Calculate ideal position: directly below the block, aligned left */
-	let left = blockRect.left - containerRect.left;
-	let top = blockRect.bottom - containerRect.top + 4;
+	/* Ideal position: directly below the block */
+	let left = blockRect.left;
+	let top = blockRect.bottom + 4;
 
-	/* Prevent right edge from going off screen */
-	const rightOverflow =
-		blockRect.left + dropdownRect.width + 16 - viewportWidth;
-	if (rightOverflow > 0) {
-		left -= rightOverflow;
+	/* Prevent right overflow */
+	if (left + dropdownRect.width + 16 > viewportWidth) {
+		left = viewportWidth - dropdownRect.width - 16;
 	}
 
-	/* Prevent left edge from going off screen */
-	if (blockRect.left + left < 0) {
-		left = 0;
+	/* Prevent left overflow */
+	if (left < 8) {
+		left = 8;
 	}
 
-	/* If dropdown would go below the viewport, show it above the block instead */
-	if (blockRect.bottom + dropdownRect.height + 16 > viewportHeight) {
-		top = blockRect.top - containerRect.top - dropdownRect.height - 4;
+	/* If it would go below viewport, show above the block */
+	if (top + dropdownRect.height + 16 > viewportHeight) {
+		top = blockRect.top - dropdownRect.height - 4;
 	}
 
-	/* If it would go above the viewport after flipping, just pin to top */
-	if (top < 0) {
-		top = 4;
+	/* If still off top, pin to top */
+	if (top < 8) {
+		top = 8;
 	}
 
 	dropdown.style.left = `${left}px`;
 	dropdown.style.top = `${top}px`;
+	dropdown.style.animation = "none";
+	dropdown.style.opacity = "1";
 	dropdown.style.visibility = "visible";
+
+	dropdown.style.zIndex = "9999";
+
 	activeDropdown = { element: dropdown, slot };
 
 	/* --- Dropdown event listeners --- */
@@ -665,6 +687,9 @@ function closeDropdown() {
 		activeDropdown.element.remove();
 		activeDropdown = null;
 	}
+	/* Also catch any orphaned dropdowns */
+	const orphan = document.getElementById("active-dropdown");
+	if (orphan) orphan.remove();
 }
 
 /* ============================================================================
@@ -676,9 +701,13 @@ function closeDropdown() {
 function attachEventListeners() {
 	/* --- Day navigation arrows --- */
 	document.getElementById("prev-day")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		navigateDay(-1);
 	});
 	document.getElementById("next-day")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		navigateDay(1);
 	});
 
@@ -692,6 +721,8 @@ function attachEventListeners() {
 	/* --- Week day chips --- */
 	document.querySelectorAll(".week-chip").forEach((chip) => {
 		chip.addEventListener("click", () => {
+			closeDropdown();
+			closeWeekPopover();
 			currentDate = parseDate(chip.dataset.date);
 			renderTracker();
 		});
@@ -710,6 +741,8 @@ function attachEventListeners() {
 		renderTracker();
 	});
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		activeView = "week";
 		renderWeekView();
 	});
@@ -751,18 +784,6 @@ function attachEventListeners() {
 				lastClickedSlot = slot;
 			});
 		});
-
-	/* --- Click outside to close dropdown --- */
-	document.addEventListener("click", (e) => {
-		if (
-			activeDropdown &&
-			!e.target.closest(".edit-dropdown") &&
-			!e.target.closest(".time-block-empty") &&
-			!e.target.closest(".time-block-filled")
-		) {
-			closeDropdown();
-		}
-	});
 }
 
 /**
@@ -772,6 +793,8 @@ function attachEventListeners() {
 function attachWeekEventListeners() {
 	/* View toggle buttons */
 	document.getElementById("toggle-day")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		activeView = "day";
 		renderTracker();
 	});
@@ -782,6 +805,8 @@ function attachWeekEventListeners() {
 
 	/* Week navigation */
 	document.getElementById("prev-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() - 7);
 		weekDates = getWeekDates(mon);
@@ -789,6 +814,8 @@ function attachWeekEventListeners() {
 		renderWeekView();
 	});
 	document.getElementById("next-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() + 7);
 		weekDates = getWeekDates(mon);
@@ -843,30 +870,6 @@ function attachWeekEventListeners() {
 			activeView = "day";
 			renderTracker();
 		});
-	});
-
-	/* Click outside to close popover and dropdown */
-	document.addEventListener("click", (e) => {
-		if (
-			!e.target.closest(".week-popover") &&
-			!e.target.closest(".week-block") &&
-			!e.target.closest(".edit-dropdown")
-		) {
-			closeWeekPopover();
-			closeDropdown();
-		}
-	});
-
-	/* Click outside to close popover */
-	document.addEventListener("click", (e) => {
-		if (
-			!e.target.closest(".week-popover") &&
-			!e.target.closest(".week-block") &&
-			!e.target.closest(".edit-dropdown")
-		) {
-			closeWeekPopover();
-			closeDropdown();
-		}
 	});
 }
 
@@ -1275,48 +1278,45 @@ function showWeekPopover(entry, blockEl) {
 
 	popover.innerHTML = html;
 
-	/* Append hidden first so we can measure */
-	const container = document.getElementById("view-tracker");
-	container.style.position = "relative";
-	popover.style.position = "absolute";
+	/* Append to body with fixed positioning */
+	popover.style.position = "fixed";
 	popover.style.visibility = "hidden";
-	container.appendChild(popover);
+	document.body.appendChild(popover);
 
 	/* Measure everything */
 	const blockRect = blockEl.getBoundingClientRect();
-	const containerRect = container.getBoundingClientRect();
 	const popoverRect = popover.getBoundingClientRect();
 	const viewportWidth = window.innerWidth;
 	const viewportHeight = window.innerHeight;
 
-	/* Ideal position: below the block, aligned left */
-	let left = blockRect.left - containerRect.left;
-	let top = blockRect.bottom - containerRect.top + 4;
+	/* Ideal position: below the block */
+	let left = blockRect.left;
+	let top = blockRect.bottom + 4;
 
 	/* Prevent right overflow */
-	const rightOverflow = blockRect.left + popoverRect.width + 16 - viewportWidth;
-	if (rightOverflow > 0) {
-		left -= rightOverflow;
+	if (left + popoverRect.width + 16 > viewportWidth) {
+		left = viewportWidth - popoverRect.width - 16;
 	}
 
 	/* Prevent left overflow */
-	if (blockRect.left + left < 0) {
-		left = 0;
+	if (left < 8) {
+		left = 8;
 	}
 
-	/* Flip above if it would go below viewport */
-	if (blockRect.bottom + popoverRect.height + 16 > viewportHeight) {
-		top = blockRect.top - containerRect.top - popoverRect.height - 4;
+	/* Flip above if below viewport */
+	if (top + popoverRect.height + 16 > viewportHeight) {
+		top = blockRect.top - popoverRect.height - 4;
 	}
 
-	/* Pin to top if flipping still overflows */
-	if (top < 0) {
-		top = 4;
+	/* Pin to top if needed */
+	if (top < 8) {
+		top = 8;
 	}
 
 	popover.style.left = `${left}px`;
 	popover.style.top = `${top}px`;
 	popover.style.visibility = "visible";
+	popover.style.zIndex = "9999";
 
 	/* --- Button listeners --- */
 
@@ -1337,13 +1337,13 @@ function showWeekPopover(entry, blockEl) {
 		closeWeekPopover();
 	});
 
-	/* Edit: switch to day view for that date */
+	/* Edit: edit in the week view directly */
 	popover.querySelector("#popover-edit").addEventListener("click", (e) => {
 		e.stopPropagation();
-		currentDate = parseDate(entry.date);
-		activeView = "day";
+		e.preventDefault();
 		closeWeekPopover();
-		renderTracker();
+		/* Open the edit dropdown right here in week view */
+		showEditDropdown(entry.timeSlot, blockEl, entry.date, renderWeekView);
 	});
 
 	/* Clear: delete the entry */
