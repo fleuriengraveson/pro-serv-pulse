@@ -54,9 +54,22 @@ let activeView = "day"; // 'day' or 'week' — which sub-view is active
 document.addEventListener("keydown", (e) => {
 	if (e.key === "Shift") isShiftDown = true;
 	/* Escape clears the clipboard */
-	if (e.key === "Escape" && clipboard) {
-		clipboard = null;
-		updateClipboardIndicator();
+	if (e.key === "Escape") {
+		/* Close any open dropdown or popover first */
+		if (activeDropdown) {
+			closeDropdown();
+			return;
+		}
+		const popover = document.getElementById("week-popover");
+		if (popover) {
+			closeWeekPopover();
+			return;
+		}
+		/* If nothing else is open, clear the clipboard */
+		if (clipboard) {
+			clipboard = null;
+			updateClipboardIndicator();
+		}
 	}
 });
 document.addEventListener("keyup", (e) => {
@@ -671,6 +684,11 @@ function attachEventListeners() {
 				/* Don't trigger if clicking inside an open dropdown */
 				if (e.target.closest(".edit-dropdown")) return;
 
+				if (activeDropdown) {
+					closeDropdown();
+					return;
+				}
+
 				const slot = block.dataset.slot;
 				/* Determine which date this block belongs to
 				 * (needed for week view where blocks span multiple days) */
@@ -745,6 +763,12 @@ function attachWeekEventListeners() {
 		block.addEventListener("click", async (e) => {
 			if (e.target.closest(".week-popover")) return;
 			if (e.target.closest(".edit-dropdown")) return;
+
+			/* If a dropdown is already open, close it and stop — don't open a new one */
+			if (activeDropdown) {
+				closeDropdown();
+				return;
+			}
 
 			const slot = block.dataset.slot;
 			const date = block.dataset.date;
