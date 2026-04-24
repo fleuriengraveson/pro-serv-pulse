@@ -543,17 +543,49 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 
 	dropdown.innerHTML = html;
 
-	/* Position the dropdown near the clicked block */
-	const rect = blockEl.getBoundingClientRect();
+	/* Append to the tracker container first (hidden) so we can measure it */
 	const container = document.getElementById("view-tracker");
-	const containerRect = container.getBoundingClientRect();
-
-	dropdown.style.position = "absolute";
-	dropdown.style.left = `${rect.left - containerRect.left}px`;
-	dropdown.style.top = `${rect.bottom - containerRect.top + 4}px`;
-
 	container.style.position = "relative";
+	dropdown.style.position = "absolute";
+	dropdown.style.visibility = "hidden";
 	container.appendChild(dropdown);
+
+	/* Measure everything */
+	const blockRect = blockEl.getBoundingClientRect();
+	const containerRect = container.getBoundingClientRect();
+	const dropdownRect = dropdown.getBoundingClientRect();
+	const viewportWidth = window.innerWidth;
+	const viewportHeight = window.innerHeight;
+
+	/* Calculate ideal position: directly below the block, aligned left */
+	let left = blockRect.left - containerRect.left;
+	let top = blockRect.bottom - containerRect.top + 4;
+
+	/* Prevent right edge from going off screen */
+	const rightOverflow =
+		blockRect.left + dropdownRect.width + 16 - viewportWidth;
+	if (rightOverflow > 0) {
+		left -= rightOverflow;
+	}
+
+	/* Prevent left edge from going off screen */
+	if (blockRect.left + left < 0) {
+		left = 0;
+	}
+
+	/* If dropdown would go below the viewport, show it above the block instead */
+	if (blockRect.bottom + dropdownRect.height + 16 > viewportHeight) {
+		top = blockRect.top - containerRect.top - dropdownRect.height - 4;
+	}
+
+	/* If it would go above the viewport after flipping, just pin to top */
+	if (top < 0) {
+		top = 4;
+	}
+
+	dropdown.style.left = `${left}px`;
+	dropdown.style.top = `${top}px`;
+	dropdown.style.visibility = "visible";
 	activeDropdown = { element: dropdown, slot };
 
 	/* --- Dropdown event listeners --- */
@@ -1243,18 +1275,48 @@ function showWeekPopover(entry, blockEl) {
 
 	popover.innerHTML = html;
 
-	/* Position the popover near the clicked block using screen coordinates */
-	const rect = blockEl.getBoundingClientRect();
+	/* Append hidden first so we can measure */
 	const container = document.getElementById("view-tracker");
-	const containerRect = container.getBoundingClientRect();
-
-	popover.style.position = "absolute";
-	popover.style.left = `${rect.left - containerRect.left}px`;
-	popover.style.top = `${rect.bottom - containerRect.top + 4}px`;
-
-	/* Make sure the tracker container can host absolutely positioned children */
 	container.style.position = "relative";
+	popover.style.position = "absolute";
+	popover.style.visibility = "hidden";
 	container.appendChild(popover);
+
+	/* Measure everything */
+	const blockRect = blockEl.getBoundingClientRect();
+	const containerRect = container.getBoundingClientRect();
+	const popoverRect = popover.getBoundingClientRect();
+	const viewportWidth = window.innerWidth;
+	const viewportHeight = window.innerHeight;
+
+	/* Ideal position: below the block, aligned left */
+	let left = blockRect.left - containerRect.left;
+	let top = blockRect.bottom - containerRect.top + 4;
+
+	/* Prevent right overflow */
+	const rightOverflow = blockRect.left + popoverRect.width + 16 - viewportWidth;
+	if (rightOverflow > 0) {
+		left -= rightOverflow;
+	}
+
+	/* Prevent left overflow */
+	if (blockRect.left + left < 0) {
+		left = 0;
+	}
+
+	/* Flip above if it would go below viewport */
+	if (blockRect.bottom + popoverRect.height + 16 > viewportHeight) {
+		top = blockRect.top - containerRect.top - popoverRect.height - 4;
+	}
+
+	/* Pin to top if flipping still overflows */
+	if (top < 0) {
+		top = 4;
+	}
+
+	popover.style.left = `${left}px`;
+	popover.style.top = `${top}px`;
+	popover.style.visibility = "visible";
 
 	/* --- Button listeners --- */
 
