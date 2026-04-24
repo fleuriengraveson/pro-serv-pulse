@@ -1,0 +1,590 @@
+/* ============================================================================
+ * main.css — Chronos Custom Styles
+ * ============================================================================
+ * Complements Tailwind with app-specific styles that are easier to express
+ * in plain CSS: category color mappings, time grid interactions, transitions,
+ * and reusable component patterns.
+ * ========================================================================= */
+
+/* ----------------------------------------------------------------------------
+ * BASE / RESET
+ * ------------------------------------------------------------------------- */
+
+/* Smooth scrolling for the whole page */
+html {
+	scroll-behavior: smooth;
+}
+
+/* Remove default focus outlines, replace with our own */
+*:focus {
+	outline: none;
+}
+*:focus-visible {
+	outline: 2px solid #a78bfa;
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+/* ----------------------------------------------------------------------------
+ * NAVIGATION
+ * --------------------------------------------------------------------------
+ * Active/inactive states for the top nav buttons.
+ * ------------------------------------------------------------------------- */
+
+.nav-btn {
+	color: #78716c; /* stone-500 */
+}
+.nav-btn:hover {
+	color: #44403c; /* stone-700 */
+	background-color: #f5f5f4; /* surface-100 */
+}
+.nav-btn.active {
+	color: #7c3aed; /* chronos-600 */
+	background-color: #ede9fe; /* chronos-100 */
+	font-weight: 500;
+}
+
+/* ----------------------------------------------------------------------------
+ * TIME GRID — BLOCK COLORS
+ * --------------------------------------------------------------------------
+ * Each category gets a left-border accent and a subtle background tint.
+ * These classes are applied dynamically by tracker.js.
+ * ------------------------------------------------------------------------- */
+
+/* Base filled block styling */
+.time-block-filled {
+	border-left: 3px solid;
+	transition: all 0.15s ease;
+}
+
+/* Category-specific colors: border-left-color and background */
+.cat-meeting_internal {
+	border-left-color: #3b82f6;
+	background-color: #eff6ff;
+}
+.cat-meeting_merchant {
+	border-left-color: #06b6d4;
+	background-color: #ecfeff;
+}
+.cat-data_migration {
+	border-left-color: #8b5cf6;
+	background-color: #f5f3ff;
+}
+.cat-admin {
+	border-left-color: #f59e0b;
+	background-color: #fffbeb;
+}
+.cat-analytics {
+	border-left-color: #ec4899;
+	background-color: #fdf2f8;
+}
+.cat-research_sync {
+	border-left-color: #84cc16;
+	background-color: #f7fee7;
+}
+.cat-internal_tools {
+	border-left-color: #10b981;
+	background-color: #ecfdf5;
+}
+.cat-api_scoping {
+	border-left-color: #f97316;
+	background-color: #fff7ed;
+}
+.cat-hardware {
+	border-left-color: #ef4444;
+	background-color: #fef2f2;
+}
+.cat-zendesk_admin {
+	border-left-color: #eab308;
+	background-color: #fefce8;
+}
+.cat-lunch {
+	border-left-color: #d6d3d1;
+	background-color: #fafaf9;
+}
+.cat-other {
+	border-left-color: #94a3b8;
+	background-color: #f8fafc;
+}
+
+/* Dark mode category colors (for future use) */
+@media (prefers-color-scheme: dark) {
+	.cat-meeting_internal {
+		border-left-color: #60a5fa;
+		background-color: rgba(59, 130, 246, 0.1);
+	}
+	.cat-meeting_merchant {
+		border-left-color: #22d3ee;
+		background-color: rgba(6, 182, 212, 0.1);
+	}
+	.cat-data_migration {
+		border-left-color: #a78bfa;
+		background-color: rgba(139, 92, 246, 0.1);
+	}
+	.cat-admin {
+		border-left-color: #fbbf24;
+		background-color: rgba(245, 158, 11, 0.1);
+	}
+	.cat-analytics {
+		border-left-color: #f472b6;
+		background-color: rgba(236, 72, 153, 0.1);
+	}
+	.cat-research_sync {
+		border-left-color: #a3e635;
+		background-color: rgba(132, 204, 22, 0.1);
+	}
+	.cat-internal_tools {
+		border-left-color: #34d399;
+		background-color: rgba(16, 185, 129, 0.1);
+	}
+	.cat-api_scoping {
+		border-left-color: #fb923c;
+		background-color: rgba(249, 115, 22, 0.1);
+	}
+	.cat-hardware {
+		border-left-color: #f87171;
+		background-color: rgba(239, 68, 68, 0.1);
+	}
+	.cat-zendesk_admin {
+		border-left-color: #facc15;
+		background-color: rgba(234, 179, 8, 0.1);
+	}
+	.cat-lunch {
+		border-left-color: #57534e;
+		background-color: rgba(214, 211, 209, 0.05);
+	}
+	.cat-other {
+		border-left-color: #64748b;
+		background-color: rgba(148, 163, 184, 0.05);
+	}
+}
+
+/* ----------------------------------------------------------------------------
+ * TIME GRID — INTERACTIONS
+ * --------------------------------------------------------------------------
+ * Hover states, drag selection, and empty block styling.
+ * ------------------------------------------------------------------------- */
+
+/* Empty block: subtle dashed border on hover to invite clicking */
+.time-block-empty {
+	border-left: 3px solid transparent;
+	transition: all 0.15s ease;
+}
+.time-block-empty:hover {
+	background-color: #f5f5f4;
+	border-left-color: #d6d3d1;
+	cursor: pointer;
+}
+
+/* Drag selection highlight */
+.time-block-selecting {
+	background-color: #ede9fe !important;
+	border-left-color: #8b5cf6 !important;
+}
+
+/* Filled block hover: slightly darken for feedback */
+.time-block-filled:hover {
+	filter: brightness(0.97);
+	cursor: pointer;
+}
+
+/* ----------------------------------------------------------------------------
+ * INLINE EDIT DROPDOWN
+ * --------------------------------------------------------------------------
+ * The dropdown that appears when clicking a time block to assign a category.
+ * Positioned absolutely relative to the clicked block.
+ * ------------------------------------------------------------------------- */
+
+.edit-dropdown {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	z-index: 50;
+	min-width: 320px;
+	background: white;
+	border: 1px solid #e7e5e4;
+	border-radius: 12px;
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.08),
+		0 1px 4px rgba(0, 0, 0, 0.04);
+	padding: 8px;
+	animation: dropdown-in 0.15s ease;
+}
+
+@keyframes dropdown-in {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Category option in the dropdown */
+.dropdown-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: 8px;
+	font-size: 13px;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+.dropdown-option:hover {
+	background-color: #f5f5f4;
+}
+.dropdown-option.selected {
+	background-color: #f5f3ff;
+	font-weight: 500;
+}
+
+/* Color dot next to each category option */
+.cat-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 3px;
+	flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------------------
+ * DETAIL PANEL
+ * --------------------------------------------------------------------------
+ * The expanded panel that shows sub-category, billable, merchant, etc.
+ * fields below the category dropdown.
+ * ------------------------------------------------------------------------- */
+
+.detail-panel {
+	border-top: 1px solid #e7e5e4;
+	margin-top: 6px;
+	padding-top: 8px;
+}
+.detail-panel input[type="text"],
+.detail-panel input[type="url"] {
+	width: 100%;
+	padding: 6px 10px;
+	font-size: 13px;
+	border: 1px solid #e7e5e4;
+	border-radius: 8px;
+	background: #fafaf9;
+	transition: border-color 0.15s ease;
+}
+.detail-panel input:focus {
+	border-color: #a78bfa;
+	box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+}
+.detail-panel label {
+	font-size: 11px;
+	color: #78716c;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+/* ----------------------------------------------------------------------------
+ * STAT CARDS
+ * --------------------------------------------------------------------------
+ * Used in both individual and manager dashboards.
+ * ------------------------------------------------------------------------- */
+
+.stat-card {
+	background: #f5f5f4;
+	border-radius: 10px;
+	padding: 14px 16px;
+}
+.stat-card-label {
+	font-size: 11px;
+	color: #78716c;
+	font-weight: 500;
+	margin-bottom: 4px;
+}
+.stat-card-value {
+	font-size: 22px;
+	font-weight: 600;
+	color: #1c1917;
+	line-height: 1.2;
+}
+.stat-card-sub {
+	font-size: 11px;
+	color: #a8a29e;
+	margin-top: 4px;
+}
+
+/* ----------------------------------------------------------------------------
+ * PROGRESS BAR
+ * --------------------------------------------------------------------------
+ * Horizontal progress bar used for tracking compliance.
+ * ------------------------------------------------------------------------- */
+
+.progress-track {
+	height: 4px;
+	background: #e7e5e4;
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 8px;
+}
+.progress-fill {
+	height: 100%;
+	border-radius: 2px;
+	transition: width 0.4s ease;
+}
+/* Green when at or above target */
+.progress-fill-good {
+	background: #10b981;
+}
+/* Amber when below target */
+.progress-fill-warn {
+	background: #f59e0b;
+}
+/* Red when significantly below target */
+.progress-fill-bad {
+	background: #ef4444;
+}
+
+/* ----------------------------------------------------------------------------
+ * INSIGHT / ALERT CARDS
+ * --------------------------------------------------------------------------
+ * Colored cards used in the insights panel for outlier detection.
+ * ------------------------------------------------------------------------- */
+
+.insight-card {
+	border-radius: 10px;
+	padding: 10px 14px;
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+	margin-bottom: 8px;
+	font-size: 13px;
+	line-height: 1.5;
+}
+.insight-warning {
+	background: #fffbeb;
+	color: #92400e;
+}
+.insight-positive {
+	background: #ecfdf5;
+	color: #065f46;
+}
+.insight-info {
+	background: #eff6ff;
+	color: #1e40af;
+}
+.insight-flag {
+	background: #fef2f2;
+	color: #991b1b;
+}
+.insight-icon {
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 600;
+	color: white;
+	flex-shrink: 0;
+	margin-top: 1px;
+}
+
+/* ----------------------------------------------------------------------------
+ * TRANSITIONS
+ * --------------------------------------------------------------------------
+ * Smooth view transitions when switching between tracker/stats/manager.
+ * ------------------------------------------------------------------------- */
+
+.view-container {
+	transition: opacity 0.2s ease;
+}
+.view-container.hidden {
+	display: none;
+}
+.view-fade-in {
+	animation: fade-in 0.2s ease;
+}
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* ----------------------------------------------------------------------------
+ * SCROLLBAR STYLING
+ * --------------------------------------------------------------------------
+ * Subtle scrollbar that matches the minimal aesthetic.
+ * ------------------------------------------------------------------------- */
+
+::-webkit-scrollbar {
+	width: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: #d6d3d1;
+	border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #a8a29e;
+}
+
+/* ----------------------------------------------------------------------------
+ * CHART CONTAINER
+ * --------------------------------------------------------------------------
+ * Constrains Chart.js canvases to prevent them from growing unbounded.
+ * ------------------------------------------------------------------------- */
+
+.chart-container {
+	position: relative;
+	width: 100%;
+}
+.chart-container canvas {
+	max-height: 240px;
+}
+
+/* ----------------------------------------------------------------------------
+ * CLIPBOARD INDICATOR
+ * --------------------------------------------------------------------------
+ * Floating bar at the top of the grid showing what's on the clipboard.
+ * ------------------------------------------------------------------------- */
+
+.clipboard-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 12px;
+	margin-bottom: 8px;
+	background: #f5f3ff;
+	border: 1px solid #ddd6fe;
+	border-radius: 8px;
+	animation: fade-in 0.15s ease;
+}
+
+/* Pulsing dot to show clipboard is active */
+.clipboard-indicator::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #8b5cf6;
+	margin-right: 8px;
+	animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.3;
+	}
+}
+
+/* ----------------------------------------------------------------------------
+ * WEEK GRID
+ * --------------------------------------------------------------------------
+ * 5-column layout for the week view. Blocks are taller than the original
+ * to accommodate category labels and sub-category text.
+ * ------------------------------------------------------------------------- */
+
+.week-grid {
+	width: 100%;
+}
+.week-grid-header {
+	display: flex;
+	border-bottom: 1px solid #e7e5e4;
+	margin-bottom: 2px;
+}
+.week-grid-row {
+	display: flex;
+	align-items: stretch;
+	min-height: 36px;
+	border-bottom: 0.5px solid #f5f5f4;
+}
+
+/* Individual block cells — taller to fit text */
+.week-block {
+	min-height: 34px;
+	transition: all 0.1s ease;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 2px 6px;
+	overflow: hidden;
+}
+.week-block.time-block-empty:hover {
+	background-color: #f5f5f4;
+}
+
+/* Category label inside week blocks */
+.week-block-label {
+	font-size: 10px;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.3;
+}
+.week-block-sub {
+	font-size: 9px;
+	color: #a8a29e;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.2;
+}
+
+/* When clipboard is active, show a paste cursor on empty blocks */
+.clipboard-active .time-block-empty {
+	cursor: copy;
+}
+.clipboard-active .time-block-empty:hover {
+	background-color: #f5f3ff;
+	outline: 1px dashed #c4b5fd;
+}
+
+/* ----------------------------------------------------------------------------
+ * WEEK BLOCK DETAIL POPOVER
+ * --------------------------------------------------------------------------
+ * Small popover shown when clicking a filled block in week view.
+ * Shows the full entry details and action buttons.
+ * ------------------------------------------------------------------------- */
+
+.week-popover {
+	position: absolute;
+	z-index: 50;
+	width: 260px;
+	background: white;
+	border: 1px solid #e7e5e4;
+	border-radius: 12px;
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.08),
+		0 1px 4px rgba(0, 0, 0, 0.04);
+	padding: 12px;
+	animation: dropdown-in 0.15s ease;
+}
+.week-popover-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 3px 0;
+	font-size: 12px;
+}
+.week-popover-label {
+	color: #78716c;
+	font-size: 11px;
+}
+.week-popover-value {
+	font-weight: 500;
+	text-align: right;
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

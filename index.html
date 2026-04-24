@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Chronos — Time Tracker</title>
+
+		<!-- ====================================================================
+    EXTERNAL DEPENDENCIES (CDN)
+    ===================================================================== -->
+
+		<!-- Tailwind CSS — utility-first styling, no build step needed -->
+		<script src="https://cdn.tailwindcss.com"></script>
+
+		<!-- Chart.js — donut, bar, line charts for dashboards -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+		<!-- Dexie.js — clean IndexedDB wrapper for local data persistence -->
+		<script src="https://unpkg.com/dexie@3.2.6/dist/dexie.js"></script>
+
+		<!-- Google Fonts — Plus Jakarta Sans for a clean, warm feel -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap"
+			rel="stylesheet"
+		/>
+
+		<!-- ====================================================================
+    TAILWIND CONFIGURATION
+    Extends the default theme with our custom font and color palette.
+    ===================================================================== -->
+		<script>
+			tailwind.config = {
+				theme: {
+					extend: {
+						fontFamily: {
+							sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+						},
+						colors: {
+							/* Primary accent — soft violet */
+							chronos: {
+								50: "#F5F3FF",
+								100: "#EDE9FE",
+								200: "#DDD6FE",
+								300: "#C4B5FD",
+								400: "#A78BFA",
+								500: "#8B5CF6",
+								600: "#7C3AED",
+								700: "#6D28D9",
+							},
+							/* Surface colors for the calm, minimal aesthetic */
+							surface: {
+								50: "#FAFAF9",
+								100: "#F5F5F4",
+								200: "#E7E5E4",
+							},
+						},
+					},
+				},
+			};
+		</script>
+
+		<!-- Custom app styles -->
+		<link rel="stylesheet" href="css/main.css" />
+	</head>
+
+	<body class="bg-surface-50 text-stone-800 antialiased min-h-screen">
+		<!-- ==================================================================
+    APP SHELL
+    =================================================================== -->
+		<div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+			<!-- ================================================================
+      HEADER BAR
+      Contains the app title, main navigation, and action buttons.
+      ================================================================ -->
+			<header id="app-header" class="flex items-center justify-between mb-6">
+				<!-- Left: App title + view badge -->
+				<div class="flex items-center gap-3">
+					<h1 class="text-lg font-semibold tracking-tight text-stone-900">
+						Chronos
+					</h1>
+					<span
+						id="view-badge"
+						class="hidden text-xs font-medium px-2.5 py-0.5 rounded-full bg-chronos-100 text-chronos-600"
+					>
+						Manager view
+					</span>
+				</div>
+
+				<!-- Right: Navigation + action buttons -->
+				<nav class="flex items-center gap-2">
+					<!-- Navigation buttons — highlighted when active -->
+					<button
+						id="nav-tracker"
+						data-view="tracker"
+						class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors"
+					>
+						Tracker
+					</button>
+					<button
+						id="nav-stats"
+						data-view="stats"
+						class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors"
+					>
+						My stats
+					</button>
+					<button
+						id="nav-manager"
+						data-view="manager"
+						class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors hidden"
+					>
+						Team
+					</button>
+
+					<!-- Divider -->
+					<div class="w-px h-5 bg-stone-200 mx-1"></div>
+
+					<!-- Settings button -->
+					<button
+						id="nav-settings"
+						data-view="settings"
+						class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors text-stone-400 hover:text-stone-600"
+					>
+						<svg
+							class="w-4 h-4"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="1.5"
+								d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.204-.107-.397.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"
+							/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="1.5"
+								d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+							/>
+						</svg>
+					</button>
+
+					<!-- Export button -->
+					<button
+						id="btn-export"
+						class="text-sm px-3.5 py-1.5 rounded-lg bg-chronos-500 text-white font-medium hover:bg-chronos-600 transition-colors"
+					>
+						Export week
+					</button>
+				</nav>
+			</header>
+
+			<!-- ================================================================
+      ONBOARDING BANNER
+      Shown on first launch when the user hasn't set their name yet.
+      ================================================================ -->
+			<div
+				id="onboarding-banner"
+				class="hidden mb-6 p-4 rounded-xl bg-chronos-50 border border-chronos-200"
+			>
+				<div class="flex items-center gap-3">
+					<div class="flex-1">
+						<p class="text-sm font-medium text-chronos-700">
+							Welcome to Chronos
+						</p>
+						<p class="text-sm text-chronos-500 mt-0.5">
+							Set your name so it appears on your exports.
+						</p>
+					</div>
+					<input
+						id="onboarding-name"
+						type="text"
+						placeholder="Your name"
+						class="text-sm px-3 py-1.5 rounded-lg border border-chronos-200 bg-white focus:outline-none focus:ring-2 focus:ring-chronos-300 w-48"
+					/>
+					<button
+						id="onboarding-save"
+						class="text-sm px-3.5 py-1.5 rounded-lg bg-chronos-500 text-white font-medium hover:bg-chronos-600 transition-colors"
+					>
+						Save
+					</button>
+				</div>
+			</div>
+
+			<!-- ================================================================
+      VIEW CONTAINERS
+      Only one is visible at a time. The active view is controlled by
+      app.js based on navigation state.
+      ================================================================ -->
+
+			<!-- Daily time tracker view -->
+			<main id="view-tracker" class="view-container"></main>
+
+			<!-- Personal stats/dashboard view -->
+			<main id="view-stats" class="view-container hidden"></main>
+
+			<!-- Manager dashboard view (hidden for contributors) -->
+			<main id="view-manager" class="view-container hidden"></main>
+
+			<!-- Settings view -->
+			<main id="view-settings" class="view-container hidden"></main>
+		</div>
+
+		<!-- ==================================================================
+    APP MODULES (ES6)
+    Load the main app entry point as a module. It imports everything else.
+    =================================================================== -->
+		<script type="module" src="js/app.js"></script>
+	</body>
+</html>
