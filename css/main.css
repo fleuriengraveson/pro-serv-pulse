@@ -197,18 +197,31 @@ html {
 
 .edit-dropdown {
 	position: absolute;
-	top: 100%;
-	left: 0;
 	z-index: 50;
-	min-width: 320px;
+	width: 540px;
 	background: white;
 	border: 1px solid #e7e5e4;
 	border-radius: 12px;
 	box-shadow:
 		0 4px 24px rgba(0, 0, 0, 0.08),
 		0 1px 4px rgba(0, 0, 0, 0.04);
-	padding: 8px;
+	padding: 10px;
 	animation: dropdown-in 0.15s ease;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.dropdown-body {
+	display: flex;
+	gap: 10px;
+}
+
+.dropdown-categories {
+	width: 190px;
+	flex-shrink: 0;
+	max-height: 220px;
+	overflow-y: auto;
 }
 
 @keyframes dropdown-in {
@@ -257,30 +270,52 @@ html {
  * ------------------------------------------------------------------------- */
 
 .detail-panel {
-	border-top: 1px solid #e7e5e4;
-	margin-top: 6px;
-	padding-top: 8px;
+	flex: 1;
+	border-left: 1px solid #e7e5e4;
+	padding-left: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
 }
+
 .detail-panel input[type="text"],
 .detail-panel input[type="url"] {
 	width: 100%;
-	padding: 6px 10px;
-	font-size: 13px;
+	padding: 5px 8px;
+	font-size: 12px;
 	border: 1px solid #e7e5e4;
-	border-radius: 8px;
+	border-radius: 6px;
 	background: #fafaf9;
 	transition: border-color 0.15s ease;
 }
+
 .detail-panel input:focus {
 	border-color: #a78bfa;
 	box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
 }
-.detail-panel label {
+.detail-panel label.field-label {
 	font-size: 11px;
 	color: #78716c;
+	margin-bottom: 2px;
+	display: block;
+}
+
+.dropdown-buttons {
+	display: flex;
+	gap: 6px;
+	border-top: 1px solid #e7e5e4;
+	padding-top: 8px;
+}
+.dropdown-buttons button {
+	flex: 1;
+	padding: 6px 0;
+	text-align: center;
+	font-size: 12px;
 	font-weight: 500;
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
+	border-radius: 6px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: all 0.15s ease;
 }
 
 /* ----------------------------------------------------------------------------

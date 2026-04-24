@@ -424,119 +424,125 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 	dropdown.id = "active-dropdown";
 
 	/* --- Category list --- */
-	let html = '<div class="max-h-48 overflow-y-auto mb-1">';
-	CATEGORIES.forEach((cat) => {
-		const isSelected = entry.category === cat.id;
-		html += `
-      <div class="dropdown-option ${isSelected ? "selected" : ""}"
-            data-category="${cat.id}">
-        <div class="cat-dot" style="background: ${cat.hex}"></div>
-        <span>${cat.label}</span>
-      </div>
-    `;
-	});
-	html += "</div>";
+	let html = `
+    <!-- Two-column body: categories left, fields right -->
+    <div class="dropdown-body">
 
-	/* --- Detail fields (shown below category list) --- */
-	html += `
-    <div class="detail-panel" id="detail-fields">
-      <!-- Sub-category -->
-      <div class="mb-2">
-        <label class="block mb-1">Sub-category</label>
-        <input type="text" id="edit-subcategory"
-                value="${entry.subCategory || ""}"
-                placeholder="e.g., product import, team standup..." />
+      <!-- LEFT: Category list -->
+      <div class="dropdown-categories">
+        ${CATEGORIES.map((cat) => {
+					const isSelected = entry.category === cat.id;
+					return `
+            <div class="dropdown-option ${isSelected ? "selected" : ""}"
+                 data-category="${cat.id}">
+              <div class="cat-dot" style="background: ${cat.hex}"></div>
+              <span>${cat.label}</span>
+            </div>
+          `;
+				}).join("")}
       </div>
 
-      <!-- Billable + Urgent checkboxes (inline) -->
-      <div class="flex gap-4 mb-2">
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" id="edit-billable"
-                  ${entry.billable ? "checked" : ""}
-                  class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
-          <span class="text-xs text-stone-500">Billable</span>
-        </label>
-        <label class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" id="edit-urgent"
-                  ${entry.urgent ? "checked" : ""}
-                  class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
-          <span class="text-xs text-stone-500">Urgent</span>
-        </label>
-      </div>
+      <!-- RIGHT: Detail fields -->
+      <div class="detail-panel" id="detail-fields">
 
-      <!-- Ticket link -->
-      <div class="mb-2">
-        <label class="block mb-1">Ticket link</label>
-        <input type="text" id="edit-ticket"
-                value="${entry.ticketLink || ""}"
-                placeholder="URL or ticket number..." />
-      </div>
+        <!-- Sub-category (full width, most used field) -->
+        <div>
+          <label class="field-label">Sub-category</label>
+          <input type="text" id="edit-subcategory"
+                 value="${entry.subCategory || ""}"
+                 placeholder="e.g., product import, team standup..." />
+        </div>
 
+        <!-- Ticket + Merchant/Former POS row -->
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="field-label">Ticket</label>
+            <input type="text" id="edit-ticket"
+                   value="${entry.ticketLink || ""}"
+                   placeholder="URL or #..." />
+          </div>
+          ${
+						appState.settings.enableMerchant
+							? `
+          <div class="flex-1">
+            <label class="field-label">Merchant</label>
+            <input type="text" id="edit-merchant"
+                   value="${entry.merchant || ""}"
+                   placeholder="Merchant name..." />
+          </div>
+          `
+							: ""
+					}
+          ${
+						appState.settings.enableFormerPOS
+							? `
+          <div class="flex-1">
+            <label class="field-label">Former POS</label>
+            <input type="text" id="edit-formerpos"
+                   value="${entry.formerPOS || ""}"
+                   placeholder="Former POS..." />
+          </div>
+          `
+							: ""
+					}
+        </div>
+
+        <!-- Notes (full width) -->
+        <div>
+          <label class="field-label">Notes</label>
+          <input type="text" id="edit-notes"
+                 value="${entry.notes || ""}"
+                 placeholder="Any additional context..." />
+        </div>
+
+        <!-- Billable + Urgent checkboxes -->
+        <div class="flex gap-3 items-center py-1">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="edit-billable"
+                   ${entry.billable ? "checked" : ""}
+                   class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
+            <span class="text-xs text-stone-500">Billable</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="edit-urgent"
+                   ${entry.urgent ? "checked" : ""}
+                   class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
+            <span class="text-xs text-stone-500">Urgent</span>
+          </label>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Full-width button row -->
+    <div class="dropdown-buttons">
+      <button id="edit-save"
+              class="bg-chronos-500 text-white hover:bg-chronos-600">
+        Save
+      </button>
+      <button id="edit-copy"
+              class="border border-stone-200 text-stone-500 hover:text-chronos-500 hover:border-chronos-200">
+        Copy
+      </button>
       ${
-				appState.settings.enableMerchant
+				entry.category
 					? `
-      <!-- Merchant (only shown if enabled in settings) -->
-      <div class="mb-2">
-        <label class="block mb-1">Merchant</label>
-        <input type="text" id="edit-merchant"
-                value="${entry.merchant || ""}"
-                placeholder="Merchant name..." />
-      </div>
+      <button id="edit-clear"
+              class="border border-stone-200 text-stone-400 hover:text-red-500 hover:border-red-200">
+        Clear
+      </button>
       `
 					: ""
 			}
-
-      ${
-				appState.settings.enableFormerPOS
-					? `
-      <!-- Former POS (only shown if enabled in settings) -->
-      <div class="mb-2">
-        <label class="block mb-1">Former POS</label>
-        <input type="text" id="edit-formerpos"
-                value="${entry.formerPOS || ""}"
-                placeholder="Former POS system..." />
-      </div>
-      `
-					: ""
-			}
-
-      <!-- Notes -->
-      <div class="mb-2">
-        <label class="block mb-1">Notes</label>
-        <input type="text" id="edit-notes"
-                value="${entry.notes || ""}"
-                placeholder="Any additional notes..." />
-      </div>
-
-      <!-- Action buttons -->
-      <div class="flex gap-2 mt-3">
-        <button id="edit-save"
-                class="flex-1 text-xs py-1.5 rounded-lg bg-chronos-500 text-white font-medium hover:bg-chronos-600 transition-colors">
-          Save
-        </button>
-        ${
-					entry.category
-						? `
-        <button id="edit-clear"
-                class="text-xs py-1.5 px-3 rounded-lg border border-stone-200 text-stone-400 hover:text-red-500 hover:border-red-200 transition-colors">
-          Clear
-        </button>
-        `
-						: ""
-				}
-        <button id="edit-cancel"
-                class="text-xs py-1.5 px-3 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 transition-colors">
-          Cancel
-        </button>
-        <button id="edit-copy"
-                class="text-xs py-1.5 px-3 rounded-lg border border-stone-200 text-stone-400 hover:text-chronos-500 hover:border-chronos-200 transition-colors">
-          Copy
-        </button>
-      </div>
+      <button id="edit-cancel"
+              class="border border-stone-200 text-stone-400 hover:text-stone-600">
+        Cancel
+      </button>
     </div>
   `;
 
 	dropdown.innerHTML = html;
+
 	/* Position the dropdown near the clicked block */
 	const rect = blockEl.getBoundingClientRect();
 	const container = document.getElementById("view-tracker");
