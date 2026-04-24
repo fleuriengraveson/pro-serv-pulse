@@ -399,12 +399,11 @@ function renderSidebar(stats) {
  * @param {string} slot - The time slot being edited
  * @param {Element} blockEl - The DOM element of the clicked block
  */
-function showEditDropdown(slot, blockEl) {
+function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 	/* Close any existing dropdown first */
 	closeDropdown();
 
 	const entry = entries[slot] || {};
-	const row = blockEl.closest(".time-row");
 
 	/* Create the dropdown element */
 	const dropdown = document.createElement("div");
@@ -417,7 +416,7 @@ function showEditDropdown(slot, blockEl) {
 		const isSelected = entry.category === cat.id;
 		html += `
       <div class="dropdown-option ${isSelected ? "selected" : ""}"
-           data-category="${cat.id}">
+            data-category="${cat.id}">
         <div class="cat-dot" style="background: ${cat.hex}"></div>
         <span>${cat.label}</span>
       </div>
@@ -432,22 +431,22 @@ function showEditDropdown(slot, blockEl) {
       <div class="mb-2">
         <label class="block mb-1">Sub-category</label>
         <input type="text" id="edit-subcategory"
-               value="${entry.subCategory || ""}"
-               placeholder="e.g., product import, team standup..." />
+                value="${entry.subCategory || ""}"
+                placeholder="e.g., product import, team standup..." />
       </div>
 
       <!-- Billable + Urgent checkboxes (inline) -->
       <div class="flex gap-4 mb-2">
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input type="checkbox" id="edit-billable"
-                 ${entry.billable ? "checked" : ""}
-                 class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
+                  ${entry.billable ? "checked" : ""}
+                  class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
           <span class="text-xs text-stone-500">Billable</span>
         </label>
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input type="checkbox" id="edit-urgent"
-                 ${entry.urgent ? "checked" : ""}
-                 class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
+                  ${entry.urgent ? "checked" : ""}
+                  class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
           <span class="text-xs text-stone-500">Urgent</span>
         </label>
       </div>
@@ -456,8 +455,8 @@ function showEditDropdown(slot, blockEl) {
       <div class="mb-2">
         <label class="block mb-1">Ticket link</label>
         <input type="text" id="edit-ticket"
-               value="${entry.ticketLink || ""}"
-               placeholder="URL or ticket number..." />
+                value="${entry.ticketLink || ""}"
+                placeholder="URL or ticket number..." />
       </div>
 
       ${
@@ -467,8 +466,8 @@ function showEditDropdown(slot, blockEl) {
       <div class="mb-2">
         <label class="block mb-1">Merchant</label>
         <input type="text" id="edit-merchant"
-               value="${entry.merchant || ""}"
-               placeholder="Merchant name..." />
+                value="${entry.merchant || ""}"
+                placeholder="Merchant name..." />
       </div>
       `
 					: ""
@@ -481,8 +480,8 @@ function showEditDropdown(slot, blockEl) {
       <div class="mb-2">
         <label class="block mb-1">Former POS</label>
         <input type="text" id="edit-formerpos"
-               value="${entry.formerPOS || ""}"
-               placeholder="Former POS system..." />
+                value="${entry.formerPOS || ""}"
+                placeholder="Former POS system..." />
       </div>
       `
 					: ""
@@ -492,8 +491,8 @@ function showEditDropdown(slot, blockEl) {
       <div class="mb-2">
         <label class="block mb-1">Notes</label>
         <input type="text" id="edit-notes"
-               value="${entry.notes || ""}"
-               placeholder="Any additional notes..." />
+                value="${entry.notes || ""}"
+                placeholder="Any additional notes..." />
       </div>
 
       <!-- Action buttons -->
@@ -525,7 +524,17 @@ function showEditDropdown(slot, blockEl) {
   `;
 
 	dropdown.innerHTML = html;
-	row.appendChild(dropdown);
+	/* Position the dropdown near the clicked block */
+	const rect = blockEl.getBoundingClientRect();
+	const container = document.getElementById("view-tracker");
+	const containerRect = container.getBoundingClientRect();
+
+	dropdown.style.position = "absolute";
+	dropdown.style.left = `${rect.left - containerRect.left}px`;
+	dropdown.style.top = `${rect.bottom - containerRect.top + 4}px`;
+
+	container.style.position = "relative";
+	container.appendChild(dropdown);
 	activeDropdown = { element: dropdown, slot };
 
 	/* --- Dropdown event listeners --- */
@@ -548,7 +557,7 @@ function showEditDropdown(slot, blockEl) {
 		if (!selectedCategory) return;
 
 		const newEntry = {
-			date: formatDateISO(currentDate),
+			date: date || formatDateISO(currentDate),
 			timeSlot: slot,
 			category: selectedCategory,
 			subCategory:
@@ -563,16 +572,24 @@ function showEditDropdown(slot, blockEl) {
 
 		await saveEntry(newEntry);
 		closeDropdown();
-		await renderTracker(); // Re-render to show the updated block
+		if (onSaveCallback) {
+			await onSaveCallback();
+		} else {
+			await renderTracker();
+		}
 	});
 
 	/* Clear button (removes the entry) */
 	const clearBtn = dropdown.querySelector("#edit-clear");
 	if (clearBtn) {
 		clearBtn.addEventListener("click", async () => {
-			await deleteEntry(formatDateISO(currentDate), slot);
+			await deleteEntry(date || formatDateISO(currentDate), slot);
 			closeDropdown();
-			await renderTracker();
+			if (onSaveCallback) {
+				await onSaveCallback();
+			} else {
+				await renderTracker();
+			}
 		});
 	}
 
@@ -726,21 +743,14 @@ function attachWeekEventListeners() {
 	/* Block clicks */
 	document.querySelectorAll(".week-block").forEach((block) => {
 		block.addEventListener("click", async (e) => {
-			/* Don't trigger if clicking inside a popover */
 			if (e.target.closest(".week-popover")) return;
+			if (e.target.closest(".edit-dropdown")) return;
 
 			const slot = block.dataset.slot;
 			const date = block.dataset.date;
 
-			/* Paste from clipboard into empty block */
-			if (clipboard && block.classList.contains("time-block-empty")) {
-				await pasteBlock(date, slot);
-				await renderWeekView();
-				return;
-			}
-
-			/* Show detail popover for filled blocks */
 			if (block.classList.contains("time-block-filled")) {
+				/* Filled block: show detail popover */
 				const dayEntries = await getEntriesForDate(date);
 				const entry = dayEntries.find((e) => e.timeSlot === slot);
 				if (entry) {
@@ -748,9 +758,23 @@ function attachWeekEventListeners() {
 				}
 				return;
 			}
+
+			if (block.classList.contains("time-block-empty")) {
+				/* Empty block with clipboard: paste */
+				if (clipboard) {
+					await pasteBlock(date, slot);
+					await renderWeekView();
+					return;
+				}
+
+				/* Empty block without clipboard: open edit dropdown */
+				closeWeekPopover();
+				showEditDropdown(slot, block, date, renderWeekView);
+				return;
+			}
 		});
 
-		/* Double-click empty block: jump to day view for that day */
+		/* Double-click: jump to day view for that date */
 		block.addEventListener("dblclick", () => {
 			const date = block.dataset.date;
 			currentDate = parseDate(date);
@@ -759,13 +783,27 @@ function attachWeekEventListeners() {
 		});
 	});
 
+	/* Click outside to close popover and dropdown */
+	document.addEventListener("click", (e) => {
+		if (
+			!e.target.closest(".week-popover") &&
+			!e.target.closest(".week-block") &&
+			!e.target.closest(".edit-dropdown")
+		) {
+			closeWeekPopover();
+			closeDropdown();
+		}
+	});
+
 	/* Click outside to close popover */
 	document.addEventListener("click", (e) => {
 		if (
 			!e.target.closest(".week-popover") &&
-			!e.target.closest(".week-block")
+			!e.target.closest(".week-block") &&
+			!e.target.closest(".edit-dropdown")
 		) {
 			closeWeekPopover();
+			closeDropdown();
 		}
 	});
 }
