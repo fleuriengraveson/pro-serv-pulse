@@ -1175,9 +1175,18 @@ function showWeekPopover(entry, blockEl) {
 
 	popover.innerHTML = html;
 
-	/* Position the popover near the clicked block */
-	blockEl.style.position = "relative";
-	blockEl.appendChild(popover);
+	/* Position the popover near the clicked block using screen coordinates */
+	const rect = blockEl.getBoundingClientRect();
+	const container = document.getElementById("view-tracker");
+	const containerRect = container.getBoundingClientRect();
+
+	popover.style.position = "absolute";
+	popover.style.left = `${rect.left - containerRect.left}px`;
+	popover.style.top = `${rect.bottom - containerRect.top + 4}px`;
+
+	/* Make sure the tracker container can host absolutely positioned children */
+	container.style.position = "relative";
+	container.appendChild(popover);
 
 	/* --- Button listeners --- */
 
