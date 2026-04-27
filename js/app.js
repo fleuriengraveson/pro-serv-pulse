@@ -9,17 +9,18 @@
  *   - Global event coordination between modules
  * ========================================================================= */
 
-import { VIEWS } from './config.js';
-import { getUserSettings, saveUserSettings, getTierMap } from './db.js';
-import { initTracker } from './tracker.js';
-import { initSettings } from './settings.js';
+import { VIEWS } from "./config.js";
+import { getUserSettings, saveUserSettings, getTierMap } from "./db.js";
+import { initTracker } from "./tracker.js";
+import { initSettings } from "./settings.js";
+import { initStats } from "./stats.js";
 import {
-  getISOWeekKey,
-  getWeekDateRange,
-  generateExportFilename,
-  downloadJSON
-} from './utils.js';
-import { getEntriesForDateRange, getWeeklyNotes } from './db.js';
+	getISOWeekKey,
+	getWeekDateRange,
+	generateExportFilename,
+	downloadJSON,
+} from "./utils.js";
+import { getEntriesForDateRange, getWeeklyNotes } from "./db.js";
 
 /* ============================================================================
  * STATE
@@ -28,9 +29,9 @@ import { getEntriesForDateRange, getWeeklyNotes } from './db.js';
  * ========================================================================= */
 
 const state = {
-  currentView: VIEWS.TRACKER,  // Which view is currently visible
-  settings: null,               // Cached user settings
-  tierMap: null,                 // Cached tier mappings
+	currentView: VIEWS.TRACKER, // Which view is currently visible
+	settings: null, // Cached user settings
+	tierMap: null, // Cached tier mappings
 };
 
 /* ============================================================================
@@ -41,26 +42,26 @@ const state = {
  * ========================================================================= */
 
 async function init() {
-  /* Load user settings and tier mappings from IndexedDB */
-  state.settings = await getUserSettings();
-  state.tierMap = await getTierMap();
+	/* Load user settings and tier mappings from IndexedDB */
+	state.settings = await getUserSettings();
+	state.tierMap = await getTierMap();
 
-  /* Check if this is a first-time user (no name set) */
-  if (!state.settings.name) {
-    showOnboarding();
-  }
+	/* Check if this is a first-time user (no name set) */
+	if (!state.settings.name) {
+		showOnboarding();
+	}
 
-  /* Set up navigation button click handlers */
-  setupNavigation();
+	/* Set up navigation button click handlers */
+	setupNavigation();
 
-  /* Set up the export button */
-  setupExportButton();
+	/* Set up the export button */
+	setupExportButton();
 
-  /* Show/hide manager nav button based on role */
-  updateManagerVisibility();
+	/* Show/hide manager nav button based on role */
+	updateManagerVisibility();
 
-  /* Initialize and render the default view (tracker) */
-  await switchView(VIEWS.TRACKER);
+	/* Initialize and render the default view (tracker) */
+	await switchView(VIEWS.TRACKER);
 }
 
 /* ============================================================================
@@ -71,35 +72,35 @@ async function init() {
  * ========================================================================= */
 
 function showOnboarding() {
-  const banner = document.getElementById('onboarding-banner');
-  const input = document.getElementById('onboarding-name');
-  const saveBtn = document.getElementById('onboarding-save');
+	const banner = document.getElementById("onboarding-banner");
+	const input = document.getElementById("onboarding-name");
+	const saveBtn = document.getElementById("onboarding-save");
 
-  banner.classList.remove('hidden');
+	banner.classList.remove("hidden");
 
-  /* Save name when button is clicked */
-  saveBtn.addEventListener('click', async () => {
-    const name = input.value.trim();
-    if (!name) {
-      input.focus();
-      return;
-    }
+	/* Save name when button is clicked */
+	saveBtn.addEventListener("click", async () => {
+		const name = input.value.trim();
+		if (!name) {
+			input.focus();
+			return;
+		}
 
-    /* Persist the name to settings */
-    state.settings.name = name;
-    await saveUserSettings(state.settings);
+		/* Persist the name to settings */
+		state.settings.name = name;
+		await saveUserSettings(state.settings);
 
-    /* Hide the banner with a smooth transition */
-    banner.style.opacity = '0';
-    banner.style.transform = 'translateY(-8px)';
-    banner.style.transition = 'all 0.3s ease';
-    setTimeout(() => banner.classList.add('hidden'), 300);
-  });
+		/* Hide the banner with a smooth transition */
+		banner.style.opacity = "0";
+		banner.style.transform = "translateY(-8px)";
+		banner.style.transition = "all 0.3s ease";
+		setTimeout(() => banner.classList.add("hidden"), 300);
+	});
 
-  /* Also save on Enter key */
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveBtn.click();
-  });
+	/* Also save on Enter key */
+	input.addEventListener("keydown", (e) => {
+		if (e.key === "Enter") saveBtn.click();
+	});
 }
 
 /* ============================================================================
@@ -110,13 +111,13 @@ function showOnboarding() {
  * ========================================================================= */
 
 function setupNavigation() {
-  /* Attach click handler to all nav buttons */
-  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      switchView(view);
-    });
-  });
+	/* Attach click handler to all nav buttons */
+	document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			const view = btn.dataset.view;
+			switchView(view);
+		});
+	});
 }
 
 /**
@@ -127,38 +128,39 @@ function setupNavigation() {
  * @param {string} viewId - One of the VIEWS constants
  */
 async function switchView(viewId) {
-  /* Hide all view containers */
-  document.querySelectorAll('.view-container').forEach(el => {
-    el.classList.add('hidden');
-  });
+	/* Hide all view containers */
+	document.querySelectorAll(".view-container").forEach((el) => {
+		el.classList.add("hidden");
+	});
 
-  /* Show the requested view */
-  const viewEl = document.getElementById(`view-${viewId}`);
-  if (viewEl) {
-    viewEl.classList.remove('hidden');
-    viewEl.classList.add('view-fade-in');
-    /* Remove the animation class after it plays so it can re-trigger */
-    setTimeout(() => viewEl.classList.remove('view-fade-in'), 200);
-  }
+	/* Show the requested view */
+	const viewEl = document.getElementById(`view-${viewId}`);
+	if (viewEl) {
+		viewEl.classList.remove("hidden");
+		viewEl.classList.add("view-fade-in");
+		/* Remove the animation class after it plays so it can re-trigger */
+		setTimeout(() => viewEl.classList.remove("view-fade-in"), 200);
+	}
 
-  /* Update nav button active states */
-  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === viewId);
-  });
+	/* Update nav button active states */
+	document.querySelectorAll(".nav-btn[data-view]").forEach((btn) => {
+		btn.classList.toggle("active", btn.dataset.view === viewId);
+	});
 
-  /* Update the view badge visibility */
-  const badge = document.getElementById('view-badge');
-  badge.classList.toggle('hidden', viewId !== VIEWS.MANAGER);
+	/* Update the view badge visibility */
+	const badge = document.getElementById("view-badge");
+	badge.classList.toggle("hidden", viewId !== VIEWS.MANAGER);
 
-  /* Initialize the view if it hasn't been set up yet */
-  if (viewId === VIEWS.TRACKER) {
-    await initTracker(state);
-  } else if (viewId === VIEWS.SETTINGS) {
-    await initSettings(state, onSettingsChanged);
-  }
-  /* Stats and Manager views will be initialized in Phase 2 */
+	if (viewId === VIEWS.TRACKER) {
+		await initTracker(state);
+	} else if (viewId === VIEWS.STATS) {
+		await initStats(state);
+	} else if (viewId === VIEWS.SETTINGS) {
+		await initSettings(state, onSettingsChanged);
+	}
+	/* Manager view will be initialized in Phase 2 */
 
-  state.currentView = viewId;
+	state.currentView = viewId;
 }
 
 /**
@@ -167,12 +169,12 @@ async function switchView(viewId) {
  * has the manager role.
  */
 function updateManagerVisibility() {
-  const managerBtn = document.getElementById('nav-manager');
-  if (state.settings.role === 'manager') {
-    managerBtn.classList.remove('hidden');
-  } else {
-    managerBtn.classList.add('hidden');
-  }
+	const managerBtn = document.getElementById("nav-manager");
+	if (state.settings.role === "manager") {
+		managerBtn.classList.remove("hidden");
+	} else {
+		managerBtn.classList.add("hidden");
+	}
 }
 
 /**
@@ -183,14 +185,14 @@ function updateManagerVisibility() {
  * @param {Object} newSettings - The updated settings object
  */
 async function onSettingsChanged(newSettings) {
-  state.settings = newSettings;
-  state.tierMap = await getTierMap();
-  updateManagerVisibility();
+	state.settings = newSettings;
+	state.tierMap = await getTierMap();
+	updateManagerVisibility();
 
-  /* If the tracker is currently visible, re-render it with new settings */
-  if (state.currentView === VIEWS.TRACKER) {
-    await initTracker(state);
-  }
+	/* If the tracker is currently visible, re-render it with new settings */
+	if (state.currentView === VIEWS.TRACKER) {
+		await initTracker(state);
+	}
 }
 
 /* ============================================================================
@@ -201,8 +203,8 @@ async function onSettingsChanged(newSettings) {
  * ========================================================================= */
 
 function setupExportButton() {
-  const btn = document.getElementById('btn-export');
-  btn.addEventListener('click', exportCurrentWeek);
+	const btn = document.getElementById("btn-export");
+	btn.addEventListener("click", exportCurrentWeek);
 }
 
 /**
@@ -210,52 +212,54 @@ function setupExportButton() {
  * Gathers all data for the current week and triggers a JSON download.
  */
 async function exportCurrentWeek() {
-  const today = new Date();
-  const weekKey = getISOWeekKey(today);
-  const { startDate, endDate } = getWeekDateRange(today);
+	const today = new Date();
+	const weekKey = getISOWeekKey(today);
+	const { startDate, endDate } = getWeekDateRange(today);
 
-  /* Gather time entries for the week */
-  const entries = await getEntriesForDateRange(startDate, endDate);
+	/* Gather time entries for the week */
+	const entries = await getEntriesForDateRange(startDate, endDate);
 
-  /* Gather qualitative notes for the week */
-  const notes = await getWeeklyNotes(weekKey);
+	/* Gather qualitative notes for the week */
+	const notes = await getWeeklyNotes(weekKey);
 
-  /* Build the export object */
-  const exportData = {
-    exportDate: new Date().toISOString(),
-    appVersion: '1.0.0',
-    weekKey,
-    startDate,
-    endDate,
-    contributor: {
-      name: state.settings.name || 'Unnamed',
-      role: state.settings.role,
-    },
-    entries: entries.map(e => ({
-      /* Strip the internal auto-increment ID — not needed in exports */
-      date: e.date,
-      timeSlot: e.timeSlot,
-      category: e.category,
-      subCategory: e.subCategory || '',
-      billable: e.billable || false,
-      merchant: e.merchant || '',
-      urgent: e.urgent || false,
-      ticketLink: e.ticketLink || '',
-      formerPOS: e.formerPOS || '',
-      notes: e.notes || '',
-    })),
-    weeklyNotes: notes ? {
-      wins: notes.wins || '',
-      losses: notes.losses || '',
-      issues: notes.issues || '',
-      customerMeetings: notes.customerMeetings || '',
-    } : null,
-    tierMap: state.tierMap,
-  };
+	/* Build the export object */
+	const exportData = {
+		exportDate: new Date().toISOString(),
+		appVersion: "1.0.0",
+		weekKey,
+		startDate,
+		endDate,
+		contributor: {
+			name: state.settings.name || "Unnamed",
+			role: state.settings.role,
+		},
+		entries: entries.map((e) => ({
+			/* Strip the internal auto-increment ID — not needed in exports */
+			date: e.date,
+			timeSlot: e.timeSlot,
+			category: e.category,
+			subCategory: e.subCategory || "",
+			billable: e.billable || false,
+			merchant: e.merchant || "",
+			urgent: e.urgent || false,
+			ticketLink: e.ticketLink || "",
+			formerPOS: e.formerPOS || "",
+			notes: e.notes || "",
+		})),
+		weeklyNotes: notes
+			? {
+					wins: notes.wins || "",
+					losses: notes.losses || "",
+					issues: notes.issues || "",
+					customerMeetings: notes.customerMeetings || "",
+				}
+			: null,
+		tierMap: state.tierMap,
+	};
 
-  /* Generate filename and trigger download */
-  const filename = generateExportFilename(state.settings.name, weekKey);
-  downloadJSON(exportData, filename);
+	/* Generate filename and trigger download */
+	const filename = generateExportFilename(state.settings.name, weekKey);
+	downloadJSON(exportData, filename);
 }
 
 /* ============================================================================
@@ -266,11 +270,11 @@ async function exportCurrentWeek() {
  * ========================================================================= */
 
 export function getAppState() {
-  return state;
+	return state;
 }
 
 export function refreshView() {
-  switchView(state.currentView);
+	switchView(state.currentView);
 }
 
 /* ============================================================================
@@ -279,4 +283,4 @@ export function refreshView() {
  * Kick off initialization when the DOM is ready.
  * ========================================================================= */
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener("DOMContentLoaded", init);
