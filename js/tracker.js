@@ -379,10 +379,23 @@ async function calculateSidebarStats() {
  * @returns {string} HTML string
  */
 function renderSidebar(stats) {
-	/* Determine progress bar color based on weekly compliance */
-	let progressClass = "progress-fill-good";
+	/* Daily progress bar color — based on daily percentage */
+	const dailyPercent =
+		TARGETS.dailyTrackableHours > 0
+			? Math.round((stats.dailyTracked / TARGETS.dailyTrackableHours) * 100)
+			: 0;
+	let dailyProgressClass = "progress-fill-good";
+	if (dailyPercent < TARGETS.compliancePercent) {
+		dailyProgressClass =
+			dailyPercent < TARGETS.compliancePercent * 0.7
+				? "progress-fill-bad"
+				: "progress-fill-warn";
+	}
+
+	/* Weekly progress bar color — based on weekly percentage */
+	let weeklyProgressClass = "progress-fill-good";
 	if (stats.weeklyPercent < TARGETS.compliancePercent) {
-		progressClass =
+		weeklyProgressClass =
 			stats.weeklyPercent < TARGETS.compliancePercent * 0.7
 				? "progress-fill-bad"
 				: "progress-fill-warn";
@@ -397,7 +410,7 @@ function renderSidebar(stats) {
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.dailyTrackableHours} hrs</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill ${progressClass}"
+        <div class="progress-fill ${dailyProgressClass}"
              style="width: ${Math.min(100, Math.round((stats.dailyTracked / TARGETS.dailyTrackableHours) * 100))}%"></div>
       </div>
     </div>
@@ -410,7 +423,7 @@ function renderSidebar(stats) {
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.weeklyTrackableHours} hrs</span>
       </div>
       <div class="progress-track">
-        <div class="progress-fill ${progressClass}" style="width: ${Math.min(100, stats.weeklyPercent)}%"></div>
+        <div class="progress-fill ${weeklyProgressClass}" style="width: ${Math.min(100, stats.weeklyPercent)}%"></div>
       </div>
       <div class="stat-card-sub">${stats.weeklyPercent}% — target ${TARGETS.compliancePercent}%</div>
     </div>
