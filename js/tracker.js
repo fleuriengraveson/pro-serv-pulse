@@ -55,10 +55,17 @@ let activeView = "day"; // 'day' or 'week' — which sub-view is active
 
 /* Track Shift key state globally for range-fill */
 document.addEventListener("keydown", (e) => {
+	/* Ignore keyboard shortcuts when user is typing in a text field */
+	const tag = e.target.tagName;
+	const isTyping =
+		tag === "INPUT" ||
+		tag === "TEXTAREA" ||
+		tag === "SELECT" ||
+		e.target.isContentEditable;
+
 	if (e.key === "Shift") isShiftDown = true;
-	/* Escape clears the clipboard */
+
 	if (e.key === "Escape") {
-		/* Close any open dropdown or popover first */
 		if (activeDropdown) {
 			closeDropdown();
 			return;
@@ -68,10 +75,31 @@ document.addEventListener("keydown", (e) => {
 			closeWeekPopover();
 			return;
 		}
-		/* If nothing else is open, clear the clipboard */
 		if (clipboard) {
 			clipboard = null;
 			updateClipboardIndicator();
+		}
+	}
+
+	/* View switching shortcuts — only when not typing */
+	if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+		if (e.key === "d" || e.key === "D") {
+			closeDropdown();
+			closeWeekPopover();
+			activeView = "day";
+			renderTracker();
+		}
+		if (e.key === "w" || e.key === "W") {
+			closeDropdown();
+			closeWeekPopover();
+			activeView = "week";
+			renderWeekView();
+		}
+		if (e.key === "n" || e.key === "N") {
+			closeDropdown();
+			closeWeekPopover();
+			activeView = "notes";
+			renderNotesView();
 		}
 	}
 });
@@ -192,11 +220,11 @@ async function renderTracker() {
 		<!-- View toggle -->
 		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
 		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm " : "text-stone-400 hover:text-stone-600"}">Day</button>
+			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm " : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
 		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
 		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
+			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
 		</div>
     </div>
 
