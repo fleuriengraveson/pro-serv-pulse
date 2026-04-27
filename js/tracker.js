@@ -34,6 +34,9 @@ import {
 	countTrackedHours,
 	aggregateByTier,
 	countBillableHours,
+	filterEntriesUpToNow,
+	countExpectedHoursUpToNow,
+	isToday,
 } from "./utils.js";
 
 /* ============================================================================
@@ -348,26 +351,63 @@ async function calculateSidebarStats() {
 
 	/* --- Daily stats --- */
 	const dayEntries = Object.values(entries).filter((e) => e.category);
-	const dailyTracked = countTrackedHours(dayEntries);
-	const dailyBillable = countBillableHours(dayEntries);
-	const dailyTiers = aggregateByTier(dayEntries, tierMap);
+	/* For today, only count blocks up to the current time */
+	const currentDateStr = formatDateISO(currentDate);
+	const relevantDayEntries = isToday(currentDateStr)
+		? filterEntriesUpToNow(dayEntries)
+		: dayEntries;
+	const dailyTracked = countTrackedHours(relevantDayEntries);
+	const dailyBillable = countBillableHours(relevantDayEntries);
+	const dailyTiers = aggregateByTier(relevantDayEntries, tierMap);
+
+	/* Daily expected hours — for today, only up to current time */
+	const dailyExpected = isToday(currentDateStr)
+		? countExpectedHoursUpToNow(
+				currentDateStr,
+				currentDateStr,
+				TARGETS.dailyTrackableHours,
+			)
+		: TARGETS.dailyTrackableHours;
 
 	/* --- Weekly stats --- */
 	const weekStart = formatDateISO(weekDates[0]);
 	const weekEnd = formatDateISO(weekDates[4]);
 	const weekEntries = await getEntriesForDateRange(weekStart, weekEnd);
-	const weeklyTracked = countTrackedHours(weekEntries);
+	/* Filter to only past and current-time entries */
+	const relevantWeekEntries = filterEntriesUpToNow(weekEntries);
+	const weeklyTracked = countTrackedHours(relevantWeekEntries);
+
+	/* Weekly expected hours — only counts up to now, not future days */
+	const weeklyExpected = countExpectedHoursUpToNow(
+		weekStart,
+		weekEnd,
+		TARGETS.dailyTrackableHours,
+	);
 	const weeklyPercent =
-		TARGETS.weeklyTrackableHours > 0
-			? Math.round((weeklyTracked / TARGETS.weeklyTrackableHours) * 100)
-			: 0;
+		weeklyExpected > 0 ? Math.round((weeklyTracked / weeklyExpected) * 100) : 0;
+
+	/* Minimum target = 60% of elapsed hours */
+	const dailyTarget = parseFloat(
+		((dailyExpected * TARGETS.compliancePercent) / 100).toFixed(1),
+	);
+	const weeklyTarget = parseFloat(
+		((weeklyExpected * TARGETS.compliancePercent) / 100).toFixed(1),
+	);
+	const dailyPace = parseFloat((dailyTracked - dailyTarget).toFixed(1));
+	const weeklyPace = parseFloat((weeklyTracked - weeklyTarget).toFixed(1));
 
 	return {
 		dailyTracked,
 		dailyBillable,
 		dailyTiers,
+		dailyExpected,
+		dailyTarget,
+		dailyPace,
 		weeklyTracked,
+		weeklyExpected,
+		weeklyTarget,
 		weeklyPercent,
+		weeklyPace,
 	};
 }
 
@@ -379,27 +419,55 @@ async function calculateSidebarStats() {
  * @returns {string} HTML string
  */
 function renderSidebar(stats) {
-	/* Daily progress bar color — based on daily percentage */
-	const dailyPercent =
+	/* Daily progress bar — percentage of full day */
+	const dailyBarPercent =
 		TARGETS.dailyTrackableHours > 0
-			? Math.round((stats.dailyTracked / TARGETS.dailyTrackableHours) * 100)
+			? Math.min(
+					100,
+					Math.round((stats.dailyTracked / TARGETS.dailyTrackableHours) * 100),
+				)
 			: 0;
-	let dailyProgressClass = "progress-fill-good";
-	if (dailyPercent < TARGETS.compliancePercent) {
-		dailyProgressClass =
-			dailyPercent < TARGETS.compliancePercent * 0.7
-				? "progress-fill-bad"
-				: "progress-fill-warn";
+	/* Daily expected marker position — percentage of full day */
+	const dailyMarkerPercent =
+		TARGETS.dailyTrackableHours > 0
+			? Math.min(
+					100,
+					Math.round((stats.dailyTarget / TARGETS.dailyTrackableHours) * 100),
+				)
+			: 0;
+
+	/* Weekly progress bar — percentage of full week */
+	const weeklyBarPercent =
+		TARGETS.weeklyTrackableHours > 0
+			? Math.min(
+					100,
+					Math.round(
+						(stats.weeklyTracked / TARGETS.weeklyTrackableHours) * 100,
+					),
+				)
+			: 0;
+	/* Weekly expected marker position */
+	const weeklyMarkerPercent =
+		TARGETS.weeklyTrackableHours > 0
+			? Math.min(
+					100,
+					Math.round((stats.weeklyTarget / TARGETS.weeklyTrackableHours) * 100),
+				)
+			: 0;
+
+	/* Pace text and color class */
+	function paceDisplay(pace) {
+		const absPace = Math.abs(pace);
+		if (pace >= 0.5)
+			return { text: `${absPace} hrs ahead of pace`, cls: "pace-ahead" };
+		if (pace > -0.5) return { text: "On pace", cls: "pace-even" };
+		if (pace > -2)
+			return { text: `${absPace} hrs behind pace`, cls: "pace-behind" };
+		return { text: `${absPace} hrs behind pace`, cls: "pace-far-behind" };
 	}
 
-	/* Weekly progress bar color — based on weekly percentage */
-	let weeklyProgressClass = "progress-fill-good";
-	if (stats.weeklyPercent < TARGETS.compliancePercent) {
-		weeklyProgressClass =
-			stats.weeklyPercent < TARGETS.compliancePercent * 0.7
-				? "progress-fill-bad"
-				: "progress-fill-warn";
-	}
+	const dailyPaceInfo = paceDisplay(stats.dailyPace);
+	const weeklyPaceInfo = paceDisplay(stats.weeklyPace);
 
 	return `
     <!-- Daily tracked hours -->
@@ -409,10 +477,18 @@ function renderSidebar(stats) {
         ${stats.dailyTracked}
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.dailyTrackableHours} hrs</span>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill ${dailyProgressClass}"
-             style="width: ${Math.min(100, Math.round((stats.dailyTracked / TARGETS.dailyTrackableHours) * 100))}%"></div>
+      <div class="progress-with-marker">
+        <div class="progress-fill progress-fill-good" style="width: ${dailyBarPercent}%;"></div>
+        ${
+					dailyMarkerPercent > 0
+						? `
+          <div class="progress-marker" style="left: ${dailyMarkerPercent}%;"></div>
+          <div class="progress-marker-label" style="left: ${dailyMarkerPercent}%;">${stats.dailyTarget}h min</div>
+        `
+						: ""
+				}
       </div>
+      <div class="pace-text ${dailyPaceInfo.cls}">${dailyPaceInfo.text}</div>
     </div>
 
     <!-- Weekly tracked hours -->
@@ -422,10 +498,18 @@ function renderSidebar(stats) {
         ${stats.weeklyTracked}
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.weeklyTrackableHours} hrs</span>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill ${weeklyProgressClass}" style="width: ${Math.min(100, stats.weeklyPercent)}%"></div>
+      <div class="progress-with-marker">
+        <div class="progress-fill progress-fill-good" style="width: ${weeklyBarPercent}%;"></div>
+        ${
+					weeklyMarkerPercent > 0
+						? `
+          <div class="progress-marker" style="left: ${weeklyMarkerPercent}%;"></div>
+          <div class="progress-marker-label" style="left: ${weeklyMarkerPercent}%;">${stats.weeklyTarget}h min</div>
+        `
+						: ""
+				}
       </div>
-      <div class="stat-card-sub">${stats.weeklyPercent}% — target ${TARGETS.compliancePercent}%</div>
+      <div class="pace-text ${weeklyPaceInfo.cls}">${weeklyPaceInfo.text}</div>
     </div>
 
     <!-- Tier breakdown for today -->

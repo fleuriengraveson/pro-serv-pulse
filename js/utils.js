@@ -207,6 +207,110 @@ export function formatTimeSlot(slot) {
 	return `${displayHour}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+/**
+ * getCurrentTimeSlot
+ * Returns the current 30-minute slot string based on the current time.
+ * For example, at 2:15 PM this returns '14:00'.
+ *
+ * @returns {string} Current time slot, e.g., '14:00'
+ */
+export function getCurrentTimeSlot() {
+	const now = new Date();
+	const h = now.getHours();
+	const m = now.getMinutes() < 30 ? 0 : 30;
+	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * isToday
+ * Checks if a date string matches today's date.
+ *
+ * @param {string} dateStr - Date in 'YYYY-MM-DD' format
+ * @returns {boolean}
+ */
+export function isToday(dateStr) {
+	return dateStr === formatDateISO(new Date());
+}
+
+/**
+ * isFutureDate
+ * Checks if a date string is in the future (after today).
+ *
+ * @param {string} dateStr - Date in 'YYYY-MM-DD' format
+ * @returns {boolean}
+ */
+export function isFutureDate(dateStr) {
+	return dateStr > formatDateISO(new Date());
+}
+
+/**
+ * filterEntriesUpToNow
+ * Filters a set of entries to only include blocks that have already
+ * occurred. For today's date, only includes blocks up to the current
+ * time slot. For past dates, includes everything. For future dates,
+ * excludes everything.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {Array<Object>} Filtered entries
+ */
+export function filterEntriesUpToNow(entries) {
+	const todayStr = formatDateISO(new Date());
+	const currentSlot = getCurrentTimeSlot();
+
+	return entries.filter((entry) => {
+		if (entry.date < todayStr) return true; // Past day — include all
+		if (entry.date > todayStr) return false; // Future day — exclude all
+		return entry.timeSlot <= currentSlot; // Today — include up to current slot
+	});
+}
+
+/**
+ * countExpectedHoursUpToNow
+ * Calculates how many hours the user should have tracked so far,
+ * accounting for the current time. For past days in the range,
+ * counts the full day. For today, counts only up to the current slot.
+ * For future days, counts nothing.
+ *
+ * @param {string} startDate - Range start in 'YYYY-MM-DD' format
+ * @param {string} endDate   - Range end in 'YYYY-MM-DD' format
+ * @param {number} hoursPerDay - Expected hours per day (default 8)
+ * @returns {number} Expected hours so far
+ */
+export function countExpectedHoursUpToNow(startDate, endDate, hoursPerDay = 8) {
+	const todayStr = formatDateISO(new Date());
+	const currentSlot = getCurrentTimeSlot();
+	const start = parseDate(startDate);
+	const end = parseDate(endDate);
+	let total = 0;
+
+	const d = new Date(start);
+	while (d <= end) {
+		const dayOfWeek = d.getDay();
+		/* Skip weekends */
+		if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+			const dateStr = formatDateISO(d);
+
+			if (dateStr < todayStr) {
+				/* Past day — full expected hours */
+				total += hoursPerDay;
+			} else if (dateStr === todayStr) {
+				/* Today — count hours up to current slot */
+				const dayStart = 8; // TODO: use user's configured start hour
+				const [currentH, currentM] = currentSlot.split(":").map(Number);
+				const currentMinutes = (currentH - dayStart) * 60 + currentM + 30; // +30 because we include the current slot
+				const maxMinutes = hoursPerDay * 60;
+				total += Math.min(currentMinutes, maxMinutes) / 60;
+				/* Clamp to zero in case current time is before work start */
+				if (total < 0) total = 0;
+			}
+			/* Future days — add nothing */
+		}
+		d.setDate(d.getDate() + 1);
+	}
+
+	return Math.round(total * 10) / 10; // Round to 1 decimal
+}
+
 /* ============================================================================
  * STATISTICS AND OUTLIER DETECTION
  * ========================================================================= */

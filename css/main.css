@@ -600,6 +600,53 @@ body {
 	background: var(--progress-bad);
 }
 
+/* Progress bar with pace marker */
+.progress-with-marker {
+	position: relative;
+	height: 6px;
+	background: var(--progress-track);
+	border-radius: 3px;
+	margin-top: 15px;
+	overflow: visible;
+}
+.progress-with-marker .progress-fill {
+	height: 100%;
+	border-radius: 3px;
+	transition: width 0.4s ease;
+}
+.progress-marker {
+	position: absolute;
+	top: -3px;
+	height: 12px;
+	width: 2px;
+	background: var(--text-muted);
+	border-radius: 1px;
+}
+.progress-marker-label {
+	position: absolute;
+	top: -16px;
+	font-size: 9px;
+	color: var(--text-muted);
+	transform: translateX(-50%);
+	white-space: nowrap;
+}
+.pace-text {
+	font-size: 11px;
+	margin-top: 10px;
+}
+.pace-ahead {
+	color: var(--positive);
+}
+.pace-behind {
+	color: var(--warning);
+}
+.pace-far-behind {
+	color: var(--danger);
+}
+.pace-even {
+	color: var(--text-muted);
+}
+
 /* ----------------------------------------------------------------------------
  * INSIGHT / ALERT CARDS
  * --------------------------------------------------------------------------
