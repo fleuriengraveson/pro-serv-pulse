@@ -15,7 +15,11 @@
  * ========================================================================= */
 
 import { CATEGORIES, TARGETS, TIERS, TIME_DEFAULTS } from "./config.js";
-import { getEntriesForDateRange, getTierMap } from "./db.js";
+import {
+	getEntriesForDateRange,
+	getTierMap,
+	getFirstTrackedDate,
+} from "./db.js";
 import {
 	formatDateISO,
 	formatDateDisplay,
@@ -188,25 +192,32 @@ function navigatePeriod(direction) {
 /**
  * getHistoricalWeeklyData
  * Fetches the past N weeks of data for trend analysis and outlier detection.
- * Returns an array of weekly aggregation objects.
+ * Only includes weeks that fall on or after the user's first ever tracked date.
  *
- * @param {number} numWeeks - Number of historical weeks to fetch
+ * @param {number} numWeeks - Maximum number of historical weeks to fetch
  * @returns {Promise<Array<Object>>} Array of { weekKey, entries, tracked, byCategory, byTier }
  */
 async function getHistoricalWeeklyData(numWeeks = 8) {
 	const weeks = [];
 	const tierMap = await getTierMap();
 	const d = new Date(periodDate);
+	const firstDate = await getFirstTrackedDate();
 
 	for (let i = 0; i < numWeeks; i++) {
-		/* Move back one week at a time */
 		const refDate = new Date(d);
 		refDate.setDate(refDate.getDate() - i * 7);
 
 		const weekDates = getWeekDates(refDate);
 		const startDate = formatDateISO(weekDates[0]);
 		const endDate = formatDateISO(weekDates[4]);
+
+		/* Stop if this week is entirely before the first tracked date */
+		if (firstDate && endDate < firstDate) break;
+
 		const entries = await getEntriesForDateRange(startDate, endDate);
+
+		/* Skip weeks with zero entries — they're gaps, not real data */
+		if (entries.length === 0 && i > 0) continue;
 
 		weeks.push({
 			weekKey: getISOWeekKey(refDate),
@@ -240,8 +251,9 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 function generateInsights(currentStats, history) {
 	const insights = [];
 
-	/* Need at least 3 weeks of history for meaningful comparisons */
-	if (history.length < 3) {
+	/* Need at least 3 weeks of history WITH data for meaningful comparisons */
+	const weeksWithData = history.filter((w) => w.tracked > 0);
+	if (weeksWithData.length < 3) {
 		insights.push({
 			type: "info",
 			icon: "i",
@@ -252,7 +264,7 @@ function generateInsights(currentStats, history) {
 	}
 
 	/* Skip the current week in history for comparisons */
-	const pastWeeks = history.slice(1);
+	const pastWeeks = history.slice(1).filter((w) => w.tracked > 0);
 	const tierMap = appState.tierMap || {};
 
 	/* --- Compliance check --- */

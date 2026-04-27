@@ -210,6 +210,18 @@ export async function clearAllEntries() {
 	await db.entries.clear();
 }
 
+/**
+ * getFirstTrackedDate
+ * Finds the date of the earliest time entry in the database.
+ * Returns null if no entries exist yet.
+ *
+ * @returns {Promise<string|null>} Earliest date in 'YYYY-MM-DD' format, or null
+ */
+export async function getFirstTrackedDate() {
+	const earliest = await db.entries.orderBy("date").first();
+	return earliest ? earliest.date : null;
+}
+
 /* ============================================================================
  * WEEKLY NOTES OPERATIONS
  * ========================================================================= */
