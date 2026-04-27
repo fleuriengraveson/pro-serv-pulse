@@ -240,6 +240,9 @@ async function renderTracker() {
 
 	/* Attach event listeners after rendering */
 	attachEventListeners();
+
+	/* Re-show clipboard indicator if clipboard is active */
+	if (clipboard) updateClipboardIndicator();
 }
 
 /* ============================================================================
