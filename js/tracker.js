@@ -19,6 +19,8 @@ import {
 	deleteEntry,
 	getEntriesForDateRange,
 	getTierMap,
+	getWeeklyNotes,
+	saveWeeklyNotes,
 } from "./db.js";
 import {
 	generateTimeSlots,
@@ -27,6 +29,7 @@ import {
 	formatDateDisplay,
 	formatDateShort,
 	getWeekDates,
+	getISOWeekKey,
 	parseDate,
 	countTrackedHours,
 	aggregateByTier,
@@ -136,6 +139,10 @@ async function renderTracker() {
 		await renderWeekView();
 		return;
 	}
+	if (activeView === "notes") {
+		await renderNotesView();
+		return;
+	}
 
 	const container = document.getElementById("view-tracker");
 
@@ -154,80 +161,82 @@ async function renderTracker() {
 	/* Build the HTML */
 	container.innerHTML = `
     <!-- ================================================================
-      DAY NAVIGATION
-      Date display with prev/next arrows and week day chips.
-      ================================================================ -->
+        DAY NAVIGATION
+        Date display with prev/next arrows and week day chips.
+        ================================================================ -->
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <button id="prev-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <span id="current-date" class="text-sm font-medium min-w-[160px] text-center">${formatDateDisplay(currentDate)}</span>
-        <button id="next-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
+        <div class="flex items-center gap-3">
+            <button id="prev-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <span id="current-date" class="text-sm font-medium min-w-[160px] text-center">${formatDateDisplay(currentDate)}</span>
+            <button id="next-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </button>
+        </div>
 
-      <!-- Quick actions -->
-      <div class="flex items-center gap-2">
-        <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          Fill lunch
-        </button>
-        <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          Today
-        </button>
-      </div>
+        <!-- Quick actions -->
+        <div class="flex items-center gap-2">
+            <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                Fill lunch
+            </button>
+            <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                Today
+            </button>
+        </div>
 
-      <!-- View toggle -->
-      <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
-        <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          bg-white text-stone-700 font-medium shadow-sm">Day</button>
-        <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          text-stone-400 hover:text-stone-600">Week</button>
-      </div>
+		<!-- View toggle -->
+		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
+		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
+		</div>
     </div>
 
     <!-- Week day chips -->
     <div class="flex gap-1 mb-6">
-      ${weekDates
-				.map((d) => {
-					const isActive = formatDateISO(d) === formatDateISO(currentDate);
-					return `
-          <button class="week-chip flex-1 py-2 text-center text-xs rounded-lg transition-colors
-            ${
-							isActive
-								? "bg-chronos-100 text-chronos-600 font-medium"
-								: "bg-surface-100 text-stone-400 hover:bg-surface-200"
-						}"
-            data-date="${formatDateISO(d)}">
-            ${formatDateShort(d)}
-          </button>
+        ${weekDates
+					.map((d) => {
+						const isActive = formatDateISO(d) === formatDateISO(currentDate);
+						return `
+            <button class="week-chip flex-1 py-2 text-center text-xs rounded-lg transition-colors
+                ${
+									isActive
+										? "bg-chronos-100 text-chronos-600 font-medium"
+										: "bg-surface-100 text-stone-400 hover:bg-surface-200"
+								}"
+                data-date="${formatDateISO(d)}">
+                ${formatDateShort(d)}
+            </button>
         `;
-				})
-				.join("")}
+					})
+					.join("")}
     </div>
 
     <!-- ================================================================
-      MAIN CONTENT: TIME GRID + SIDEBAR
-      ================================================================ -->
+        MAIN CONTENT: TIME GRID + SIDEBAR
+	================================================================ -->
     <div class="flex gap-6">
 
-      <!-- Time grid (left) -->
-      <div class="flex-1" id="time-grid">
-        ${timeSlots.map((slot) => renderTimeBlock(slot)).join("")}
-      </div>
+        <!-- Time grid (left) -->
+        <div class="flex-1" id="time-grid">
+            ${timeSlots.map((slot) => renderTimeBlock(slot)).join("")}
+        </div>
 
-      <!-- Sidebar stats (right) -->
-      <div class="w-56 flex-shrink-0 space-y-3">
-        ${renderSidebar(sidebarStats)}
-      </div>
+		<!-- Sidebar stats (right) -->
+		<div class="w-56 flex-shrink-0 space-y-3">
+			${renderSidebar(sidebarStats)}
+		</div>
 
     </div>
-  `;
+    `;
 
 	/* Attach event listeners after rendering */
 	attachEventListeners();
@@ -747,6 +756,13 @@ function attachEventListeners() {
 		renderWeekView();
 	});
 
+	document.getElementById("toggle-notes")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		activeView = "notes";
+		renderNotesView();
+	});
+
 	/* --- Time block clicks --- */
 	document
 		.querySelectorAll(".time-block-empty, .time-block-filled")
@@ -801,6 +817,13 @@ function attachWeekEventListeners() {
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		activeView = "week";
 		renderWeekView();
+	});
+
+	document.getElementById("toggle-notes")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		activeView = "notes";
+		renderNotesView();
 	});
 
 	/* Week navigation */
@@ -1060,33 +1083,31 @@ async function renderWeekView() {
 	container.innerHTML = `
     <!-- Week navigation (same as day view but with week context) -->
     <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <span class="text-sm font-medium min-w-[200px] text-center">
-          Week of ${formatDateDisplay(weekDates[0])}
-        </span>
-        <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
+        <div class="flex items-center gap-3">
+            <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <span class="text-sm font-medium min-w-[200px] text-center">
+                Week of ${formatDateDisplay(weekDates[0])}
+            </span>
+            <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </button>
+        </div>
 
-      <!-- View toggle: Day / Week -->
-      <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
-        <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">
-          Day
-        </button>
-        <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">
-          Week
-        </button>
-      </div>
+		<!-- View toggle -->
+		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
+		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
+		</div>
     </div>
 
     <!-- Clipboard indicator mounts here -->
@@ -1171,6 +1192,192 @@ async function renderWeekView() {
 
 	/* Attach week view event listeners */
 	attachWeekEventListeners();
+}
+
+/* ============================================================================
+ * NOTES VIEW
+ * --------------------------------------------------------------------------
+ * Weekly qualitative notes: wins, losses, issues to flag, and customer
+ * meetings. Saved per ISO week and included in exports.
+ * ========================================================================= */
+
+/**
+ * renderNotesView
+ * Builds the notes form for the current week.
+ */
+async function renderNotesView() {
+	const container = document.getElementById("view-tracker");
+	const weekKey = getISOWeekKey(currentDate);
+
+	/* Load existing notes for this week */
+	const existing = await getWeeklyNotes(weekKey);
+	const notes = existing || {
+		wins: "",
+		losses: "",
+		issues: "",
+		customerMeetings: "",
+	};
+
+	container.innerHTML = `
+    <!-- Week navigation -->
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <span class="text-sm font-medium min-w-[200px] text-center">
+          Week of ${formatDateDisplay(weekDates[0])}
+        </span>
+        <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- View toggle -->
+      <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
+        <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+          ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+        <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+          ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+        <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+          ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
+      </div>
+    </div>
+
+    <!-- Notes form -->
+    <div class="max-w-2xl">
+
+      <!-- Auto-save indicator -->
+      <div id="notes-save-status" class="text-xs text-stone-300 mb-4 h-4"></div>
+
+      <!-- Wins -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-stone-700 mb-1.5">Wins of the week</label>
+        <p class="text-xs text-stone-400 mb-2">What went well? Successful migrations, resolved tickets, shipped features, positive customer feedback.</p>
+        <textarea id="notes-wins"
+                  rows="4"
+                  placeholder="e.g., Successfully helped migrate Merchant X to new POS, resolved high-priority ticket #1234..."
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
+        >${notes.wins || ""}</textarea>
+      </div>
+
+      <!-- Losses -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-stone-700 mb-1.5">Losses of the week</label>
+        <p class="text-xs text-stone-400 mb-2">What didn't go as planned? Blockers, delays, things that took longer than expected.</p>
+        <textarea id="notes-losses"
+                  rows="4"
+                  placeholder="e.g., [merchant] churned due to [issue] that we couldn't resolve in time..."
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
+        >${notes.losses || ""}</textarea>
+      </div>
+
+      <!-- Issues to flag -->
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-stone-700 mb-1.5">Issues to flag to management</label>
+        <p class="text-xs text-stone-400 mb-2">Recurring problems, resource constraints, customer patterns, high-capacity situations that need attention.</p>
+        <textarea id="notes-issues"
+                  rows="4"
+                  placeholder="e.g., LSR-1234 causing reoccurring issues for merchants, leading to high ticket volume..."
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
+        >${notes.issues || ""}</textarea>
+      </div>
+    </div>
+  `;
+
+	/* Attach notes event listeners */
+	attachNotesListeners();
+}
+
+/**
+ * attachNotesListeners
+ * Sets up auto-save on notes fields and navigation handlers.
+ */
+function attachNotesListeners() {
+	const statusEl = document.getElementById("notes-save-status");
+
+	/* Debounced auto-save for all textareas */
+	let saveTimeout;
+	const autoSave = async () => {
+		const weekKey = getISOWeekKey(currentDate);
+
+		const notesData = {
+			wins: document.getElementById("notes-wins")?.value || "",
+			losses: document.getElementById("notes-losses")?.value || "",
+			issues: document.getElementById("notes-issues")?.value || "",
+			customerMeetings: document.getElementById("notes-meetings")?.value || "",
+		};
+
+		await saveWeeklyNotes(weekKey, notesData);
+
+		/* Show save confirmation */
+		if (statusEl) {
+			statusEl.textContent = "Saved";
+			statusEl.style.color = "#10B981";
+			setTimeout(() => {
+				if (statusEl) {
+					statusEl.textContent = "";
+				}
+			}, 2000);
+		}
+	};
+
+	/* Attach to all textareas with debounce */
+	document.querySelectorAll("#view-tracker textarea").forEach((textarea) => {
+		textarea.addEventListener("input", () => {
+			/* Show "saving..." while debouncing */
+			if (statusEl) {
+				statusEl.textContent = "Saving...";
+				statusEl.style.color = "#A8A29E";
+			}
+			clearTimeout(saveTimeout);
+			saveTimeout = setTimeout(autoSave, 500);
+		});
+	});
+
+	/* View toggles */
+	document.getElementById("toggle-day")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		activeView = "day";
+		renderTracker();
+	});
+	document.getElementById("toggle-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		activeView = "week";
+		renderWeekView();
+	});
+	document.getElementById("toggle-notes")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		activeView = "notes";
+		renderNotesView();
+	});
+
+	/* Week navigation */
+	document.getElementById("prev-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		const mon = weekDates[0];
+		mon.setDate(mon.getDate() - 7);
+		weekDates = getWeekDates(mon);
+		currentDate = weekDates[0];
+		renderNotesView();
+	});
+	document.getElementById("next-week")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		const mon = weekDates[0];
+		mon.setDate(mon.getDate() + 7);
+		weekDates = getWeekDates(mon);
+		currentDate = weekDates[0];
+		renderNotesView();
+	});
 }
 
 /**
