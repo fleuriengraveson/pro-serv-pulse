@@ -47,7 +47,7 @@ export const CATEGORIES = [
 	},
 	{
 		id: "analytics",
-		label: "Analytics",
+		label: "Analytics Support",
 		color: "pink",
 		hex: "#EC4899",
 		cssVar: "--cat-analytics-border",
@@ -61,7 +61,7 @@ export const CATEGORIES = [
 	},
 	{
 		id: "internal_tools",
-		label: "Internal Tools",
+		label: "Internal Tools Dev",
 		color: "emerald",
 		hex: "#10B981",
 		cssVar: "--cat-tools-border",
@@ -75,17 +75,10 @@ export const CATEGORIES = [
 	},
 	{
 		id: "hardware",
-		label: "Hardware",
+		label: "Hardware Support",
 		color: "red",
 		hex: "#EF4444",
 		cssVar: "--cat-hardware-border",
-	},
-	{
-		id: "zendesk_admin",
-		label: "Zendesk / Email / Slack Admin",
-		color: "yellow",
-		hex: "#EAB308",
-		cssVar: "--cat-zendesk-border",
 	},
 	{
 		id: "lunch",
@@ -118,13 +111,12 @@ export const DEFAULT_TIER_MAP = {
 	meeting_merchant: 1,
 	data_migration: 1,
 	admin: 2,
-	analytics: 2,
+	analytics: 1,
 	research_sync: 2,
 	internal_tools: 2,
 	api_scoping: 1,
 	hardware: 1,
-	zendesk_admin: 2,
-	lunch: 3,
+	lunch: null,
 	other: 3,
 };
 
@@ -205,10 +197,10 @@ export const TIME_DEFAULTS = {
  * Compliance thresholds used in dashboards and alerts.
  * ------------------------------------------------------------------------- */
 export const TARGETS = {
-	dailyTrackableHours: 7, // 8 hrs minus 1 hr lunch
-	weeklyTrackableHours: 35, // 7 hrs × 5 days
-	compliancePercent: 60, // Minimum tracked % target
-	fiscalYearStartMonth: 4, // April (1-indexed)
+	dailyTrackableHours: 8, // Full 8-hour day including lunch
+	weeklyTrackableHours: 40, // 8 hrs × 5 days
+	compliancePercent: 60,
+	fiscalYearStartMonth: 4,
 	fiscalYearStartDay: 1,
 };
 

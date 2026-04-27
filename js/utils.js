@@ -295,7 +295,7 @@ export function aggregateByCategory(entries) {
 /**
  * aggregateByTier
  * Groups time entries by tier and sums the hours.
- * Requires the current tier mapping to resolve categories to tiers.
+ * Entries with a null tier (e.g., lunch) are excluded.
  *
  * @param {Array<Object>} entries - Array of time entry objects
  * @param {Object} tierMap        - Category-to-tier mapping
@@ -305,7 +305,9 @@ export function aggregateByTier(entries, tierMap) {
 	const result = { 1: 0, 2: 0, 3: 0 };
 	for (const entry of entries) {
 		if (!entry.category) continue;
-		const tier = tierMap[entry.category] || 3;
+		const tier = tierMap[entry.category];
+		/* Skip entries with null tier (e.g., lunch) */
+		if (tier === null || tier === undefined) continue;
 		const hours = TIME_DEFAULTS.blockMinutes / 60;
 		result[tier] += hours;
 	}
@@ -345,16 +347,15 @@ export function countBillableHours(entries) {
 
 /**
  * countTrackedHours
- * Sums the hours of all entries that have a category assigned
- * (i.e., are not empty/untracked blocks). Excludes lunch.
+ * Sums the hours of all entries that have a category assigned,
+ * INCLUDING lunch. Lunch is intentionally tracked time.
  *
  * @param {Array<Object>} entries - Array of time entry objects
- * @returns {number} Total tracked hours (excluding lunch)
+ * @returns {number} Total tracked hours
  */
 export function countTrackedHours(entries) {
 	return (
-		entries.filter((e) => e.category && e.category !== "lunch").length *
-		(TIME_DEFAULTS.blockMinutes / 60)
+		entries.filter((e) => e.category).length * (TIME_DEFAULTS.blockMinutes / 60)
 	);
 }
 

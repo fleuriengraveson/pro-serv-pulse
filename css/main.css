@@ -86,9 +86,6 @@
 	--cat-hardware-border: #ef4444;
 	--cat-hardware-bg: rgba(239, 68, 68, 0.12);
 	--cat-hardware-text: #b91c1c;
-	--cat-zendesk-border: #eab308;
-	--cat-zendesk-bg: rgba(234, 179, 8, 0.12);
-	--cat-zendesk-text: #a16207;
 	--cat-lunch-border: #d6d3d1;
 	--cat-lunch-bg: #f0edf3;
 	--cat-lunch-text: #a8a29e;
@@ -180,9 +177,6 @@
 	--cat-hardware-border: #fc8181;
 	--cat-hardware-bg: rgba(252, 129, 129, 0.08);
 	--cat-hardware-text: #feb2b2;
-	--cat-zendesk-border: #faf089;
-	--cat-zendesk-bg: rgba(250, 240, 137, 0.06);
-	--cat-zendesk-text: #fefcbf;
 	--cat-lunch-border: #4a4558;
 	--cat-lunch-bg: rgba(107, 101, 128, 0.1);
 	--cat-lunch-text: #6b6580;
@@ -332,11 +326,6 @@ body {
 	border-left-color: var(--cat-hardware-border);
 	background-color: var(--cat-hardware-bg);
 	color: var(--cat-hardware-text);
-}
-.cat-zendesk_admin {
-	border-left-color: var(--cat-zendesk-border);
-	background-color: var(--cat-zendesk-bg);
-	color: var(--cat-zendesk-text);
 }
 .cat-lunch {
 	border-left-color: var(--cat-lunch-border);

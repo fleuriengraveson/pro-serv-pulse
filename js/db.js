@@ -9,7 +9,7 @@
  * via the global `Dexie` variable.
  * ========================================================================= */
 
-import { DEFAULT_USER_SETTINGS, DEFAULT_TIER_MAP } from './config.js';
+import { DEFAULT_USER_SETTINGS, DEFAULT_TIER_MAP } from "./config.js";
 
 /* ----------------------------------------------------------------------------
  * DATABASE INITIALIZATION
@@ -22,29 +22,29 @@ import { DEFAULT_USER_SETTINGS, DEFAULT_TIER_MAP } from './config.js';
  * Only indexed fields need to be declared; any other fields can be stored
  * freely on each record.
  * ------------------------------------------------------------------------- */
-const db = new Dexie('ChronosDB');
+const db = new Dexie("ChronosDB");
 
 db.version(1).stores({
-  /* Time entries: one record per 30-minute block
-   * Compound index [date+timeSlot] ensures uniqueness per block
-   * Individual indexes on date and category for efficient querying */
-  entries: '++id, [date+timeSlot], date, category',
+	/* Time entries: one record per 30-minute block
+	 * Compound index [date+timeSlot] ensures uniqueness per block
+	 * Individual indexes on date and category for efficient querying */
+	entries: "++id, [date+timeSlot], date, category",
 
-  /* User settings: single record (key = 'user')
-   * Stores name, role, preferences, etc. */
-  settings: 'key',
+	/* User settings: single record (key = 'user')
+	 * Stores name, role, preferences, etc. */
+	settings: "key",
 
-  /* Tier mappings: single record (key = 'tiers')
-   * Stores the category-to-tier mapping object */
-  tierMap: 'key',
+	/* Tier mappings: single record (key = 'tiers')
+	 * Stores the category-to-tier mapping object */
+	tierMap: "key",
 
-  /* Weekly qualitative notes: one record per week
-   * Keyed by ISO week string like '2026-W17' */
-  weeklyNotes: 'weekKey',
+	/* Weekly qualitative notes: one record per week
+	 * Keyed by ISO week string like '2026-W17' */
+	weeklyNotes: "weekKey",
 
-  /* Imported team data (manager only): one record per person per week
-   * Indexed by name and week for efficient dashboard queries */
-  teamData: '++id, [name+weekKey], name, weekKey',
+	/* Imported team data (manager only): one record per person per week
+	 * Indexed by name and week for efficient dashboard queries */
+	teamData: "++id, [name+weekKey], name, weekKey",
 });
 
 /* ============================================================================
@@ -59,8 +59,8 @@ db.version(1).stores({
  * @returns {Promise<Object>} The user settings object
  */
 export async function getUserSettings() {
-  const record = await db.settings.get('user');
-  return record ? record.value : { ...DEFAULT_USER_SETTINGS };
+	const record = await db.settings.get("user");
+	return record ? record.value : { ...DEFAULT_USER_SETTINGS };
 }
 
 /**
@@ -71,7 +71,7 @@ export async function getUserSettings() {
  * @param {Object} settings - The complete settings object to save
  */
 export async function saveUserSettings(settings) {
-  await db.settings.put({ key: 'user', value: settings });
+	await db.settings.put({ key: "user", value: settings });
 }
 
 /* ============================================================================
@@ -86,8 +86,8 @@ export async function saveUserSettings(settings) {
  * @returns {Promise<Object>} Map of category IDs to tier numbers (1, 2, or 3)
  */
 export async function getTierMap() {
-  const record = await db.tierMap.get('tiers');
-  return record ? record.value : { ...DEFAULT_TIER_MAP };
+	const record = await db.tierMap.get("tiers");
+	return record ? record.value : { ...DEFAULT_TIER_MAP };
 }
 
 /**
@@ -97,7 +97,7 @@ export async function getTierMap() {
  * @param {Object} map - Map of category IDs to tier numbers
  */
 export async function saveTierMap(map) {
-  await db.tierMap.put({ key: 'tiers', value: map });
+	await db.tierMap.put({ key: "tiers", value: map });
 }
 
 /* ============================================================================
@@ -122,19 +122,19 @@ export async function saveTierMap(map) {
  *   - notes {string}      Optional notes
  */
 export async function saveEntry(entry) {
-  /* Check if an entry already exists for this date+timeSlot */
-  const existing = await db.entries
-    .where('[date+timeSlot]')
-    .equals([entry.date, entry.timeSlot])
-    .first();
+	/* Check if an entry already exists for this date+timeSlot */
+	const existing = await db.entries
+		.where("[date+timeSlot]")
+		.equals([entry.date, entry.timeSlot])
+		.first();
 
-  if (existing) {
-    /* Update the existing record, preserving its ID */
-    await db.entries.update(existing.id, entry);
-  } else {
-    /* Create a new record */
-    await db.entries.add(entry);
-  }
+	if (existing) {
+		/* Update the existing record, preserving its ID */
+		await db.entries.update(existing.id, entry);
+	} else {
+		/* Create a new record */
+		await db.entries.add(entry);
+	}
 }
 
 /**
@@ -145,11 +145,11 @@ export async function saveEntry(entry) {
  * @param {Array<Object>} entries - Array of time entry objects
  */
 export async function saveMultipleEntries(entries) {
-  await db.transaction('rw', db.entries, async () => {
-    for (const entry of entries) {
-      await saveEntry(entry);
-    }
-  });
+	await db.transaction("rw", db.entries, async () => {
+		for (const entry of entries) {
+			await saveEntry(entry);
+		}
+	});
 }
 
 /**
@@ -160,10 +160,7 @@ export async function saveMultipleEntries(entries) {
  * @returns {Promise<Array<Object>>} Array of time entry objects
  */
 export async function getEntriesForDate(date) {
-  return await db.entries
-    .where('date')
-    .equals(date)
-    .sortBy('timeSlot');
+	return await db.entries.where("date").equals(date).sortBy("timeSlot");
 }
 
 /**
@@ -176,10 +173,10 @@ export async function getEntriesForDate(date) {
  * @returns {Promise<Array<Object>>} Array of time entry objects
  */
 export async function getEntriesForDateRange(startDate, endDate) {
-  return await db.entries
-    .where('date')
-    .between(startDate, endDate, true, true)  // inclusive on both ends
-    .sortBy('timeSlot');
+	return await db.entries
+		.where("date")
+		.between(startDate, endDate, true, true) // inclusive on both ends
+		.sortBy("timeSlot");
 }
 
 /**
@@ -190,10 +187,7 @@ export async function getEntriesForDateRange(startDate, endDate) {
  * @param {string} timeSlot - Time slot string, e.g., '09:00'
  */
 export async function deleteEntry(date, timeSlot) {
-  await db.entries
-    .where('[date+timeSlot]')
-    .equals([date, timeSlot])
-    .delete();
+	await db.entries.where("[date+timeSlot]").equals([date, timeSlot]).delete();
 }
 
 /**
@@ -204,7 +198,7 @@ export async function deleteEntry(date, timeSlot) {
  * @returns {Promise<Array<Object>>} All stored time entry objects
  */
 export async function getAllEntries() {
-  return await db.entries.toArray();
+	return await db.entries.toArray();
 }
 
 /**
@@ -213,7 +207,7 @@ export async function getAllEntries() {
  * Should be called inside a transaction with the subsequent import.
  */
 export async function clearAllEntries() {
-  await db.entries.clear();
+	await db.entries.clear();
 }
 
 /* ============================================================================
@@ -228,7 +222,7 @@ export async function clearAllEntries() {
  * @returns {Promise<Object|null>} Notes object or null if none exist
  */
 export async function getWeeklyNotes(weekKey) {
-  return await db.weeklyNotes.get(weekKey);
+	return await db.weeklyNotes.get(weekKey);
 }
 
 /**
@@ -243,7 +237,7 @@ export async function getWeeklyNotes(weekKey) {
  *   - customerMeetings {string}
  */
 export async function saveWeeklyNotes(weekKey, notes) {
-  await db.weeklyNotes.put({ weekKey, ...notes });
+	await db.weeklyNotes.put({ weekKey, ...notes });
 }
 
 /* ============================================================================
@@ -261,21 +255,21 @@ export async function saveWeeklyNotes(weekKey, notes) {
  * @returns {Promise<boolean>} True if imported, false if duplicate detected
  */
 export async function importTeamMemberData(name, weekKey, data) {
-  /* Check for existing import from this person for this week */
-  const existing = await db.teamData
-    .where('[name+weekKey]')
-    .equals([name, weekKey])
-    .first();
+	/* Check for existing import from this person for this week */
+	const existing = await db.teamData
+		.where("[name+weekKey]")
+		.equals([name, weekKey])
+		.first();
 
-  if (existing) {
-    /* Duplicate detected — update the existing record instead */
-    await db.teamData.update(existing.id, { name, weekKey, data });
-    return false;
-  }
+	if (existing) {
+		/* Duplicate detected — update the existing record instead */
+		await db.teamData.update(existing.id, { name, weekKey, data });
+		return false;
+	}
 
-  /* New import — add to the database */
-  await db.teamData.add({ name, weekKey, data });
-  return true;
+	/* New import — add to the database */
+	await db.teamData.add({ name, weekKey, data });
+	return true;
 }
 
 /**
@@ -286,10 +280,7 @@ export async function importTeamMemberData(name, weekKey, data) {
  * @returns {Promise<Array<Object>>} Array of team data records
  */
 export async function getTeamDataForWeek(weekKey) {
-  return await db.teamData
-    .where('weekKey')
-    .equals(weekKey)
-    .toArray();
+	return await db.teamData.where("weekKey").equals(weekKey).toArray();
 }
 
 /**
@@ -301,10 +292,10 @@ export async function getTeamDataForWeek(weekKey) {
  * @returns {Promise<Array<Object>>} Array of team data records
  */
 export async function getTeamDataForRange(startWeek, endWeek) {
-  return await db.teamData
-    .where('weekKey')
-    .between(startWeek, endWeek, true, true)
-    .toArray();
+	return await db.teamData
+		.where("weekKey")
+		.between(startWeek, endWeek, true, true)
+		.toArray();
 }
 
 /**
@@ -314,7 +305,7 @@ export async function getTeamDataForRange(startWeek, endWeek) {
  * @returns {Promise<Array<Object>>} All team data records
  */
 export async function getAllTeamData() {
-  return await db.teamData.toArray();
+	return await db.teamData.toArray();
 }
 
 /**
@@ -324,8 +315,8 @@ export async function getAllTeamData() {
  * @returns {Promise<Array<string>>} Array of unique names
  */
 export async function getTeamMemberNames() {
-  const records = await db.teamData.orderBy('name').uniqueKeys();
-  return records;
+	const records = await db.teamData.orderBy("name").uniqueKeys();
+	return records;
 }
 
 /* ============================================================================
@@ -346,31 +337,35 @@ export async function getTeamMemberNames() {
  *   - teamData {Array}      Team data records (manager only)
  */
 export async function restoreFromBackup(backupData) {
-  await db.transaction('rw', [db.entries, db.settings, db.tierMap, db.weeklyNotes, db.teamData], async () => {
-    /* Clear all existing data */
-    await db.entries.clear();
-    await db.settings.clear();
-    await db.tierMap.clear();
-    await db.weeklyNotes.clear();
-    await db.teamData.clear();
+	await db.transaction(
+		"rw",
+		[db.entries, db.settings, db.tierMap, db.weeklyNotes, db.teamData],
+		async () => {
+			/* Clear all existing data */
+			await db.entries.clear();
+			await db.settings.clear();
+			await db.tierMap.clear();
+			await db.weeklyNotes.clear();
+			await db.teamData.clear();
 
-    /* Restore each table */
-    if (backupData.entries?.length) {
-      await db.entries.bulkAdd(backupData.entries);
-    }
-    if (backupData.settings) {
-      await db.settings.put({ key: 'user', value: backupData.settings });
-    }
-    if (backupData.tierMap) {
-      await db.tierMap.put({ key: 'tiers', value: backupData.tierMap });
-    }
-    if (backupData.weeklyNotes?.length) {
-      await db.weeklyNotes.bulkAdd(backupData.weeklyNotes);
-    }
-    if (backupData.teamData?.length) {
-      await db.teamData.bulkAdd(backupData.teamData);
-    }
-  });
+			/* Restore each table */
+			if (backupData.entries?.length) {
+				await db.entries.bulkAdd(backupData.entries);
+			}
+			if (backupData.settings) {
+				await db.settings.put({ key: "user", value: backupData.settings });
+			}
+			if (backupData.tierMap) {
+				await db.tierMap.put({ key: "tiers", value: backupData.tierMap });
+			}
+			if (backupData.weeklyNotes?.length) {
+				await db.weeklyNotes.bulkAdd(backupData.weeklyNotes);
+			}
+			if (backupData.teamData?.length) {
+				await db.teamData.bulkAdd(backupData.teamData);
+			}
+		},
+	);
 }
 
 /**
@@ -381,21 +376,44 @@ export async function restoreFromBackup(backupData) {
  * @returns {Promise<Object>} Complete database export
  */
 export async function exportAllData() {
-  const settings = await getUserSettings();
-  const tierMap = await getTierMap();
-  const entries = await getAllEntries();
-  const weeklyNotes = await db.weeklyNotes.toArray();
-  const teamData = await getAllTeamData();
+	const settings = await getUserSettings();
+	const tierMap = await getTierMap();
+	const entries = await getAllEntries();
+	const weeklyNotes = await db.weeklyNotes.toArray();
+	const teamData = await getAllTeamData();
 
-  return {
-    exportDate: new Date().toISOString(),
-    appVersion: '1.0.0',
-    settings,
-    tierMap,
-    entries,
-    weeklyNotes,
-    teamData,
-  };
+	return {
+		exportDate: new Date().toISOString(),
+		appVersion: "1.0.0",
+		settings,
+		tierMap,
+		entries,
+		weeklyNotes,
+		teamData,
+	};
+}
+
+/**
+ * migrateZendeskToAdmin
+ * One-time migration that converts any entries with category
+ * 'zendesk_admin' to 'admin'. Called on app startup.
+ */
+export async function migrateZendeskToAdmin() {
+	const zendeskEntries = await db.entries
+		.where("category")
+		.equals("zendesk_admin")
+		.toArray();
+
+	if (zendeskEntries.length > 0) {
+		await db.transaction("rw", db.entries, async () => {
+			for (const entry of zendeskEntries) {
+				await db.entries.update(entry.id, { category: "admin" });
+			}
+		});
+		console.log(
+			`Migrated ${zendeskEntries.length} zendesk_admin entries to admin`,
+		);
+	}
 }
 
 /* Export the raw db instance for advanced operations if needed */

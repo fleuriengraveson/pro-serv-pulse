@@ -10,7 +10,14 @@
  * ========================================================================= */
 
 import { VIEWS } from "./config.js";
-import { getUserSettings, saveUserSettings, getTierMap } from "./db.js";
+import {
+	getUserSettings,
+	saveUserSettings,
+	getTierMap,
+	getEntriesForDateRange,
+	getWeeklyNotes,
+	migrateZendeskToAdmin,
+} from "./db.js";
 import { initTracker } from "./tracker.js";
 import { initSettings } from "./settings.js";
 import { initStats } from "./stats.js";
@@ -20,7 +27,6 @@ import {
 	generateExportFilename,
 	downloadJSON,
 } from "./utils.js";
-import { getEntriesForDateRange, getWeeklyNotes } from "./db.js";
 
 /* ============================================================================
  * STATE
@@ -45,6 +51,9 @@ async function init() {
 	/* Load user settings and tier mappings from IndexedDB */
 	state.settings = await getUserSettings();
 	state.tierMap = await getTierMap();
+
+	/* One-time migration: convert zendesk_admin entries to admin */
+	await migrateZendeskToAdmin();
 
 	/* Check if this is a first-time user (no name set) */
 	if (!state.settings.name) {
