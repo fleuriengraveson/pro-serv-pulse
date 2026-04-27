@@ -442,6 +442,24 @@ export function aggregateByMerchant(entries) {
 }
 
 /**
+ * aggregateByPOS
+ * Groups time entries by Former POS system and sums the hours.
+ * Only includes entries that have a formerPOS value.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {Object} Map of POS name → total hours
+ */
+export function aggregateByPOS(entries) {
+	const result = {};
+	for (const entry of entries) {
+		if (!entry.formerPOS) continue;
+		const hours = TIME_DEFAULTS.blockMinutes / 60;
+		result[entry.formerPOS] = (result[entry.formerPOS] || 0) + hours;
+	}
+	return result;
+}
+
+/**
  * countBillableHours
  * Sums the hours of all entries flagged as billable.
  *

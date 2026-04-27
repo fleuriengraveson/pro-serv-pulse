@@ -33,6 +33,7 @@ import {
 	aggregateByCategory,
 	aggregateByTier,
 	aggregateByMerchant,
+	aggregateByPOS,
 	countTrackedHours,
 	countBillableHours,
 	countTotalHours,
@@ -411,6 +412,7 @@ async function renderStats() {
 	const byCategory = aggregateByCategory(entries);
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
+	const byPOS = aggregateByPOS(entries);
 	const expectedHours = getExpectedHours(entries);
 	const untracked = expectedHours - tracked;
 
@@ -421,6 +423,7 @@ async function renderStats() {
 		byCategory,
 		byTier,
 		byMerchant,
+		byPOS,
 		entries,
 	};
 
@@ -631,29 +634,72 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-      CHARTS ROW 2: Daily breakdown + Merchant table
+      CHARTS ROW 2: Daily breakdown + data tables
       ================================================================ -->
-    <div class="grid grid-cols-2 gap-4 mb-6">
+    ${(() => {
+			const hasRightColumn =
+				billable > 0 ||
+				(appState.settings.enableMerchant &&
+					Object.keys(byMerchant).length > 0) ||
+				(appState.settings.enableFormerPOS && Object.keys(byPOS).length > 0);
 
-      <!-- Daily breakdown (only shown for weekly view) -->
-      <div class="p-4 rounded-xl border border-stone-100 bg-white">
-        <div class="text-sm font-medium mb-3">
-          ${currentPeriod === "daily" ? "Hourly breakdown" : "Daily breakdown"}
-        </div>
-        <div class="chart-container" style="height: 220px;">
-          <canvas id="chart-daily"></canvas>
-        </div>
-      </div>
+			return `
+      <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
 
-      <!-- Merchant table or billable breakdown -->
-      <div class="p-4 rounded-xl border border-stone-100 bg-white">
+        <!-- Daily breakdown -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+          <div class="text-sm font-medium mb-3">
+            ${currentPeriod === "daily" ? "Hourly breakdown" : "Daily breakdown"}
+          </div>
+          <div class="chart-container" style="height: ${hasRightColumn ? "100%" : "220px"}; min-height: 220px;">
+            <canvas id="chart-daily"></canvas>
+          </div>
+        </div>
+
         ${
-					appState.settings.enableMerchant && Object.keys(byMerchant).length > 0
-						? renderMerchantTable(byMerchant, tracked)
-						: renderBillableBreakdown(entries, tracked)
+					hasRightColumn
+						? `
+        <!-- Data tables stacked vertically -->
+        <div class="flex flex-col gap-4" style="min-height: 220px;">
+
+          ${
+						billable > 0
+							? `
+          <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
+            ${renderBillableBreakdown(entries, tracked)}
+          </div>
+          `
+							: ""
+					}
+
+          ${
+						appState.settings.enableMerchant &&
+						Object.keys(byMerchant).length > 0
+							? `
+          <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
+            ${renderMerchantTable(byMerchant, tracked)}
+          </div>
+          `
+							: ""
+					}
+
+          ${
+						appState.settings.enableFormerPOS && Object.keys(byPOS).length > 0
+							? `
+          <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
+            ${renderPOSTable(byPOS, tracked)}
+          </div>
+          `
+							: ""
+					}
+
+        </div>
+        `
+						: ""
 				}
-      </div>
-    </div>
+
+      </div>`;
+		})()}
 
     <!-- ================================================================
       TREND CHART (past 8 weeks)
@@ -761,6 +807,48 @@ function renderMerchantTable(byMerchant, total) {
 }
 
 /**
+ * renderPOSTable
+ * Generates the Former POS time breakdown table.
+ */
+function renderPOSTable(byPOS, total) {
+	const sorted = Object.entries(byPOS).sort((a, b) => b[1] - a[1]);
+
+	const topItems = sorted.slice(0, 8);
+	const remaining = sorted.slice(8);
+	const remainingHours = remaining.reduce((s, [, h]) => s + h, 0);
+	const maxHours = topItems.length > 0 ? topItems[0][1] : 1;
+
+	let html = '<div class="text-sm font-medium mb-3">Time by former POS</div>';
+	html += '<div class="space-y-1.5">';
+
+	topItems.forEach(([name, hours]) => {
+		const pct = total > 0 ? Math.round((hours / total) * 100) : 0;
+		const barWidth = Math.round((hours / maxHours) * 100);
+		html += `
+      <div class="flex items-center gap-2 text-xs">
+        <span class="text-stone-500 w-28 truncate">${name}</span>
+        <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
+          <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
+        </div>
+        <span class="font-medium w-12 text-right">${hours} hrs</span>
+        <span class="text-stone-400 w-8 text-right">${pct}%</span>
+      </div>
+    `;
+	});
+
+	if (remaining.length > 0) {
+		html += `
+      <div class="text-xs text-stone-400 pt-1">
+        + ${remaining.length} more systems (${remainingHours} hrs)
+      </div>
+    `;
+	}
+
+	html += "</div>";
+	return html;
+}
+
+/**
  * renderBillableBreakdown
  * Shows billable vs non-billable time when merchant tracking is off.
  */
@@ -848,7 +936,8 @@ function renderCategoryChart(byCategory) {
 
 	/* Filter to categories that have hours, sorted descending */
 	const data = CATEGORIES.filter(
-		(cat) => (byCategory[cat.id] || 0) > 0 && cat.id !== "ooo",
+		(cat) =>
+			(byCategory[cat.id] || 0) > 0 && cat.id !== "ooo" && cat.id !== "lunch",
 	).sort((a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0));
 
 	if (data.length === 0) {
@@ -976,7 +1065,11 @@ function renderDailyChart(entries, range) {
 
 		/* Build datasets for each category that has data */
 		const activeCats = CATEGORIES.filter((cat) => {
-			return cat.id !== "ooo" && entries.some((e) => e.category === cat.id);
+			return (
+				cat.id !== "ooo" &&
+				cat.id !== "lunch" &&
+				entries.some((e) => e.category === cat.id)
+			);
 		});
 
 		const datasets = activeCats.map((cat) => ({
