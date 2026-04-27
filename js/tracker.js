@@ -1832,26 +1832,49 @@ async function showOOOPopover(dateStr, chipEl) {
 
 	const dateDisplay = formatDateDisplay(parseDate(dateStr));
 
-	popover.innerHTML = `
-    <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
-      ${dateDisplay}
-    </div>
-    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
-      ${isAlreadyOOO ? "This day is marked as OOO. Remove it?" : "Mark this entire day as out of office?"}
-    </div>
-    <div style="display: flex; gap: 6px;">
-      <button id="ooo-confirm" style="
-        flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-        border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
-        background: ${isAlreadyOOO ? "var(--danger)" : "var(--accent)"}; color: white;
-      ">${isAlreadyOOO ? "Remove OOO" : "Mark as OOO"}</button>
-      <button id="ooo-cancel" style="
-        flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-        border-radius: 6px; cursor: pointer; font-family: inherit;
-        border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
-      ">Cancel</button>
-    </div>
-  `;
+	if (isAlreadyOOO) {
+		popover.innerHTML = `
+			<div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+				${dateDisplay}
+			</div>
+			<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+				This day is marked as OOO.
+			</div>
+			<div style="display: flex; gap: 6px;">
+				<button id="ooo-clear" style="
+				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+				border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+				background: var(--danger); color: white;
+				">Clear day</button>
+				<button id="ooo-cancel" style="
+				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+				border-radius: 6px; cursor: pointer; font-family: inherit;
+				border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+				">Cancel</button>
+			</div>
+			`;
+	} else {
+		popover.innerHTML = `
+			<div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+				${dateDisplay}
+			</div>
+			<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+				Mark this entire day as out of office?
+			</div>
+			<div style="display: flex; gap: 6px;">
+				<button id="ooo-confirm" style="
+				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+				border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+				background: var(--accent); color: white;
+				">Mark as OOO</button>
+				<button id="ooo-cancel" style="
+				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+				border-radius: 6px; cursor: pointer; font-family: inherit;
+				border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+				">Cancel</button>
+			</div>
+			`;
+	}
 
 	/* Position near the chip */
 	popover.style.visibility = "hidden";
@@ -1873,32 +1896,31 @@ async function showOOOPopover(dateStr, chipEl) {
 	popover.style.top = `${top}px`;
 	popover.style.visibility = "visible";
 
-	/* Confirm button */
-	popover.querySelector("#ooo-confirm").addEventListener("click", async () => {
-		if (isAlreadyOOO) {
-			/* Remove all OOO blocks for this day */
-			const entries = await getEntriesForDate(dateStr);
-			for (const entry of entries) {
-				if (entry.category === "ooo") {
-					await deleteEntry(dateStr, entry.timeSlot);
-				}
-			}
-		} else {
-			/* Fill all time slots with OOO */
-			for (const slot of timeSlots) {
-				await saveEntry({
-					date: dateStr,
-					timeSlot: slot,
-					category: "ooo",
-					subCategory: "",
-					billable: false,
-					urgent: false,
-					ticketLink: "",
-					merchant: "",
-					formerPOS: "",
-					notes: "",
-				});
-			}
+	/* Confirm: mark day as OOO */
+	popover.querySelector("#ooo-confirm")?.addEventListener("click", async () => {
+		for (const slot of timeSlots) {
+			await saveEntry({
+				date: dateStr,
+				timeSlot: slot,
+				category: "ooo",
+				subCategory: "",
+				billable: false,
+				urgent: false,
+				ticketLink: "",
+				merchant: "",
+				formerPOS: "",
+				notes: "",
+			});
+		}
+		closeOOOPopover();
+		await renderTracker();
+	});
+
+	/* Clear: remove all blocks for the day */
+	popover.querySelector("#ooo-clear")?.addEventListener("click", async () => {
+		const entries = await getEntriesForDate(dateStr);
+		for (const entry of entries) {
+			await deleteEntry(dateStr, entry.timeSlot);
 		}
 		closeOOOPopover();
 		await renderTracker();
