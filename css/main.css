@@ -89,6 +89,9 @@
 	--cat-lunch-border: #d6d3d1;
 	--cat-lunch-bg: #f0edf3;
 	--cat-lunch-text: #a8a29e;
+	--cat-ooo-border: #cbd5e1;
+	--cat-ooo-bg: rgba(203, 213, 225, 0.15);
+	--cat-ooo-text: #64748b;
 	--cat-other-border: #94a3b8;
 	--cat-other-bg: rgba(148, 163, 184, 0.08);
 	--cat-other-text: #64748b;
@@ -180,6 +183,9 @@
 	--cat-lunch-border: #4a4558;
 	--cat-lunch-bg: rgba(107, 101, 128, 0.1);
 	--cat-lunch-text: #6b6580;
+	--cat-ooo-border: #475569;
+	--cat-ooo-bg: rgba(71, 85, 105, 0.12);
+	--cat-ooo-text: #94a3b8;
 	--cat-other-border: #6b6580;
 	--cat-other-bg: rgba(107, 101, 128, 0.06);
 	--cat-other-text: #9590a0;
@@ -331,6 +337,11 @@ body {
 	border-left-color: var(--cat-lunch-border);
 	background-color: var(--cat-lunch-bg);
 	color: var(--cat-lunch-text);
+}
+.cat-ooo {
+	border-left-color: var(--cat-ooo-border);
+	background-color: var(--cat-ooo-bg);
+	color: var(--cat-ooo-text);
 }
 .cat-other {
 	border-left-color: var(--cat-other-border);
@@ -885,6 +896,25 @@ body {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+/* OOO confirmation popover */
+.ooo-popover {
+	position: fixed;
+	z-index: 9999;
+	width: 220px;
+	background: var(--bg-dropdown);
+	border: 1px solid var(--border-default);
+	border-radius: 12px;
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.08),
+		0 1px 4px rgba(0, 0, 0, 0.04);
+	padding: 12px;
+	animation: dropdown-in 0.15s ease forwards;
+}
+[data-theme="dark"] .ooo-popover {
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.3),
+		0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* ============================================================================

@@ -88,6 +88,13 @@ export const CATEGORIES = [
 		cssVar: "--cat-lunch-border",
 	},
 	{
+		id: "ooo",
+		label: "OOO",
+		color: "slate",
+		hex: "#94A3B8",
+		cssVar: "--cat-ooo-border",
+	},
+	{
 		id: "other",
 		label: "Other",
 		color: "slate",
@@ -117,6 +124,7 @@ export const DEFAULT_TIER_MAP = {
 	api_scoping: 1,
 	hardware: 1,
 	lunch: null,
+	ooo: null,
 	other: 3,
 };
 

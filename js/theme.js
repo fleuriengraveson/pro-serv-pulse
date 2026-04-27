@@ -138,6 +138,7 @@ export function getChartColors() {
 				api_scoping: "#FBB27D",
 				hardware: "#FC8181",
 				lunch: "#4A4558",
+				ooo: "#475569",
 				other: "#6B6580",
 			},
 			/* Tier colors */
@@ -172,6 +173,7 @@ export function getChartColors() {
 				api_scoping: "#F97316",
 				hardware: "#EF4444",
 				lunch: "#D6D3D1",
+				ooo: "#CBD5E1",
 				other: "#94A3B8",
 			},
 			/* Tier colors */

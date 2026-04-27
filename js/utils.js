@@ -267,16 +267,20 @@ export function filterEntriesUpToNow(entries) {
 /**
  * countExpectedHoursUpToNow
  * Calculates how many hours the user should have tracked so far,
- * accounting for the current time. For past days in the range,
- * counts the full day. For today, counts only up to the current slot.
- * For future days, counts nothing.
+ * accounting for the current time and OOO days.
  *
  * @param {string} startDate - Range start in 'YYYY-MM-DD' format
  * @param {string} endDate   - Range end in 'YYYY-MM-DD' format
  * @param {number} hoursPerDay - Expected hours per day (default 8)
+ * @param {Set<string>} oooDates - Set of date strings that are fully OOO
  * @returns {number} Expected hours so far
  */
-export function countExpectedHoursUpToNow(startDate, endDate, hoursPerDay = 8) {
+export function countExpectedHoursUpToNow(
+	startDate,
+	endDate,
+	hoursPerDay = 8,
+	oooDates = new Set(),
+) {
 	const todayStr = formatDateISO(new Date());
 	const currentSlot = getCurrentTimeSlot();
 	const start = parseDate(startDate);
@@ -286,29 +290,30 @@ export function countExpectedHoursUpToNow(startDate, endDate, hoursPerDay = 8) {
 	const d = new Date(start);
 	while (d <= end) {
 		const dayOfWeek = d.getDay();
-		/* Skip weekends */
 		if (dayOfWeek !== 0 && dayOfWeek !== 6) {
 			const dateStr = formatDateISO(d);
 
+			/* Skip OOO days entirely */
+			if (oooDates.has(dateStr)) {
+				d.setDate(d.getDate() + 1);
+				continue;
+			}
+
 			if (dateStr < todayStr) {
-				/* Past day — full expected hours */
 				total += hoursPerDay;
 			} else if (dateStr === todayStr) {
-				/* Today — count hours up to current slot */
-				const dayStart = 8; // TODO: use user's configured start hour
+				const dayStart = 8;
 				const [currentH, currentM] = currentSlot.split(":").map(Number);
-				const currentMinutes = (currentH - dayStart) * 60 + currentM + 30; // +30 because we include the current slot
+				const currentMinutes = (currentH - dayStart) * 60 + currentM + 30;
 				const maxMinutes = hoursPerDay * 60;
 				total += Math.min(currentMinutes, maxMinutes) / 60;
-				/* Clamp to zero in case current time is before work start */
 				if (total < 0) total = 0;
 			}
-			/* Future days — add nothing */
 		}
 		d.setDate(d.getDate() + 1);
 	}
 
-	return Math.round(total * 10) / 10; // Round to 1 decimal
+	return Math.round(total * 10) / 10;
 }
 
 /* ============================================================================
@@ -445,7 +450,8 @@ export function aggregateByMerchant(entries) {
  */
 export function countBillableHours(entries) {
 	return (
-		entries.filter((e) => e.billable).length * (TIME_DEFAULTS.blockMinutes / 60)
+		entries.filter((e) => e.billable && e.category !== "ooo").length *
+		(TIME_DEFAULTS.blockMinutes / 60)
 	);
 }
 
@@ -474,6 +480,50 @@ export function countTotalHours(entries) {
 	return (
 		entries.filter((e) => e.category).length * (TIME_DEFAULTS.blockMinutes / 60)
 	);
+}
+
+/**
+ * countOOOHours
+ * Sums the hours of all entries categorized as OOO.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {number} Total OOO hours
+ */
+export function countOOOHours(entries) {
+	return (
+		entries.filter((e) => e.category === "ooo").length *
+		(TIME_DEFAULTS.blockMinutes / 60)
+	);
+}
+
+/**
+ * countOOODays
+ * Counts how many full days are marked as entirely OOO.
+ * A day is "fully OOO" if every block with a category is OOO.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {number} Number of full OOO days
+ */
+export function countOOODays(entries) {
+	/* Group entries by date */
+	const byDate = {};
+	entries.forEach((e) => {
+		if (!e.category) return;
+		if (!byDate[e.date]) byDate[e.date] = [];
+		byDate[e.date].push(e);
+	});
+
+	let count = 0;
+	for (const [date, dayEntries] of Object.entries(byDate)) {
+		/* A day counts as OOO if it has entries and ALL of them are OOO */
+		if (
+			dayEntries.length > 0 &&
+			dayEntries.every((e) => e.category === "ooo")
+		) {
+			count++;
+		}
+	}
+	return count;
 }
 
 /* ============================================================================

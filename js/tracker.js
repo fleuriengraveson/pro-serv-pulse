@@ -37,6 +37,8 @@ import {
 	filterEntriesUpToNow,
 	countExpectedHoursUpToNow,
 	isToday,
+	countOOOHours,
+	countOOODays,
 } from "./utils.js";
 
 /* ============================================================================
@@ -76,6 +78,11 @@ document.addEventListener("keydown", (e) => {
 		const popover = document.getElementById("week-popover");
 		if (popover) {
 			closeWeekPopover();
+			const oooPopover = document.getElementById("ooo-popover");
+			if (oooPopover) {
+				closeOOOPopover();
+				return;
+			}
 			return;
 		}
 		if (clipboard) {
@@ -89,18 +96,21 @@ document.addEventListener("keydown", (e) => {
 		if (e.key === "d" || e.key === "D") {
 			closeDropdown();
 			closeWeekPopover();
+			closeOOOPopover();
 			activeView = "day";
 			renderTracker();
 		}
 		if (e.key === "w" || e.key === "W") {
 			closeDropdown();
 			closeWeekPopover();
+			closeOOOPopover();
 			activeView = "week";
 			renderWeekView();
 		}
 		if (e.key === "n" || e.key === "N") {
 			closeDropdown();
 			closeWeekPopover();
+			closeOOOPopover();
 			activeView = "notes";
 			renderNotesView();
 		}
@@ -115,6 +125,7 @@ document.addEventListener("click", (e) => {
 	/* Ignore clicks inside dropdowns and popovers */
 	if (e.target.closest(".edit-dropdown")) return;
 	if (e.target.closest(".week-popover")) return;
+	if (e.target.closest(".ooo-popover")) return;
 
 	/* Ignore clicks on time blocks (they have their own handlers) */
 	if (e.target.closest(".time-block-empty")) return;
@@ -130,6 +141,7 @@ document.addEventListener("click", (e) => {
 	/* If we get here, the click was outside everything — close whatever's open */
 	closeDropdown();
 	closeWeekPopover();
+	closeOOOPopover();
 });
 
 /* ============================================================================
@@ -349,6 +361,11 @@ function renderTimeBlock(slot) {
 async function calculateSidebarStats() {
 	const tierMap = await getTierMap();
 
+	const weekStart = formatDateISO(weekDates[0]);
+	const weekEnd = formatDateISO(weekDates[4]);
+	const weekEntries = await getEntriesForDateRange(weekStart, weekEnd);
+	const oooDates = getOOODatesFromEntries(weekEntries);
+
 	/* --- Daily stats --- */
 	const dayEntries = Object.values(entries).filter((e) => e.category);
 	/* For today, only count blocks up to the current time */
@@ -361,28 +378,31 @@ async function calculateSidebarStats() {
 	const dailyTiers = aggregateByTier(relevantDayEntries, tierMap);
 
 	/* Daily expected hours — for today, only up to current time */
-	const dailyExpected = isToday(currentDateStr)
-		? countExpectedHoursUpToNow(
-				currentDateStr,
-				currentDateStr,
-				TARGETS.dailyTrackableHours,
-			)
-		: TARGETS.dailyTrackableHours;
+	const dailyIsOOO = oooDates.has(currentDateStr);
+	const dailyExpected = dailyIsOOO
+		? 0
+		: isToday(currentDateStr)
+			? countExpectedHoursUpToNow(
+					currentDateStr,
+					currentDateStr,
+					TARGETS.dailyTrackableHours,
+					oooDates,
+				)
+			: TARGETS.dailyTrackableHours;
 
 	/* --- Weekly stats --- */
-	const weekStart = formatDateISO(weekDates[0]);
-	const weekEnd = formatDateISO(weekDates[4]);
-	const weekEntries = await getEntriesForDateRange(weekStart, weekEnd);
-	/* Filter to only past and current-time entries */
 	const relevantWeekEntries = filterEntriesUpToNow(weekEntries);
 	const weeklyTracked = countTrackedHours(relevantWeekEntries);
 
-	/* Weekly expected hours — only counts up to now, not future days */
 	const weeklyExpected = countExpectedHoursUpToNow(
 		weekStart,
 		weekEnd,
 		TARGETS.dailyTrackableHours,
+		oooDates,
 	);
+
+	/* Also check if today is OOO */
+	const todayIsOOO = oooDates.has(formatDateISO(currentDate));
 	const weeklyPercent =
 		weeklyExpected > 0 ? Math.round((weeklyTracked / weeklyExpected) * 100) : 0;
 
@@ -409,6 +429,34 @@ async function calculateSidebarStats() {
 		weeklyPercent,
 		weeklyPace,
 	};
+}
+
+/**
+ * getOOODatesFromEntries
+ * Scans a set of entries and returns a Set of date strings where
+ * every tracked block is OOO (fully OOO days).
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {Set<string>} Set of 'YYYY-MM-DD' date strings
+ */
+function getOOODatesFromEntries(entries) {
+	const byDate = {};
+	entries.forEach((e) => {
+		if (!e.category) return;
+		if (!byDate[e.date]) byDate[e.date] = [];
+		byDate[e.date].push(e);
+	});
+
+	const oooDates = new Set();
+	for (const [date, dayEntries] of Object.entries(byDate)) {
+		if (
+			dayEntries.length > 0 &&
+			dayEntries.every((e) => e.category === "ooo")
+		) {
+			oooDates.add(date);
+		}
+	}
+	return oooDates;
 }
 
 /**
@@ -840,11 +888,13 @@ function attachEventListeners() {
 	document.getElementById("prev-day")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		navigateDay(-1);
 	});
 	document.getElementById("next-day")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		navigateDay(1);
 	});
 
@@ -860,8 +910,20 @@ function attachEventListeners() {
 		chip.addEventListener("click", () => {
 			closeDropdown();
 			closeWeekPopover();
+			closeOOOPopover();
 			currentDate = parseDate(chip.dataset.date);
 			renderTracker();
+		});
+	});
+
+	/* Right-click on day chips to mark as OOO */
+	document.querySelectorAll(".week-chip").forEach((chip) => {
+		chip.addEventListener("contextmenu", (e) => {
+			e.preventDefault();
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			showOOOPopover(chip.dataset.date, chip);
 		});
 	});
 
@@ -880,6 +942,7 @@ function attachEventListeners() {
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "week";
 		renderWeekView();
 	});
@@ -887,6 +950,7 @@ function attachEventListeners() {
 	document.getElementById("toggle-notes")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "notes";
 		renderNotesView();
 	});
@@ -939,6 +1003,7 @@ function attachWeekEventListeners() {
 	document.getElementById("toggle-day")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "day";
 		renderTracker();
 	});
@@ -950,6 +1015,7 @@ function attachWeekEventListeners() {
 	document.getElementById("toggle-notes")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "notes";
 		renderNotesView();
 	});
@@ -958,6 +1024,7 @@ function attachWeekEventListeners() {
 	document.getElementById("prev-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() - 7);
 		weekDates = getWeekDates(mon);
@@ -967,6 +1034,7 @@ function attachWeekEventListeners() {
 	document.getElementById("next-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() + 7);
 		weekDates = getWeekDates(mon);
@@ -979,9 +1047,20 @@ function attachWeekEventListeners() {
 		chip.addEventListener("click", () => {
 			closeDropdown();
 			closeWeekPopover();
+			closeOOOPopover();
 			currentDate = parseDate(chip.dataset.date);
 			activeView = "day";
 			renderTracker();
+		});
+	});
+
+	document.querySelectorAll(".week-chip").forEach((chip) => {
+		chip.addEventListener("contextmenu", (e) => {
+			e.preventDefault();
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			showOOOPopover(chip.dataset.date, chip);
 		});
 	});
 
@@ -1488,18 +1567,21 @@ function attachNotesListeners() {
 	document.getElementById("toggle-day")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "day";
 		renderTracker();
 	});
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "week";
 		renderWeekView();
 	});
 	document.getElementById("toggle-notes")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		activeView = "notes";
 		renderNotesView();
 	});
@@ -1508,6 +1590,7 @@ function attachNotesListeners() {
 	document.getElementById("prev-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() - 7);
 		weekDates = getWeekDates(mon);
@@ -1517,11 +1600,22 @@ function attachNotesListeners() {
 	document.getElementById("next-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
+		closeOOOPopover();
 		const mon = weekDates[0];
 		mon.setDate(mon.getDate() + 7);
 		weekDates = getWeekDates(mon);
 		currentDate = weekDates[0];
 		renderNotesView();
+	});
+
+	document.querySelectorAll(".week-chip").forEach((chip) => {
+		chip.addEventListener("contextmenu", (e) => {
+			e.preventDefault();
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			showOOOPopover(chip.dataset.date, chip);
+		});
 	});
 }
 
@@ -1715,6 +1809,113 @@ function showWeekPopover(entry, blockEl) {
  */
 function closeWeekPopover() {
 	const existing = document.getElementById("week-popover");
+	if (existing) existing.remove();
+}
+
+/**
+ * showOOOPopover
+ * Shows a confirmation popover when right-clicking a day chip.
+ * Asks if the user wants to mark the entire day as OOO.
+ *
+ * @param {string} dateStr - The date to mark as OOO
+ * @param {Element} chipEl - The clicked chip element for positioning
+ */
+async function showOOOPopover(dateStr, chipEl) {
+	/* Check if the day already has OOO blocks */
+	const dayEntries = await getEntriesForDate(dateStr);
+	const isAlreadyOOO =
+		dayEntries.length > 0 && dayEntries.every((e) => e.category === "ooo");
+
+	const popover = document.createElement("div");
+	popover.className = "ooo-popover";
+	popover.id = "ooo-popover";
+
+	const dateDisplay = formatDateDisplay(parseDate(dateStr));
+
+	popover.innerHTML = `
+    <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+      ${dateDisplay}
+    </div>
+    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+      ${isAlreadyOOO ? "This day is marked as OOO. Remove it?" : "Mark this entire day as out of office?"}
+    </div>
+    <div style="display: flex; gap: 6px;">
+      <button id="ooo-confirm" style="
+        flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+        border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+        background: ${isAlreadyOOO ? "var(--danger)" : "var(--accent)"}; color: white;
+      ">${isAlreadyOOO ? "Remove OOO" : "Mark as OOO"}</button>
+      <button id="ooo-cancel" style="
+        flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+        border-radius: 6px; cursor: pointer; font-family: inherit;
+        border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+      ">Cancel</button>
+    </div>
+  `;
+
+	/* Position near the chip */
+	popover.style.visibility = "hidden";
+	document.body.appendChild(popover);
+
+	const chipRect = chipEl.getBoundingClientRect();
+	const popoverRect = popover.getBoundingClientRect();
+	const viewportWidth = window.innerWidth;
+
+	let left = chipRect.left;
+	let top = chipRect.bottom + 4;
+
+	if (left + popoverRect.width + 16 > viewportWidth) {
+		left = viewportWidth - popoverRect.width - 16;
+	}
+	if (left < 8) left = 8;
+
+	popover.style.left = `${left}px`;
+	popover.style.top = `${top}px`;
+	popover.style.visibility = "visible";
+
+	/* Confirm button */
+	popover.querySelector("#ooo-confirm").addEventListener("click", async () => {
+		if (isAlreadyOOO) {
+			/* Remove all OOO blocks for this day */
+			const entries = await getEntriesForDate(dateStr);
+			for (const entry of entries) {
+				if (entry.category === "ooo") {
+					await deleteEntry(dateStr, entry.timeSlot);
+				}
+			}
+		} else {
+			/* Fill all time slots with OOO */
+			for (const slot of timeSlots) {
+				await saveEntry({
+					date: dateStr,
+					timeSlot: slot,
+					category: "ooo",
+					subCategory: "",
+					billable: false,
+					urgent: false,
+					ticketLink: "",
+					merchant: "",
+					formerPOS: "",
+					notes: "",
+				});
+			}
+		}
+		closeOOOPopover();
+		await renderTracker();
+	});
+
+	/* Cancel button */
+	popover.querySelector("#ooo-cancel").addEventListener("click", () => {
+		closeOOOPopover();
+	});
+}
+
+/**
+ * closeOOOPopover
+ * Removes any open OOO popover.
+ */
+function closeOOOPopover() {
+	const existing = document.getElementById("ooo-popover");
 	if (existing) existing.remove();
 }
 
