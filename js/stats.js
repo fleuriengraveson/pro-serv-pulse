@@ -36,6 +36,7 @@ import {
 	getCategoryLabel,
 	getCategoryHex,
 } from "./utils.js";
+import { getChartColors, isDark } from "./theme.js";
 
 /* ============================================================================
  * MODULE STATE
@@ -508,12 +509,12 @@ async function renderStats() {
           <div class="insight-card insight-${ins.type}">
             <div class="insight-icon" style="background: ${
 							ins.type === "warning"
-								? "#F59E0B"
+								? "var(--warning)"
 								: ins.type === "positive"
-									? "#10B981"
+									? "var(--positive)"
 									: ins.type === "flag"
-										? "#EF4444"
-										: "#3B82F6"
+										? "var(--danger)"
+										: "var(--info)"
 						}">${ins.icon}</div>
             <div>${ins.message}</div>
           </div>
@@ -555,7 +556,7 @@ async function renderStats() {
 							return `
               <div class="flex items-center justify-between text-xs">
                 <div class="flex items-center gap-2">
-                  <div class="w-2.5 h-2.5 rounded-sm" style="background: ${TIERS[t].hex}"></div>
+                  <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${TIERS[t].hexVar})"></div>
                   <span class="text-stone-500">${TIERS[t].label} — ${TIERS[t].description}</span>
                 </div>
                 <span class="font-medium">${hours} hrs (${pct}%)</span>
@@ -612,13 +613,13 @@ async function renderStats() {
       </div>
       <div class="flex gap-4 mt-2">
         <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded bg-chronos-500"></div>Tracked hours
+          <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
         </div>
         <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded bg-emerald-400" style="border-top: 1px dashed #10B981;"></div>Tier 1 hours
+          <div class="w-4 h-0.5 rounded" style="background: var(--positive); border-top: 1px dashed var(--positive);"></div>Tier 1 hours
         </div>
         <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded bg-amber-300" style="border-top: 1px dashed #F59E0B;"></div>Billable hours
+          <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
         </div>
       </div>
     </div>
@@ -653,7 +654,7 @@ function renderTierBar(byTier, total) {
 			if (pct === 0) return "";
 			return `
       <div class="flex items-center justify-center text-xs font-medium"
-           style="width: ${pct}%; background: ${TIERS[t].bg}; color: ${TIERS[t].hex};">
+           style="width: ${pct}%; background: var(${TIERS[t].bgVar}); color: var(${TIERS[t].hexVar});">
         ${pct >= 10 ? `${pct}%` : ""}
       </div>
     `;
@@ -812,7 +813,7 @@ function renderCategoryChart(byCategory) {
 		/* No data — show empty state */
 		const ctx = canvas.getContext("2d");
 		ctx.font = '13px "Plus Jakarta Sans", system-ui, sans-serif';
-		ctx.fillStyle = "#A8A29E";
+		ctx.fillStyle = getChartColors().emptyText;
 		ctx.textAlign = "center";
 		ctx.fillText(
 			"No data for this period",
@@ -829,7 +830,7 @@ function renderCategoryChart(byCategory) {
 			datasets: [
 				{
 					data: data.map((c) => byCategory[c.id] || 0),
-					backgroundColor: data.map((c) => c.hex),
+					backgroundColor: data.map((c) => getChartColors().categories[c.id]),
 					borderWidth: 0,
 					hoverOffset: 4,
 				},
@@ -850,7 +851,7 @@ function renderCategoryChart(byCategory) {
 							size: 11,
 							family: '"Plus Jakarta Sans", system-ui, sans-serif',
 						},
-						color: "#78716C",
+						color: getChartColors().legendColor,
 						usePointStyle: true,
 						pointStyleWidth: 8,
 					},
@@ -903,7 +904,7 @@ function renderDailyChart(entries, range) {
 					x: {
 						ticks: {
 							font: { size: 10 },
-							color: "#A8A29E",
+							color: getChartColors().tickColor,
 							maxRotation: 45,
 						},
 						grid: { display: false },
@@ -911,10 +912,10 @@ function renderDailyChart(entries, range) {
 					y: {
 						ticks: {
 							font: { size: 10 },
-							color: "#A8A29E",
+							color: getChartColors().tickColor,
 							callback: (v) => `${v}h`,
 						},
-						grid: { color: "#F5F5F4" },
+						grid: { color: getChartColors().gridColor },
 					},
 				},
 			},
@@ -945,7 +946,7 @@ function renderDailyChart(entries, range) {
 					(TIME_DEFAULTS.blockMinutes / 60)
 				);
 			}),
-			backgroundColor: cat.hex,
+			backgroundColor: getChartColors().categories[cat.id],
 			borderWidth: 0,
 			borderRadius: 2,
 		}));
@@ -967,17 +968,17 @@ function renderDailyChart(entries, range) {
 				scales: {
 					x: {
 						stacked: true,
-						ticks: { font: { size: 11 }, color: "#A8A29E" },
+						ticks: { font: { size: 11 }, color: getChartColors().tickColor },
 						grid: { display: false },
 					},
 					y: {
 						stacked: true,
 						ticks: {
 							font: { size: 10 },
-							color: "#A8A29E",
+							color: getChartColors().tickColor,
 							callback: (v) => `${v}h`,
 						},
-						grid: { color: "#F5F5F4" },
+						grid: { color: getChartColors().gridColor },
 						max: 8,
 					},
 				},
@@ -1006,33 +1007,33 @@ function renderTrendChart(history) {
 				{
 					label: "Tracked hours",
 					data: reversed.map((w) => w.tracked),
-					borderColor: "#8B5CF6",
-					backgroundColor: "rgba(139, 92, 246, 0.08)",
+					borderColor: getChartColors().accent,
+					backgroundColor: getChartColors().accentLight,
 					fill: true,
 					tension: 0.3,
 					pointRadius: 3,
-					pointBackgroundColor: "#8B5CF6",
+					pointBackgroundColor: getChartColors().accent,
 					borderWidth: 2,
 				},
 				{
 					label: "Tier 1 hours",
 					data: reversed.map((w) => w.byTier[1] || 0),
-					borderColor: "#10B981",
+					borderColor: getChartColors().positive,
 					borderDash: [6, 3],
 					tension: 0.3,
 					pointRadius: 3,
-					pointBackgroundColor: "#10B981",
+					pointBackgroundColor: getChartColors().positive,
 					borderWidth: 2,
 					fill: false,
 				},
 				{
 					label: "Billable hours",
 					data: reversed.map((w) => w.billable || 0),
-					borderColor: "#F59E0B",
+					borderColor: getChartColors().warning,
 					borderDash: [4, 4],
 					tension: 0.3,
 					pointRadius: 3,
-					pointBackgroundColor: "#F59E0B",
+					pointBackgroundColor: getChartColors().warning,
 					borderWidth: 1.5,
 					fill: false,
 				},
@@ -1051,16 +1052,16 @@ function renderTrendChart(history) {
 			},
 			scales: {
 				x: {
-					ticks: { font: { size: 11 }, color: "#A8A29E" },
+					ticks: { font: { size: 11 }, color: getChartColors().tickColor },
 					grid: { display: false },
 				},
 				y: {
 					ticks: {
 						font: { size: 10 },
-						color: "#A8A29E",
+						color: getChartColors().tickColor,
 						callback: (v) => `${v}h`,
 					},
-					grid: { color: "#F5F5F4" },
+					grid: { color: getChartColors().gridColor },
 					beginAtZero: true,
 				},
 			},

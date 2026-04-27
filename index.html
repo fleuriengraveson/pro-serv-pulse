@@ -38,7 +38,6 @@
 							sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
 						},
 						colors: {
-							/* Primary accent — soft violet */
 							chronos: {
 								50: "#F5F3FF",
 								100: "#EDE9FE",
@@ -49,11 +48,10 @@
 								600: "#7C3AED",
 								700: "#6D28D9",
 							},
-							/* Surface colors for the calm, minimal aesthetic */
 							surface: {
-								50: "#FAFAF9",
-								100: "#F5F5F4",
-								200: "#E7E5E4",
+								50: "#F6F5F8",
+								100: "#EDEBE8",
+								200: "#E5E2DF",
 							},
 						},
 					},
@@ -115,6 +113,13 @@
 
 					<!-- Divider -->
 					<div class="w-px h-5 bg-stone-200 mx-1"></div>
+
+					<!-- Theme toggle -->
+					<button
+						id="theme-toggle"
+						class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 transition-colors"
+						title="Toggle light/dark mode"
+					></button>
 
 					<!-- Settings button -->
 					<button
@@ -208,6 +213,13 @@
     APP MODULES (ES6)
     Load the main app entry point as a module. It imports everything else.
     =================================================================== -->
+		<script type="module">
+			import { initTheme, toggleTheme } from "./js/theme.js";
+			initTheme();
+			document
+				.getElementById("theme-toggle")
+				?.addEventListener("click", toggleTheme);
+		</script>
 		<script type="module" src="js/app.js"></script>
 	</body>
 </html>

@@ -1,4 +1,201 @@
 /* ============================================================================
+ * THEME VARIABLES
+ * --------------------------------------------------------------------------
+ * All colors are defined as CSS custom properties. Light mode is the default.
+ * Dark mode activates via data-theme="dark" on <html>.
+ * Future palettes add new [data-theme="palette-name"] blocks.
+ * ========================================================================= */
+
+:root,
+[data-theme="light"] {
+	/* Page and surface backgrounds */
+	--bg-page: #f6f5f8;
+	--bg-card: #ffffff;
+	--bg-surface: #edebe8;
+	--bg-surface-hover: #e5e2df;
+	--bg-input: #f6f5f8;
+	--bg-dropdown: #ffffff;
+
+	/* Text */
+	--text-primary: #1c1917;
+	--text-secondary: #6b6560;
+	--text-muted: #8a8490;
+	--text-placeholder: #a8a29e;
+	--text-inverse: #ffffff;
+
+	/* Borders */
+	--border-default: #e7e5e4;
+	--border-subtle: #edebe8;
+	--border-strong: #d6d3d1;
+
+	/* Accent (purple) */
+	--accent: #8b5cf6;
+	--accent-hover: #7c3aed;
+	--accent-light: #f5f3ff;
+	--accent-border: #ddd6fe;
+	--accent-text: #7c3aed;
+	--accent-text-light: #a78bfa;
+
+	/* Status */
+	--positive: #10b981;
+	--positive-bg: #ecfdf5;
+	--positive-text: #065f46;
+	--warning: #f59e0b;
+	--warning-bg: #fffbeb;
+	--warning-text: #92400e;
+	--danger: #ef4444;
+	--danger-bg: #fef2f2;
+	--danger-text: #991b1b;
+	--info: #3b82f6;
+	--info-bg: #eff6ff;
+	--info-text: #1e40af;
+
+	/* Progress bar */
+	--progress-track: #edebe8;
+	--progress-gradient-start: #a78bfa;
+	--progress-gradient-end: #67e8f9;
+	--progress-good: #10b981;
+	--progress-warn: #f59e0b;
+	--progress-bad: #ef4444;
+
+	/* Category block colors — border-left and background */
+	--cat-meeting-int-border: #63b3ed;
+	--cat-meeting-int-bg: rgba(99, 179, 237, 0.12);
+	--cat-meeting-int-text: #2b6cb0;
+	--cat-meeting-merch-border: #0ea5e9;
+	--cat-meeting-merch-bg: rgba(14, 165, 233, 0.12);
+	--cat-meeting-merch-text: #0369a1;
+	--cat-migration-border: #b794f4;
+	--cat-migration-bg: rgba(183, 148, 244, 0.12);
+	--cat-migration-text: #6b46c1;
+	--cat-admin-border: #f6ad55;
+	--cat-admin-bg: rgba(246, 173, 85, 0.12);
+	--cat-admin-text: #c05621;
+	--cat-analytics-border: #f472b6;
+	--cat-analytics-bg: rgba(244, 114, 182, 0.12);
+	--cat-analytics-text: #b91c6a;
+	--cat-research-border: #84cc16;
+	--cat-research-bg: rgba(132, 204, 22, 0.12);
+	--cat-research-text: #4d7c0f;
+	--cat-tools-border: #48dbb4;
+	--cat-tools-bg: rgba(72, 219, 180, 0.12);
+	--cat-tools-text: #0f766e;
+	--cat-api-border: #f97316;
+	--cat-api-bg: rgba(249, 115, 22, 0.12);
+	--cat-api-text: #c2410c;
+	--cat-hardware-border: #ef4444;
+	--cat-hardware-bg: rgba(239, 68, 68, 0.12);
+	--cat-hardware-text: #b91c1c;
+	--cat-zendesk-border: #eab308;
+	--cat-zendesk-bg: rgba(234, 179, 8, 0.12);
+	--cat-zendesk-text: #a16207;
+	--cat-lunch-border: #d6d3d1;
+	--cat-lunch-bg: #f0edf3;
+	--cat-lunch-text: #a8a29e;
+	--cat-other-border: #94a3b8;
+	--cat-other-bg: rgba(148, 163, 184, 0.08);
+	--cat-other-text: #64748b;
+
+	/* Scrollbar */
+	--scrollbar-thumb: #d6d3d1;
+	--scrollbar-thumb-hover: #a8a29e;
+}
+
+[data-theme="dark"] {
+	/* Page and surface backgrounds */
+	--bg-page: #141318;
+	--bg-card: #1e1c24;
+	--bg-surface: #1e1c24;
+	--bg-surface-hover: #2a2730;
+	--bg-input: #1e1c24;
+	--bg-dropdown: #1e1c24;
+
+	/* Text */
+	--text-primary: #e8e4ed;
+	--text-secondary: #9590a0;
+	--text-muted: #7a7588;
+	--text-placeholder: #5a5568;
+	--text-inverse: #141318;
+
+	/* Borders */
+	--border-default: #2a2730;
+	--border-subtle: #1e1c24;
+	--border-strong: #3d3852;
+
+	/* Accent (purple — brighter in dark mode) */
+	--accent: #a78bfa;
+	--accent-hover: #c4b5fd;
+	--accent-light: rgba(167, 139, 250, 0.12);
+	--accent-border: rgba(167, 139, 250, 0.25);
+	--accent-text: #c4b5fd;
+	--accent-text-light: #a78bfa;
+
+	/* Status */
+	--positive: #48dbb4;
+	--positive-bg: rgba(72, 219, 180, 0.1);
+	--positive-text: #81e6d9;
+	--warning: #f6ad55;
+	--warning-bg: rgba(246, 173, 85, 0.1);
+	--warning-text: #fbd38d;
+	--danger: #fc8181;
+	--danger-bg: rgba(252, 129, 129, 0.1);
+	--danger-text: #feb2b2;
+	--info: #63b3ed;
+	--info-bg: rgba(99, 179, 237, 0.1);
+	--info-text: #90cdf4;
+
+	/* Progress bar */
+	--progress-track: #2a2730;
+	--progress-gradient-start: #a78bfa;
+	--progress-gradient-end: #67e8f9;
+	--progress-good: #48dbb4;
+	--progress-warn: #f6ad55;
+	--progress-bad: #fc8181;
+
+	/* Category block colors — more vibrant on dark */
+	--cat-meeting-int-border: #63b3ed;
+	--cat-meeting-int-bg: rgba(99, 179, 237, 0.1);
+	--cat-meeting-int-text: #90cdf4;
+	--cat-meeting-merch-border: #4fd1c5;
+	--cat-meeting-merch-bg: rgba(79, 209, 197, 0.1);
+	--cat-meeting-merch-text: #81e6d9;
+	--cat-migration-border: #b794f4;
+	--cat-migration-bg: rgba(183, 148, 244, 0.1);
+	--cat-migration-text: #d6bcfa;
+	--cat-admin-border: #f6ad55;
+	--cat-admin-bg: rgba(246, 173, 85, 0.08);
+	--cat-admin-text: #fbd38d;
+	--cat-analytics-border: #f472b6;
+	--cat-analytics-bg: rgba(244, 114, 182, 0.08);
+	--cat-analytics-text: #fbb6ce;
+	--cat-research-border: #9ae6b4;
+	--cat-research-bg: rgba(154, 230, 180, 0.08);
+	--cat-research-text: #c6f6d5;
+	--cat-tools-border: #48dbb4;
+	--cat-tools-bg: rgba(72, 219, 180, 0.08);
+	--cat-tools-text: #81e6d9;
+	--cat-api-border: #fbb27d;
+	--cat-api-bg: rgba(251, 178, 125, 0.08);
+	--cat-api-text: #fbd38d;
+	--cat-hardware-border: #fc8181;
+	--cat-hardware-bg: rgba(252, 129, 129, 0.08);
+	--cat-hardware-text: #feb2b2;
+	--cat-zendesk-border: #faf089;
+	--cat-zendesk-bg: rgba(250, 240, 137, 0.06);
+	--cat-zendesk-text: #fefcbf;
+	--cat-lunch-border: #4a4558;
+	--cat-lunch-bg: rgba(107, 101, 128, 0.1);
+	--cat-lunch-text: #6b6580;
+	--cat-other-border: #6b6580;
+	--cat-other-bg: rgba(107, 101, 128, 0.06);
+	--cat-other-text: #9590a0;
+
+	/* Scrollbar */
+	--scrollbar-thumb: #3d3852;
+	--scrollbar-thumb-hover: #5a5568;
+}
+
+/* ============================================================================
  * main.css — Chronos Custom Styles
  * ============================================================================
  * Complements Tailwind with app-specific styles that are easier to express
@@ -10,17 +207,21 @@
  * BASE / RESET
  * ------------------------------------------------------------------------- */
 
-/* Smooth scrolling for the whole page */
 html {
 	scroll-behavior: smooth;
 }
-
-/* Remove default focus outlines, replace with our own */
+body {
+	background-color: var(--bg-page) !important;
+	color: var(--text-primary) !important;
+	transition:
+		background-color 0.2s ease,
+		color 0.2s ease;
+}
 *:focus {
 	outline: none;
 }
 *:focus-visible {
-	outline: 2px solid #a78bfa;
+	outline: 2px solid var(--accent-text-light);
 	outline-offset: 2px;
 	border-radius: 4px;
 }
@@ -32,15 +233,15 @@ html {
  * ------------------------------------------------------------------------- */
 
 .nav-btn {
-	color: #78716c; /* stone-500 */
+	color: var(--text-muted);
 }
 .nav-btn:hover {
-	color: #44403c; /* stone-700 */
-	background-color: #f5f5f4; /* surface-100 */
+	color: var(--text-primary);
+	background-color: var(--bg-surface);
 }
 .nav-btn.active {
-	color: #7c3aed; /* chronos-600 */
-	background-color: #ede9fe; /* chronos-100 */
+	color: var(--accent-text);
+	background-color: var(--accent-light);
 	font-weight: 500;
 }
 
@@ -51,112 +252,69 @@ html {
  * These classes are applied dynamically by tracker.js.
  * ------------------------------------------------------------------------- */
 
-/* Base filled block styling */
 .time-block-filled {
 	border-left: 3px solid;
 	transition: all 0.15s ease;
 }
-
-/* Category-specific colors: border-left-color and background */
 .cat-meeting_internal {
-	border-left-color: #3b82f6;
-	background-color: #eff6ff;
+	border-left-color: var(--cat-meeting-int-border);
+	background-color: var(--cat-meeting-int-bg);
+	color: var(--cat-meeting-int-text);
 }
 .cat-meeting_merchant {
-	border-left-color: #06b6d4;
-	background-color: #ecfeff;
+	border-left-color: var(--cat-meeting-merch-border);
+	background-color: var(--cat-meeting-merch-bg);
+	color: var(--cat-meeting-merch-text);
 }
 .cat-data_migration {
-	border-left-color: #8b5cf6;
-	background-color: #f5f3ff;
+	border-left-color: var(--cat-migration-border);
+	background-color: var(--cat-migration-bg);
+	color: var(--cat-migration-text);
 }
 .cat-admin {
-	border-left-color: #f59e0b;
-	background-color: #fffbeb;
+	border-left-color: var(--cat-admin-border);
+	background-color: var(--cat-admin-bg);
+	color: var(--cat-admin-text);
 }
 .cat-analytics {
-	border-left-color: #ec4899;
-	background-color: #fdf2f8;
+	border-left-color: var(--cat-analytics-border);
+	background-color: var(--cat-analytics-bg);
+	color: var(--cat-analytics-text);
 }
 .cat-research_sync {
-	border-left-color: #84cc16;
-	background-color: #f7fee7;
+	border-left-color: var(--cat-research-border);
+	background-color: var(--cat-research-bg);
+	color: var(--cat-research-text);
 }
 .cat-internal_tools {
-	border-left-color: #10b981;
-	background-color: #ecfdf5;
+	border-left-color: var(--cat-tools-border);
+	background-color: var(--cat-tools-bg);
+	color: var(--cat-tools-text);
 }
 .cat-api_scoping {
-	border-left-color: #f97316;
-	background-color: #fff7ed;
+	border-left-color: var(--cat-api-border);
+	background-color: var(--cat-api-bg);
+	color: var(--cat-api-text);
 }
 .cat-hardware {
-	border-left-color: #ef4444;
-	background-color: #fef2f2;
+	border-left-color: var(--cat-hardware-border);
+	background-color: var(--cat-hardware-bg);
+	color: var(--cat-hardware-text);
 }
 .cat-zendesk_admin {
-	border-left-color: #eab308;
-	background-color: #fefce8;
+	border-left-color: var(--cat-zendesk-border);
+	background-color: var(--cat-zendesk-bg);
+	color: var(--cat-zendesk-text);
 }
 .cat-lunch {
-	border-left-color: #d6d3d1;
-	background-color: #fafaf9;
+	border-left-color: var(--cat-lunch-border);
+	background-color: var(--cat-lunch-bg);
+	color: var(--cat-lunch-text);
 }
 .cat-other {
-	border-left-color: #94a3b8;
-	background-color: #f8fafc;
-}
-
-/* Dark mode category colors (for future use) */
-@media (prefers-color-scheme: dark) {
-	.cat-meeting_internal {
-		border-left-color: #60a5fa;
-		background-color: rgba(59, 130, 246, 0.1);
-	}
-	.cat-meeting_merchant {
-		border-left-color: #22d3ee;
-		background-color: rgba(6, 182, 212, 0.1);
-	}
-	.cat-data_migration {
-		border-left-color: #a78bfa;
-		background-color: rgba(139, 92, 246, 0.1);
-	}
-	.cat-admin {
-		border-left-color: #fbbf24;
-		background-color: rgba(245, 158, 11, 0.1);
-	}
-	.cat-analytics {
-		border-left-color: #f472b6;
-		background-color: rgba(236, 72, 153, 0.1);
-	}
-	.cat-research_sync {
-		border-left-color: #a3e635;
-		background-color: rgba(132, 204, 22, 0.1);
-	}
-	.cat-internal_tools {
-		border-left-color: #34d399;
-		background-color: rgba(16, 185, 129, 0.1);
-	}
-	.cat-api_scoping {
-		border-left-color: #fb923c;
-		background-color: rgba(249, 115, 22, 0.1);
-	}
-	.cat-hardware {
-		border-left-color: #f87171;
-		background-color: rgba(239, 68, 68, 0.1);
-	}
-	.cat-zendesk_admin {
-		border-left-color: #facc15;
-		background-color: rgba(234, 179, 8, 0.1);
-	}
-	.cat-lunch {
-		border-left-color: #57534e;
-		background-color: rgba(214, 211, 209, 0.05);
-	}
-	.cat-other {
-		border-left-color: #64748b;
-		background-color: rgba(148, 163, 184, 0.05);
-	}
+	border-left-color: var(--cat-other-border);
+	background-color: var(--cat-other-bg);
+	color: var(--cat-other-text);
 }
 
 /* ----------------------------------------------------------------------------
@@ -165,27 +323,25 @@ html {
  * Hover states, drag selection, and empty block styling.
  * ------------------------------------------------------------------------- */
 
-/* Empty block: subtle dashed border on hover to invite clicking */
 .time-block-empty {
 	border-left: 3px solid transparent;
 	transition: all 0.15s ease;
 }
 .time-block-empty:hover {
-	background-color: #f5f5f4;
-	border-left-color: #d6d3d1;
+	background-color: var(--bg-surface);
+	border-left-color: var(--border-strong);
 	cursor: pointer;
 }
-
-/* Drag selection highlight */
 .time-block-selecting {
-	background-color: #ede9fe !important;
-	border-left-color: #8b5cf6 !important;
+	background-color: var(--accent-light) !important;
+	border-left-color: var(--accent) !important;
 }
-
-/* Filled block hover: slightly darken for feedback */
 .time-block-filled:hover {
 	filter: brightness(0.97);
 	cursor: pointer;
+}
+[data-theme="dark"] .time-block-filled:hover {
+	filter: brightness(1.1);
 }
 
 /* ----------------------------------------------------------------------------
@@ -199,67 +355,106 @@ html {
 	position: absolute;
 	z-index: 50;
 	width: 540px;
-	background: white;
-	border: 1px solid #e7e5e4;
+	background: var(--bg-dropdown);
+	border: 1px solid var(--border-default);
 	border-radius: 12px;
 	box-shadow:
 		0 4px 24px rgba(0, 0, 0, 0.08),
 		0 1px 4px rgba(0, 0, 0, 0.04);
 	padding: 10px;
-	animation: dropdown-in 0.15s ease forwards;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
+	animation: dropdown-in 0.15s ease forwards;
+}
+[data-theme="dark"] .edit-dropdown {
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.3),
+		0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .dropdown-body {
 	display: flex;
 	gap: 10px;
 }
-
 .dropdown-categories {
 	width: 190px;
 	flex-shrink: 0;
 	max-height: 220px;
 	overflow-y: auto;
 }
-
-@keyframes dropdown-in {
-	from {
-		opacity: 0;
-		transform: translateY(-4px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-/* Category option in the dropdown */
 .dropdown-option {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 6px 10px;
-	border-radius: 8px;
-	font-size: 13px;
+	padding: 5px 8px;
+	border-radius: 6px;
+	font-size: 12px;
+	color: var(--text-primary);
 	cursor: pointer;
 	transition: background-color 0.1s ease;
 }
 .dropdown-option:hover {
-	background-color: #f5f5f4;
+	background-color: var(--bg-surface);
 }
 .dropdown-option.selected {
-	background-color: #f5f3ff;
+	background-color: var(--accent-light);
 	font-weight: 500;
 }
-
-/* Color dot next to each category option */
 .cat-dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 3px;
+	width: 7px;
+	height: 7px;
+	border-radius: 2px;
 	flex-shrink: 0;
+}
+.detail-panel {
+	flex: 1;
+	border-left: 1px solid var(--border-default);
+	padding-left: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.detail-panel input[type="text"],
+.detail-panel input[type="url"] {
+	width: 100%;
+	padding: 5px 8px;
+	font-size: 12px;
+	border: 1px solid var(--border-default);
+	border-radius: 6px;
+	background: var(--bg-input);
+	color: var(--text-primary);
+	transition: border-color 0.15s ease;
+}
+.detail-panel input::placeholder {
+	color: var(--text-placeholder);
+}
+.detail-panel input:focus {
+	border-color: var(--accent-text-light);
+	box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+}
+.detail-panel label.field-label {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-bottom: 2px;
+	display: block;
+}
+.dropdown-buttons {
+	display: flex;
+	gap: 6px;
+	border-top: 1px solid var(--border-default);
+	padding-top: 8px;
+}
+.dropdown-buttons button {
+	flex: 1;
+	padding: 6px 0;
+	text-align: center;
+	font-size: 12px;
+	font-weight: 500;
+	border-radius: 6px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: all 0.15s ease;
 }
 
 /* ----------------------------------------------------------------------------
@@ -325,25 +520,26 @@ html {
  * ------------------------------------------------------------------------- */
 
 .stat-card {
-	background: #f5f5f4;
+	background: var(--bg-card);
+	border: 0.5px solid var(--border-default);
 	border-radius: 10px;
 	padding: 14px 16px;
 }
 .stat-card-label {
 	font-size: 11px;
-	color: #78716c;
+	color: var(--text-muted);
 	font-weight: 500;
 	margin-bottom: 4px;
 }
 .stat-card-value {
 	font-size: 22px;
 	font-weight: 600;
-	color: #1c1917;
+	color: var(--text-primary);
 	line-height: 1.2;
 }
 .stat-card-sub {
 	font-size: 11px;
-	color: #a8a29e;
+	color: var(--text-muted);
 	margin-top: 4px;
 }
 
@@ -355,7 +551,7 @@ html {
 
 .progress-track {
 	height: 4px;
-	background: #e7e5e4;
+	background: var(--progress-track);
 	border-radius: 2px;
 	overflow: hidden;
 	margin-top: 8px;
@@ -365,17 +561,14 @@ html {
 	border-radius: 2px;
 	transition: width 0.4s ease;
 }
-/* Green when at or above target */
 .progress-fill-good {
-	background: #10b981;
+	background: var(--progress-good);
 }
-/* Amber when below target */
 .progress-fill-warn {
-	background: #f59e0b;
+	background: var(--progress-warn);
 }
-/* Red when significantly below target */
 .progress-fill-bad {
-	background: #ef4444;
+	background: var(--progress-bad);
 }
 
 /* ----------------------------------------------------------------------------
@@ -395,20 +588,20 @@ html {
 	line-height: 1.5;
 }
 .insight-warning {
-	background: #fffbeb;
-	color: #92400e;
+	background: var(--warning-bg);
+	color: var(--warning-text);
 }
 .insight-positive {
-	background: #ecfdf5;
-	color: #065f46;
+	background: var(--positive-bg);
+	color: var(--positive-text);
 }
 .insight-info {
-	background: #eff6ff;
-	color: #1e40af;
+	background: var(--info-bg);
+	color: var(--info-text);
 }
 .insight-flag {
-	background: #fef2f2;
-	color: #991b1b;
+	background: var(--danger-bg);
+	color: var(--danger-text);
 }
 .insight-icon {
 	width: 18px;
@@ -461,11 +654,11 @@ html {
 	background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-	background: #d6d3d1;
+	background: var(--scrollbar-thumb);
 	border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-	background: #a8a29e;
+	background: var(--scrollbar-thumb-hover);
 }
 
 /* ----------------------------------------------------------------------------
@@ -494,31 +687,19 @@ html {
 	justify-content: space-between;
 	padding: 8px 12px;
 	margin-bottom: 8px;
-	background: #f5f3ff;
-	border: 1px solid #ddd6fe;
+	background: var(--accent-light);
+	border: 1px solid var(--accent-border);
 	border-radius: 8px;
 	animation: fade-in 0.15s ease;
 }
-
-/* Pulsing dot to show clipboard is active */
 .clipboard-indicator::before {
 	content: "";
 	width: 6px;
 	height: 6px;
 	border-radius: 50%;
-	background: #8b5cf6;
+	background: var(--accent);
 	margin-right: 8px;
 	animation: pulse-dot 2s infinite;
-}
-
-@keyframes pulse-dot {
-	0%,
-	100% {
-		opacity: 1;
-	}
-	50% {
-		opacity: 0.3;
-	}
 }
 
 /* ----------------------------------------------------------------------------
@@ -595,14 +776,19 @@ html {
 	position: absolute;
 	z-index: 50;
 	width: 260px;
-	background: white;
-	border: 1px solid #e7e5e4;
+	background: var(--bg-dropdown);
+	border: 1px solid var(--border-default);
 	border-radius: 12px;
+	padding: 12px;
+	animation: dropdown-in 0.15s ease forwards;
 	box-shadow:
 		0 4px 24px rgba(0, 0, 0, 0.08),
 		0 1px 4px rgba(0, 0, 0, 0.04);
-	padding: 12px;
-	animation: dropdown-in 0.15s ease;
+}
+[data-theme="dark"] .week-popover {
+	box-shadow:
+		0 4px 24px rgba(0, 0, 0, 0.3),
+		0 1px 4px rgba(0, 0, 0, 0.2);
 }
 .week-popover-row {
 	display: flex;
@@ -612,14 +798,123 @@ html {
 	font-size: 12px;
 }
 .week-popover-label {
-	color: #78716c;
+	color: var(--text-muted);
 	font-size: 11px;
 }
 .week-popover-value {
 	font-weight: 500;
+	color: var(--text-primary);
 	text-align: right;
 	max-width: 160px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* ============================================================================
+ * TAILWIND DARK MODE OVERRIDES
+ * --------------------------------------------------------------------------
+ * Override Tailwind utility classes when dark mode is active.
+ * This avoids adding dark: variants to every template string.
+ * ========================================================================= */
+
+[data-theme="dark"] .bg-surface-50 {
+	background-color: var(--bg-page) !important;
+}
+[data-theme="dark"] .bg-white {
+	background-color: var(--bg-card) !important;
+}
+[data-theme="dark"] .bg-surface-100 {
+	background-color: var(--bg-surface) !important;
+}
+[data-theme="dark"] .bg-surface-200 {
+	background-color: var(--bg-surface-hover) !important;
+}
+[data-theme="dark"] .bg-chronos-50 {
+	background-color: var(--accent-light) !important;
+}
+[data-theme="dark"] .bg-chronos-100 {
+	background-color: var(--accent-light) !important;
+}
+[data-theme="dark"] .bg-chronos-500 {
+	background-color: var(--accent) !important;
+}
+
+[data-theme="dark"] .text-stone-900 {
+	color: var(--text-primary) !important;
+}
+[data-theme="dark"] .text-stone-800 {
+	color: var(--text-primary) !important;
+}
+[data-theme="dark"] .text-stone-700 {
+	color: var(--text-primary) !important;
+}
+[data-theme="dark"] .text-stone-600 {
+	color: var(--text-secondary) !important;
+}
+[data-theme="dark"] .text-stone-500 {
+	color: var(--text-secondary) !important;
+}
+[data-theme="dark"] .text-stone-400 {
+	color: var(--text-muted) !important;
+}
+[data-theme="dark"] .text-stone-300 {
+	color: var(--text-placeholder) !important;
+}
+[data-theme="dark"] .text-chronos-700 {
+	color: var(--accent-text) !important;
+}
+[data-theme="dark"] .text-chronos-600 {
+	color: var(--accent-text) !important;
+}
+[data-theme="dark"] .text-chronos-500 {
+	color: var(--accent-text-light) !important;
+}
+[data-theme="dark"] .text-chronos-400 {
+	color: var(--accent-text-light) !important;
+}
+
+[data-theme="dark"] .border-stone-200 {
+	border-color: var(--border-default) !important;
+}
+[data-theme="dark"] .border-stone-100 {
+	border-color: var(--border-subtle) !important;
+}
+[data-theme="dark"] .border-stone-50 {
+	border-color: var(--border-subtle) !important;
+}
+[data-theme="dark"] .border-chronos-200 {
+	border-color: var(--accent-border) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+	background-color: var(--bg-input) !important;
+	color: var(--text-primary) !important;
+	border-color: var(--border-default) !important;
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+	color: var(--text-placeholder) !important;
+}
+
+/* Settings panel card backgrounds */
+[data-theme="dark"] .rounded-xl.border.border-stone-200 {
+	background-color: var(--bg-card) !important;
+	border-color: var(--border-default) !important;
+}
+
+/* Week grid adjustments */
+[data-theme="dark"] .week-grid-header {
+	border-bottom-color: var(--border-default);
+}
+[data-theme="dark"] .week-grid-row {
+	border-bottom-color: var(--border-subtle);
+}
+[data-theme="dark"] .week-block-label {
+	color: var(--text-primary);
+}
+[data-theme="dark"] .week-block-sub {
+	color: var(--text-muted);
 }

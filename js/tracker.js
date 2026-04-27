@@ -422,7 +422,7 @@ function renderSidebar(stats) {
 				.map(
 					(cat) => `
         <div class="flex items-center gap-2 mb-1.5">
-          <div class="w-2 h-2 rounded-sm flex-shrink-0" style="background: ${cat.hex}"></div>
+          <div class="w-2 h-2 rounded-sm flex-shrink-0" style="background: var(${cat.cssVar})"></div>
           <span class="text-[11px] text-stone-400">${cat.label}</span>
         </div>
       `,
@@ -469,7 +469,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 					return `
             <div class="dropdown-option ${isSelected ? "selected" : ""}"
                  data-category="${cat.id}">
-              <div class="cat-dot" style="background: ${cat.hex}"></div>
+              <div class="cat-dot" style="background: var(${cat.cssVar})"></div>
               <span>${cat.label}</span>
             </div>
           `;
@@ -1001,7 +1001,7 @@ function updateClipboardIndicator() {
 	indicator.className = "clipboard-indicator";
 	indicator.innerHTML = `
     <div class="flex items-center gap-2">
-      <div class="w-2 h-2 rounded-sm" style="background: ${cat?.hex || "#9CA3AF"}"></div>
+      <div class="w-2 h-2 rounded-sm" style="background: var(${cat.cssVar}) || "var(--cat-other-border)"}"></div>
       <span class="text-xs font-medium text-chronos-700">Copied: ${label}</span>
       ${clipboard.subCategory ? `<span class="text-xs text-chronos-400">— ${clipboard.subCategory}</span>` : ""}
     </div>
@@ -1320,7 +1320,7 @@ function attachNotesListeners() {
 		/* Show save confirmation */
 		if (statusEl) {
 			statusEl.textContent = "Saved";
-			statusEl.style.color = "#10B981";
+			statusEl.style.color = "var(--positive)";
 			setTimeout(() => {
 				if (statusEl) {
 					statusEl.textContent = "";
@@ -1335,7 +1335,7 @@ function attachNotesListeners() {
 			/* Show "saving..." while debouncing */
 			if (statusEl) {
 				statusEl.textContent = "Saving...";
-				statusEl.style.color = "#A8A29E";
+				statusEl.style.color = "var(--cat-lunch-text)";
 			}
 			clearTimeout(saveTimeout);
 			saveTimeout = setTimeout(autoSave, 500);
@@ -1412,7 +1412,7 @@ function showWeekPopover(entry, blockEl) {
 	let html = `
     <!-- Category header -->
     <div class="flex items-center gap-2 mb-2 pb-2 border-b border-stone-100">
-      <div class="w-2.5 h-2.5 rounded-sm" style="background: ${cat?.hex || "#9CA3AF"}"></div>
+      <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${cat.cssVar}) || "var(--cat-other-border)"}"></div>
       <span class="text-sm font-medium">${cat?.label || entry.category}</span>
     </div>
 
