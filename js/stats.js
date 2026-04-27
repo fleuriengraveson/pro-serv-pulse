@@ -36,6 +36,10 @@ import {
 	countTrackedHours,
 	countBillableHours,
 	countTotalHours,
+	countOOOHours,
+	countOOODays,
+	countExpectedHoursUpToNow,
+	filterEntriesUpToNow,
 	detectOutlier,
 	getCategoryLabel,
 	getCategoryHex,
@@ -219,6 +223,9 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 		/* Skip weeks with zero entries — they're gaps, not real data */
 		if (entries.length === 0 && i > 0) continue;
 
+		const oooDates = getOOODatesFromEntries(entries);
+		const oooCount = oooDates.size;
+
 		weeks.push({
 			weekKey: getISOWeekKey(refDate),
 			startDate,
@@ -227,6 +234,9 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 			billable: countBillableHours(entries),
 			byCategory: aggregateByCategory(entries),
 			byTier: aggregateByTier(entries, tierMap),
+			oooCount,
+			/* Adjusted expected hours: 5 working days minus OOO, times hours per day */
+			expectedHours: (5 - oooCount) * TARGETS.dailyTrackableHours,
 		});
 	}
 
@@ -268,10 +278,11 @@ function generateInsights(currentStats, history) {
 	const tierMap = appState.tierMap || {};
 
 	/* --- Compliance check --- */
+	/* Calculate expected hours accounting for OOO */
+	const oooDates = getOOODatesFromEntries(currentStats.entries || []);
+	const adjustedExpected = (5 - oooDates.size) * TARGETS.dailyTrackableHours;
 	const trackedPercent =
-		TARGETS.weeklyTrackableHours > 0
-			? (currentStats.tracked / TARGETS.weeklyTrackableHours) * 100
-			: 0;
+		adjustedExpected > 0 ? (currentStats.tracked / adjustedExpected) * 100 : 0;
 
 	if (trackedPercent >= TARGETS.compliancePercent) {
 		insights.push({
@@ -283,7 +294,7 @@ function generateInsights(currentStats, history) {
 		insights.push({
 			type: "warning",
 			icon: "!",
-			message: `<strong>Below tracking target</strong> — ${Math.round(trackedPercent)}% tracked vs. the ${TARGETS.compliancePercent}% target. You need ${((TARGETS.compliancePercent / 100) * TARGETS.weeklyTrackableHours - currentStats.tracked).toFixed(1)} more hours.`,
+			message: `<strong>Below tracking target</strong> — ${Math.round(trackedPercent)}% tracked vs. the ${TARGETS.compliancePercent}% target. You need ${Math.max(0, (TARGETS.compliancePercent / 100) * adjustedExpected - currentStats.tracked).toFixed(1)} more hours.`,
 		});
 	}
 
@@ -353,6 +364,34 @@ function generateInsights(currentStats, history) {
 	return insights;
 }
 
+/**
+ * getOOODatesFromEntries
+ * Scans entries and returns a Set of date strings where every
+ * tracked block is OOO (fully OOO days).
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {Set<string>} Set of 'YYYY-MM-DD' date strings
+ */
+function getOOODatesFromEntries(entries) {
+	const byDate = {};
+	entries.forEach((e) => {
+		if (!e.category) return;
+		if (!byDate[e.date]) byDate[e.date] = [];
+		byDate[e.date].push(e);
+	});
+
+	const oooDates = new Set();
+	for (const [date, dayEntries] of Object.entries(byDate)) {
+		if (
+			dayEntries.length > 0 &&
+			dayEntries.every((e) => e.category === "ooo")
+		) {
+			oooDates.add(date);
+		}
+	}
+	return oooDates;
+}
+
 /* ============================================================================
  * MAIN RENDER
  * ========================================================================= */
@@ -372,7 +411,8 @@ async function renderStats() {
 	const byCategory = aggregateByCategory(entries);
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
-	const untracked = getExpectedHours() - tracked;
+	const expectedHours = getExpectedHours(entries);
+	const untracked = expectedHours - tracked;
 
 	const currentStats = {
 		tracked,
@@ -381,6 +421,7 @@ async function renderStats() {
 		byCategory,
 		byTier,
 		byMerchant,
+		entries,
 	};
 
 	/* Fetch historical data for insights and trend chart */
@@ -388,7 +429,6 @@ async function renderStats() {
 	const insights = generateInsights(currentStats, history);
 
 	/* Determine compliance status */
-	const expectedHours = getExpectedHours();
 	const trackedPercent =
 		expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
 	let progressClass = "progress-fill-good";
@@ -485,7 +525,7 @@ async function renderStats() {
       <!-- Tracked hours -->
       <div class="stat-card">
         <div class="stat-card-label">Tracked hours</div>
-        <div class="stat-card-value">${tracked}</div>
+        <div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
         <div class="progress-track">
           <div class="progress-fill ${progressClass}"
                style="width: ${Math.min(100, trackedPercent)}%"></div>
@@ -633,6 +673,9 @@ async function renderStats() {
         <div class="flex items-center gap-1.5 text-xs text-stone-400">
           <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
         </div>
+		<div class="flex items-center gap-1.5 text-xs text-stone-400">
+          <div class="w-4 h-0.5 rounded" style="background: var(--text-placeholder); border-top: 1px dashed var(--text-placeholder);"></div>Expected hours
+        </div>
       </div>
     </div>
   `;
@@ -747,34 +790,21 @@ function renderBillableBreakdown(entries, total) {
 
 /**
  * getExpectedHours
- * Returns the expected trackable hours for the current period.
+ * Returns the expected trackable hours for the current period,
+ * accounting for OOO days and smart time-awareness.
+ *
+ * @param {Array<Object>} entries - Entries for the period (needed to detect OOO days)
+ * @returns {number} Expected trackable hours
  */
-function getExpectedHours() {
-	switch (currentPeriod) {
-		case "daily":
-			return TARGETS.dailyTrackableHours;
-		case "weekly":
-			return TARGETS.weeklyTrackableHours;
-		case "monthly": {
-			/* Approximate: ~22 working days per month */
-			const range = getPeriodRange();
-			const days = countWeekdaysInRange(range.startDate, range.endDate);
-			return days * TARGETS.dailyTrackableHours;
-		}
-		case "quarterly": {
-			const range = getPeriodRange();
-			const days = countWeekdaysInRange(range.startDate, range.endDate);
-			return days * TARGETS.dailyTrackableHours;
-		}
-		case "fy":
-		case "cy": {
-			const range = getPeriodRange();
-			const days = countWeekdaysInRange(range.startDate, range.endDate);
-			return days * TARGETS.dailyTrackableHours;
-		}
-		default:
-			return TARGETS.weeklyTrackableHours;
-	}
+function getExpectedHours(entries = []) {
+	const range = getPeriodRange();
+	const oooDates = getOOODatesFromEntries(entries);
+	return countExpectedHoursUpToNow(
+		range.startDate,
+		range.endDate,
+		TARGETS.dailyTrackableHours,
+		oooDates,
+	);
 }
 
 /**
@@ -817,9 +847,9 @@ function renderCategoryChart(byCategory) {
 	if (!canvas) return;
 
 	/* Filter to categories that have hours, sorted descending */
-	const data = CATEGORIES.filter((cat) => (byCategory[cat.id] || 0) > 0).sort(
-		(a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0),
-	);
+	const data = CATEGORIES.filter(
+		(cat) => (byCategory[cat.id] || 0) > 0 && cat.id !== "ooo",
+	).sort((a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0));
 
 	if (data.length === 0) {
 		/* No data — show empty state */
@@ -891,9 +921,9 @@ function renderDailyChart(entries, range) {
 	if (currentPeriod === "daily") {
 		/* For daily view, show hours per category as a simple bar */
 		const byCategory = aggregateByCategory(entries);
-		const data = CATEGORIES.filter((cat) => (byCategory[cat.id] || 0) > 0).sort(
-			(a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0),
-		);
+		const data = CATEGORIES.filter(
+			(cat) => (byCategory[cat.id] || 0) > 0 && cat.id !== "ooo",
+		).sort((a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0));
 
 		chartInstances.daily = new Chart(canvas, {
 			type: "bar",
@@ -946,7 +976,7 @@ function renderDailyChart(entries, range) {
 
 		/* Build datasets for each category that has data */
 		const activeCats = CATEGORIES.filter((cat) => {
-			return entries.some((e) => e.category === cat.id);
+			return cat.id !== "ooo" && entries.some((e) => e.category === cat.id);
 		});
 
 		const datasets = activeCats.map((cat) => ({
@@ -1047,6 +1077,16 @@ function renderTrendChart(history) {
 					pointRadius: 3,
 					pointBackgroundColor: getChartColors().warning,
 					borderWidth: 1.5,
+					fill: false,
+				},
+				{
+					label: "Expected (OOO-adjusted)",
+					data: reversed.map((w) => w.expectedHours),
+					borderColor: "var(--text-placeholder)",
+					borderDash: [2, 4],
+					tension: 0,
+					pointRadius: 0,
+					borderWidth: 1,
 					fill: false,
 				},
 			],

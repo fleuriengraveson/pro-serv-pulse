@@ -1325,11 +1325,11 @@ async function renderWeekView() {
 		<!-- View toggle -->
 		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
 		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
 		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
 		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
+			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
 		</div>
     </div>
 
