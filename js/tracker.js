@@ -122,6 +122,11 @@ document.addEventListener("keyup", (e) => {
 
 /* Global click-outside handler — runs once, handles both views */
 document.addEventListener("click", (e) => {
+	/* Always close OOO popover when clicking outside it */
+	if (!e.target.closest(".ooo-popover")) {
+		closeOOOPopover();
+	}
+
 	/* Ignore clicks inside dropdowns and popovers */
 	if (e.target.closest(".edit-dropdown")) return;
 	if (e.target.closest(".week-popover")) return;
@@ -1821,10 +1826,11 @@ function closeWeekPopover() {
  * @param {Element} chipEl - The clicked chip element for positioning
  */
 async function showOOOPopover(dateStr, chipEl) {
-	/* Check if the day already has OOO blocks */
 	const dayEntries = await getEntriesForDate(dateStr);
-	const isAlreadyOOO =
-		dayEntries.length > 0 && dayEntries.every((e) => e.category === "ooo");
+	const hasEntries = dayEntries.length > 0;
+	const isAllOOO = hasEntries && dayEntries.every((e) => e.category === "ooo");
+	const hasRealWork =
+		hasEntries && dayEntries.some((e) => e.category && e.category !== "ooo");
 
 	const popover = document.createElement("div");
 	popover.className = "ooo-popover";
@@ -1832,48 +1838,89 @@ async function showOOOPopover(dateStr, chipEl) {
 
 	const dateDisplay = formatDateDisplay(parseDate(dateStr));
 
-	if (isAlreadyOOO) {
+	if (isAllOOO) {
+		/* State 2: Fully OOO — offer to clear, no confirmation needed */
 		popover.innerHTML = `
-			<div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
-				${dateDisplay}
-			</div>
-			<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
-				This day is marked as OOO.
-			</div>
-			<div style="display: flex; gap: 6px;">
-				<button id="ooo-clear" style="
-				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-				border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
-				background: var(--danger); color: white;
-				">Clear day</button>
-				<button id="ooo-cancel" style="
-				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-				border-radius: 6px; cursor: pointer; font-family: inherit;
-				border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
-				">Cancel</button>
-			</div>
-			`;
+      <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+        ${dateDisplay}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+        This day is marked as OOO.
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button id="ooo-clear" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+          background: var(--danger); color: white;
+        ">Clear day</button>
+        <button id="ooo-cancel" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit;
+          border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+        ">Cancel</button>
+      </div>
+    `;
+	} else if (hasRealWork) {
+		/* State 3: Has tracked work — offer to clear with confirmation step */
+		popover.innerHTML = `
+      <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+        ${dateDisplay}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+        This day has ${dayEntries.length} tracked blocks.
+      </div>
+      <div id="ooo-actions" style="display: flex; gap: 6px;">
+        <button id="ooo-clear" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+          background: var(--danger); color: white;
+        ">Clear day</button>
+        <button id="ooo-cancel" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit;
+          border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+        ">Cancel</button>
+      </div>
+      <div id="ooo-confirm-step" style="display: none;">
+        <div style="font-size: 12px; color: var(--danger-text); background: var(--danger-bg); border-radius: 6px; padding: 8px; margin-bottom: 8px;">
+          This will delete all ${dayEntries.length} tracked blocks. This cannot be undone.
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button id="ooo-confirm-delete" style="
+            flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+            border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+            background: var(--danger); color: white;
+          ">Yes, clear day</button>
+          <button id="ooo-confirm-back" style="
+            flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+            border-radius: 6px; cursor: pointer; font-family: inherit;
+            border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+          ">Go back</button>
+        </div>
+      </div>
+    `;
 	} else {
+		/* State 1: Empty day — offer to mark as OOO */
 		popover.innerHTML = `
-			<div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
-				${dateDisplay}
-			</div>
-			<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
-				Mark this entire day as out of office?
-			</div>
-			<div style="display: flex; gap: 6px;">
-				<button id="ooo-confirm" style="
-				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-				border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
-				background: var(--accent); color: white;
-				">Mark as OOO</button>
-				<button id="ooo-cancel" style="
-				flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
-				border-radius: 6px; cursor: pointer; font-family: inherit;
-				border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
-				">Cancel</button>
-			</div>
-			`;
+      <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+        ${dateDisplay}
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+        Mark this entire day as out of office?
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button id="ooo-confirm" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit; border: none;
+          background: var(--accent); color: white;
+        ">Mark as OOO</button>
+        <button id="ooo-cancel" style="
+          flex: 1; padding: 6px 0; text-align: center; font-size: 12px; font-weight: 500;
+          border-radius: 6px; cursor: pointer; font-family: inherit;
+          border: 1px solid var(--border-default); background: none; color: var(--text-secondary);
+        ">Cancel</button>
+      </div>
+    `;
 	}
 
 	/* Position near the chip */
@@ -1896,7 +1943,7 @@ async function showOOOPopover(dateStr, chipEl) {
 	popover.style.top = `${top}px`;
 	popover.style.visibility = "visible";
 
-	/* Confirm: mark day as OOO */
+	/* Mark as OOO (empty day) */
 	popover.querySelector("#ooo-confirm")?.addEventListener("click", async () => {
 		for (const slot of timeSlots) {
 			await saveEntry({
@@ -1916,18 +1963,43 @@ async function showOOOPopover(dateStr, chipEl) {
 		await renderTracker();
 	});
 
-	/* Clear: remove all blocks for the day */
+	/* Clear day — immediate for OOO, shows confirmation for real work */
 	popover.querySelector("#ooo-clear")?.addEventListener("click", async () => {
-		const entries = await getEntriesForDate(dateStr);
-		for (const entry of entries) {
-			await deleteEntry(dateStr, entry.timeSlot);
+		if (isAllOOO) {
+			/* No confirmation needed for pure OOO days */
+			const entries = await getEntriesForDate(dateStr);
+			for (const entry of entries) {
+				await deleteEntry(dateStr, entry.timeSlot);
+			}
+			closeOOOPopover();
+			await renderTracker();
+		} else {
+			/* Show confirmation step */
+			popover.querySelector("#ooo-actions").style.display = "none";
+			popover.querySelector("#ooo-confirm-step").style.display = "block";
 		}
-		closeOOOPopover();
-		await renderTracker();
 	});
 
-	/* Cancel button */
-	popover.querySelector("#ooo-cancel").addEventListener("click", () => {
+	/* Confirmation step: yes, delete everything */
+	popover
+		.querySelector("#ooo-confirm-delete")
+		?.addEventListener("click", async () => {
+			const entries = await getEntriesForDate(dateStr);
+			for (const entry of entries) {
+				await deleteEntry(dateStr, entry.timeSlot);
+			}
+			closeOOOPopover();
+			await renderTracker();
+		});
+
+	/* Confirmation step: go back */
+	popover.querySelector("#ooo-confirm-back")?.addEventListener("click", () => {
+		popover.querySelector("#ooo-actions").style.display = "flex";
+		popover.querySelector("#ooo-confirm-step").style.display = "none";
+	});
+
+	/* Cancel */
+	popover.querySelector("#ooo-cancel")?.addEventListener("click", () => {
 		closeOOOPopover();
 	});
 }
