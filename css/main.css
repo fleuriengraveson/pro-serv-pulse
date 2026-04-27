@@ -20,7 +20,7 @@
 	--text-primary: #1c1917;
 	--text-secondary: #6b6560;
 	--text-muted: #8a8490;
-	--text-placeholder: #a8a29e;
+	--text-placeholder: #8a8490;
 	--text-inverse: #ffffff;
 
 	/* Borders */
@@ -241,8 +241,40 @@ body {
 }
 .nav-btn.active {
 	color: var(--accent-text);
-	background-color: var(--accent-light);
+	background: linear-gradient(
+		135deg,
+		rgba(192, 132, 252, 0.12),
+		rgba(103, 232, 249, 0.12)
+	);
 	font-weight: 500;
+}
+
+.active-chip {
+	background: linear-gradient(
+		135deg,
+		rgba(192, 132, 252, 0.15),
+		rgba(103, 232, 249, 0.15)
+	);
+}
+[data-theme="dark"] .active-chip {
+	background: linear-gradient(
+		135deg,
+		rgba(167, 139, 250, 0.12),
+		rgba(103, 232, 249, 0.12)
+	);
+}
+
+.export-button {
+	background: linear-gradient(135deg, #a78bfa, #7c3aed);
+}
+.export-button:hover {
+	background: linear-gradient(135deg, #c4b5fd, #8b5cf6);
+}
+[data-theme="dark"] .export-button {
+	background: linear-gradient(135deg, #a78bfa, #7c3aed);
+}
+[data-theme="dark"] .export-button:hover {
+	background: linear-gradient(135deg, #c4b5fd, #8b5cf6);
 }
 
 /* ----------------------------------------------------------------------------
@@ -525,6 +557,10 @@ body {
 	border-radius: 10px;
 	padding: 14px 16px;
 }
+[data-theme="dark"] .stat-card {
+	border-color: var(--border-default);
+	background: var(--bg-card);
+}
 .stat-card-label {
 	font-size: 11px;
 	color: var(--text-muted);
@@ -562,7 +598,11 @@ body {
 	transition: width 0.4s ease;
 }
 .progress-fill-good {
-	background: var(--progress-good);
+	background: linear-gradient(
+		90deg,
+		var(--progress-gradient-start),
+		var(--progress-gradient-end)
+	);
 }
 .progress-fill-warn {
 	background: var(--progress-warn);
@@ -917,4 +957,13 @@ body {
 }
 [data-theme="dark"] .week-block-sub {
 	color: var(--text-muted);
+}
+
+/* View toggle active state in dark mode */
+[data-theme="dark"] .view-toggle {
+	color: var(--text-muted);
+}
+[data-theme="dark"] .view-toggle.active {
+	background-color: var(--bg-surface-hover) !important;
+	color: var(--text-primary) !important;
 }

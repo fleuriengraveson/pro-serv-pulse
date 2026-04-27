@@ -192,7 +192,7 @@ async function renderTracker() {
 		<!-- View toggle -->
 		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
 		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm " : "text-stone-400 hover:text-stone-600"}">Day</button>
 		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
 			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
 		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
@@ -201,7 +201,7 @@ async function renderTracker() {
     </div>
 
     <!-- Week day chips -->
-    <div class="flex gap-1 mb-6">
+    <div class="flex gap-1 mb-6" style="padding-right: calc(224px + 24px);">
         ${weekDates
 					.map((d) => {
 						const isActive = formatDateISO(d) === formatDateISO(currentDate);
@@ -209,7 +209,7 @@ async function renderTracker() {
             <button class="week-chip flex-1 py-2 text-center text-xs rounded-lg transition-colors
                 ${
 									isActive
-										? "bg-chronos-100 text-chronos-600 font-medium"
+										? "active-chip text-chronos-600 font-medium"
 										: "bg-surface-100 text-stone-400 hover:bg-surface-200"
 								}"
                 data-date="${formatDateISO(d)}">
@@ -272,7 +272,7 @@ function renderTimeBlock(slot) {
       <div class="time-row flex items-stretch border-b border-stone-100 relative"
            data-slot="${slot}">
         <!-- Time label -->
-        <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-300 select-none">
+        <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-400 select-none">
           ${formatTimeSlot(slot)}
         </div>
         <!-- Filled block content -->
@@ -293,12 +293,12 @@ function renderTimeBlock(slot) {
 		return `
       <div class="time-row flex items-stretch border-b border-stone-100 relative"
            data-slot="${slot}">
-        <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-300 select-none">
+        <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-400 select-none">
           ${formatTimeSlot(slot)}
         </div>
         <div class="flex-1 time-block-empty rounded-md px-3 py-2 my-0.5 flex items-center min-h-[40px]"
              data-slot="${slot}">
-          <span class="text-xs text-stone-300">Click to track...</span>
+          <span class="text-xs" style="color: var(--text-muted);">Click to track...</span>
         </div>
       </div>
     `;
@@ -849,6 +849,17 @@ function attachWeekEventListeners() {
 		renderWeekView();
 	});
 
+	/* Week day chips — switch to day view for that date */
+	document.querySelectorAll(".week-chip").forEach((chip) => {
+		chip.addEventListener("click", () => {
+			closeDropdown();
+			closeWeekPopover();
+			currentDate = parseDate(chip.dataset.date);
+			activeView = "day";
+			renderTracker();
+		});
+	});
+
 	/* Block clicks */
 	document.querySelectorAll(".week-block").forEach((block) => {
 		block.addEventListener("click", async (e) => {
@@ -1116,24 +1127,30 @@ async function renderWeekView() {
     <!-- Clipboard indicator mounts here -->
     <div id="clipboard-mount"></div>
 
+	<!-- Week day chips (matches day view) -->
+	<div class="flex gap-1 mb-4" style="padding-left: 56px; padding-right: calc(224px + 24px);">
+	${weekDates
+		.map((d) => {
+			const isToday = formatDateISO(d) === formatDateISO(new Date());
+			return `
+		<button class="week-chip flex-1 py-2 text-center text-xs rounded-lg transition-colors
+			${
+				isToday
+					? "active-chip text-chronos-600 font-medium"
+					: "bg-surface-100 text-stone-400 hover:bg-surface-200"
+			}"
+			data-date="${formatDateISO(d)}">
+			${formatDateShort(d)}
+		</button>
+		`;
+		})
+		.join("")}
+	</div>
+
     <!-- Week grid -->
     <div class="flex gap-6">
       <div class="flex-1 overflow-x-auto" id="time-grid">
         <div class="week-grid">
-          <!-- Column headers -->
-          <div class="week-grid-header">
-            <div class="w-14 flex-shrink-0"></div>
-            ${weekDates
-							.map(
-								(d) => `
-              <div class="flex-1 text-center text-xs font-medium pb-2
-                ${formatDateISO(d) === formatDateISO(new Date()) ? "text-chronos-600" : "text-stone-400"}">
-                ${formatDateShort(d)}
-              </div>
-            `,
-							)
-							.join("")}
-          </div>
 
           <!-- Time rows -->
           ${timeSlots
@@ -1141,7 +1158,7 @@ async function renderWeekView() {
 							(slot) => `
             <div class="week-grid-row">
               <!-- Time label -->
-              <div class="w-14 flex-shrink-0 text-[10px] text-stone-300 pt-1 select-none">
+              <div class="w-14 flex-shrink-0 text-[10px] text-stone-400 pt-1 select-none">
                 ${formatTimeSlot(slot)}
               </div>
               <!-- 5 day columns -->
