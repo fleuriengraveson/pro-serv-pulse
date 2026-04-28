@@ -280,6 +280,7 @@ export function countExpectedHoursUpToNow(
 	endDate,
 	hoursPerDay = 8,
 	oooDates = new Set(),
+	dayStartHour = 8,
 ) {
 	const todayStr = formatDateISO(new Date());
 	const currentSlot = getCurrentTimeSlot();
@@ -302,16 +303,42 @@ export function countExpectedHoursUpToNow(
 			if (dateStr < todayStr) {
 				total += hoursPerDay;
 			} else if (dateStr === todayStr) {
-				const dayStart = 8;
+				const dayStart = dayStartHour;
 				const [currentH, currentM] = currentSlot.split(":").map(Number);
-				const currentMinutes = (currentH - dayStart) * 60 + currentM + 30;
+				/* Include the current slot as elapsed (+30 min) since the user should be tracking it */
+				const elapsedMinutes = (currentH - dayStart) * 60 + currentM + 30;
 				const maxMinutes = hoursPerDay * 60;
-				total += Math.min(currentMinutes, maxMinutes) / 60;
-				if (total < 0) total = 0;
+				const todayMinutes = Math.max(0, Math.min(elapsedMinutes, maxMinutes));
+				/* Round to nearest half hour to match block granularity */
+				total += (Math.round(todayMinutes / 30) * 30) / 60;
 			}
 		}
 		d.setDate(d.getDate() + 1);
 	}
+
+	console.log("countExpectedHoursUpToNow debug:", {
+		startDate,
+		endDate,
+		hoursPerDay,
+		dayStartHour,
+		todayStr: formatDateISO(new Date()),
+		oooDaysSkipped: oooDates.size,
+		pastDaysCount: (() => {
+			let count = 0;
+			const s = parseDate(startDate);
+			const e = parseDate(endDate);
+			const t = formatDateISO(new Date());
+			const dd = new Date(s);
+			while (dd <= e) {
+				const dow = dd.getDay();
+				const ds = formatDateISO(dd);
+				if (dow !== 0 && dow !== 6 && ds < t && !oooDates.has(ds)) count++;
+				dd.setDate(dd.getDate() + 1);
+			}
+			return count;
+		})(),
+		total,
+	});
 
 	return Math.round(total * 10) / 10;
 }
@@ -483,7 +510,8 @@ export function countBillableHours(entries) {
  */
 export function countTrackedHours(entries) {
 	return (
-		entries.filter((e) => e.category).length * (TIME_DEFAULTS.blockMinutes / 60)
+		entries.filter((e) => e.category && e.category !== "ooo").length *
+		(TIME_DEFAULTS.blockMinutes / 60)
 	);
 }
 

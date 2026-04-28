@@ -401,6 +401,7 @@ async function calculateSidebarStats() {
 
 	/* Daily expected hours — for today, only up to current time */
 	const dailyIsOOO = oooDates.has(currentDateStr);
+	const startHour = appState.settings.dayStartHour || 8;
 	const dailyExpected = dailyIsOOO
 		? 0
 		: isToday(currentDateStr)
@@ -409,6 +410,7 @@ async function calculateSidebarStats() {
 					currentDateStr,
 					TARGETS.dailyTrackableHours,
 					oooDates,
+					startHour,
 				)
 			: TARGETS.dailyTrackableHours;
 
@@ -421,6 +423,7 @@ async function calculateSidebarStats() {
 		weekEnd,
 		TARGETS.dailyTrackableHours,
 		oooDates,
+		startHour,
 	);
 
 	/* Also check if today is OOO */

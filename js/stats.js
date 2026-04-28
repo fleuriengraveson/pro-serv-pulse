@@ -414,13 +414,35 @@ async function renderStats() {
 
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
+
+	console.log(
+		"All entries:",
+		allEntries.length,
+		"Filtered entries:",
+		entries.length,
+		"Tracked hours:",
+		tracked,
+	);
+	console.log("Future entries removed:", allEntries.length - entries.length);
+
+	console.log("Date range:", range.startDate, "to", range.endDate);
+	console.log(
+		"Entries by date:",
+		[...new Set(entries.map((e) => e.date))].sort().map((d) => {
+			const dayEntries = entries.filter((e) => e.date === d);
+			return `${d}: ${dayEntries.length} blocks (${dayEntries.length * 0.5}h)`;
+		}),
+	);
+
 	const total = countTotalHours(entries);
 	const billable = countBillableHours(entries);
 	const byCategory = aggregateByCategory(entries);
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
 	const byPOS = aggregateByPOS(entries);
-	const expectedHours = getExpectedHours(allEntries);
+	const expectedHours = await getExpectedHours(allEntries);
+	console.log("OOO dates detected:", [...getOOODatesFromEntries(allEntries)]);
+	console.log("Expected hours:", expectedHours);
 	const untracked = expectedHours - tracked;
 
 	const currentStats = {
@@ -436,8 +458,6 @@ async function renderStats() {
 
 	/* Fetch historical data for insights and trend chart */
 	const history = await getHistoricalWeeklyData(8);
-	/* Pass current stats separately since history now excludes the current week */
-	const insights = generateInsights(currentStats, history);
 
 	/* Determine compliance status */
 	const trackedPercent =
@@ -451,32 +471,7 @@ async function renderStats() {
 	}
 
 	/* Historical averages for comparison labels */
-	const pastWeeks = history.filter((w) => w.tracked > 0);
-	const avgTracked =
-		pastWeeks.length > 0
-			? (
-					pastWeeks.reduce((s, w) => s + w.tracked, 0) / pastWeeks.length
-				).toFixed(1)
-			: null;
-	const avgTier1 =
-		pastWeeks.length > 0
-			? (
-					pastWeeks.reduce((s, w) => s + (w.byTier[1] || 0), 0) /
-					pastWeeks.length
-				).toFixed(1)
-			: null;
-
-	/* Tier 1 comparison text */
 	const tier1Hours = byTier[1] || 0;
-	let tier1Trend = "";
-	if (avgTier1 !== null) {
-		const diff = (tier1Hours - parseFloat(avgTier1)).toFixed(1);
-		if (diff > 0)
-			tier1Trend = `<span class="text-emerald-500 text-xs">+${diff} hrs vs. avg</span>`;
-		else if (diff < 0)
-			tier1Trend = `<span class="text-red-400 text-xs">${diff} hrs vs. avg</span>`;
-		else tier1Trend = `<span class="text-stone-400 text-xs">Same as avg</span>`;
-	}
 
 	/* Destroy old chart instances */
 	Object.values(chartInstances).forEach((c) => c.destroy());
@@ -523,118 +518,121 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-      TOP METRICS ROW
-      ================================================================ -->
+        TOP METRICS ROW
+    ================================================================ -->
     <div class="grid grid-cols-4 gap-3 mb-6">
-      <!-- Total hours -->
-      <div class="stat-card">
-        <div class="stat-card-label">Total hours</div>
-        <div class="stat-card-value">${total}</div>
-        <div class="stat-card-sub">${getDaysInPeriod()} days</div>
-      </div>
+        <!-- Total hours -->
+        <div class="stat-card">
+			<div class="stat-card-label">Total hours</div>
+			<div class="stat-card-value">${total}</div>
+			<div class="stat-card-sub">${getDaysInPeriod()} days</div>
+        </div>
 
-	<!-- Tracked hours -->
-	<div class="stat-card">
-		<div class="stat-card-label">Tracked hours</div>
-		<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
-		<div class="progress-with-marker">
-			<div class="progress-fill progress-fill-good"
-				style="width: ${expectedHours > 0 ? Math.min(100, Math.round((tracked / expectedHours) * 100)) : 0}%"></div>
-			${
-				expectedHours > 0
-					? `
-			<div class="progress-marker" style="left: ${TARGETS.compliancePercent}%;"></div>
-			<div class="progress-marker-label" style="left: ${TARGETS.compliancePercent}%;">${((expectedHours * TARGETS.compliancePercent) / 100).toFixed(1)}h min</div>
-			`
-					: ""
-			}
+		<!-- Tracked hours -->
+		<div class="stat-card">
+			<div class="stat-card-label">Tracked hours</div>
+			<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
+			<div class="progress-with-marker">
+				<div class="progress-fill progress-fill-good"
+					style="width: ${expectedHours > 0 ? Math.min(100, Math.round((tracked / expectedHours) * 100)) : 0}%"></div>
+				${
+					expectedHours > 0
+						? `
+            <div class="progress-marker" style="left: ${TARGETS.compliancePercent}%;"></div>
+            <div class="progress-marker-label" style="left: ${TARGETS.compliancePercent}%;">${((expectedHours * TARGETS.compliancePercent) / 100).toFixed(1)}h min</div>
+          `
+						: ""
+				}
+			</div>
+			${(() => {
+				const minTarget = (expectedHours * TARGETS.compliancePercent) / 100;
+				const isTimeAware =
+					currentPeriod === "daily" || currentPeriod === "weekly";
+
+				if (isTimeAware) {
+					/* Daily/weekly: show pace relative to minimum target */
+					if (tracked >= expectedHours) {
+						return `<div class="pace-text pace-ahead">Complete — ${(tracked - expectedHours).toFixed(1)} hrs over</div>`;
+					} else if (tracked >= minTarget) {
+						return `<div class="pace-text pace-ahead">On track — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
+					} else if (minTarget - tracked < 2) {
+						return `<div class="pace-text pace-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
+					} else {
+						return `<div class="pace-text pace-far-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
+					}
+				} else {
+					/* Monthly+: show simple progress against full period */
+					const pct =
+						expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
+					if (pct >= TARGETS.compliancePercent) {
+						return `<div class="pace-text pace-ahead">${pct}% tracked — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
+					} else {
+						return `<div class="pace-text pace-behind">${pct}% tracked — target ${TARGETS.compliancePercent}%</div>`;
+					}
+				}
+			})()}
+        </div>
+
+		<!-- Tier 1 (billable) -->
+		<div class="stat-card">
+			<div class="stat-card-label">Tier 1 (customer)</div>
+			<div class="stat-card-value">${tier1Hours}<span class="text-sm font-normal text-stone-400"> hrs</span></div>
+			</div>
+
+		<!-- Untracked -->
+		<div class="stat-card">
+			<div class="stat-card-label">Untracked hours</div>
+			<div class="stat-card-value">${Math.max(0, untracked).toFixed(1)}</div>
+			<div class="stat-card-sub"></div>
 		</div>
-		<div class="pace-text ${
-			tracked >= (expectedHours * TARGETS.compliancePercent) / 100
-				? "pace-ahead"
-				: (expectedHours * TARGETS.compliancePercent) / 100 - tracked < 2
-					? "pace-behind"
-					: "pace-far-behind"
-		}">${
-			tracked >= expectedHours
-				? `Complete — ${(tracked - expectedHours).toFixed(1)} hrs over`
-				: tracked >= (expectedHours * TARGETS.compliancePercent) / 100
-					? `On track — ${(expectedHours - tracked).toFixed(1)} hrs remaining`
-					: `${((expectedHours * TARGETS.compliancePercent) / 100 - tracked).toFixed(1)} hrs below minimum`
-		}</div>
-    </div>
-
-	<!-- Tier 1 (billable) -->
-	<div class="stat-card">
-		<div class="stat-card-label">Tier 1 (customer)</div>
-		<div class="stat-card-value">${tier1Hours}<span class="text-sm font-normal text-stone-400"> hrs</span></div>
-			${tier1Trend ? `<div class="mt-1">${tier1Trend}</div>` : ""}
-		</div>
-
-	<!-- Untracked -->
-	<div class="stat-card">
-		<div class="stat-card-label">Untracked hours</div>
-		<div class="stat-card-value">${Math.max(0, untracked).toFixed(1)}</div>
-		<div class="stat-card-sub">${avgTracked ? `Avg tracked: ${avgTracked} hrs` : ""}</div>
 	</div>
-</div>
 
     <!-- ================================================================
-      CHARTS ROW 1: Hours by area + Tier breakdown
-      ================================================================ -->
+        CHARTS ROW 1: Hours by area + Tier breakdown
+    ================================================================ -->
     <div class="grid grid-cols-2 gap-4 mb-6">
 
-      <!-- Hours by area donut -->
-      <div class="p-4 rounded-xl border border-stone-100 bg-white">
-        <div class="text-sm font-medium mb-3">Hours by area</div>
-        <div class="chart-container" style="height: 220px;">
-          <canvas id="chart-category"></canvas>
+        <!-- Hours by area donut -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+			<div class="text-sm font-medium mb-3">Hours by area</div>
+			<div class="chart-container" style="height: 220px;">
+            <canvas id="chart-category"></canvas>
         </div>
-      </div>
+    </div>
 
-      <!-- Tier breakdown -->
-      <div class="p-4 rounded-xl border border-stone-100 bg-white">
+    <!-- Tier breakdown -->
+    <div class="p-4 rounded-xl border border-stone-100 bg-white">
         <div class="text-sm font-medium mb-3">Tier breakdown</div>
 
         <!-- Stacked horizontal bar -->
         <div class="flex h-8 rounded-md overflow-hidden mb-3">
-          ${renderTierBar(byTier, tracked)}
+            ${renderTierBar(byTier, tracked)}
         </div>
 
         <!-- Tier legend with hours -->
         <div class="space-y-2">
-          ${(() => {
-						const tierTotal =
-							(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
-						return [1, 2, 3]
-							.map((t) => {
-								const hours = byTier[t] || 0;
-								const pct =
-									tierTotal > 0 ? Math.round((hours / tierTotal) * 100) : 0;
-								return `
-              <div class="flex items-center justify-between text-xs">
-                <div class="flex items-center gap-2">
-                  <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${TIERS[t].hexVar})"></div>
-                  <span class="text-stone-500">${TIERS[t].label} — ${TIERS[t].description}</span>
+            ${(() => {
+							const tierTotal =
+								(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
+							return [1, 2, 3]
+								.map((t) => {
+									const hours = byTier[t] || 0;
+									const pct =
+										tierTotal > 0 ? Math.round((hours / tierTotal) * 100) : 0;
+									return `
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${TIERS[t].hexVar})"></div>
+                        <span class="text-stone-500">${TIERS[t].label} — ${TIERS[t].description}</span>
+                    </div>
+                    <span class="font-medium">${hours} hrs (${pct}%)</span>
                 </div>
-                <span class="font-medium">${hours} hrs (${pct}%)</span>
-              </div>
             `;
-							})
-							.join("");
-					})()}
+								})
+								.join("");
+						})()}
         </div>
-
-        ${
-					avgTier1 !== null
-						? `
-          <div class="mt-4 text-xs text-stone-400">
-            Your Tier 1 average over the past ${pastWeeks.length} weeks is ${avgTier1} hrs.
-          </div>
-        `
-						: ""
-				}
-      </div>
+	</div>
     </div>
 
     <!-- ================================================================
@@ -896,19 +894,28 @@ function renderBillableBreakdown(entries, total) {
 /**
  * getExpectedHours
  * Returns the expected trackable hours for the current period,
- * accounting for OOO days and smart time-awareness.
+ * only counting days/hours up to now. Future days are not included.
+ * OOO days are excluded.
  *
  * @param {Array<Object>} entries - Entries for the period (needed to detect OOO days)
- * @returns {number} Expected trackable hours
+ * @returns {number} Expected trackable hours up to now
  */
-function getExpectedHours(entries = []) {
+async function getExpectedHours(entries = []) {
 	const range = getPeriodRange();
 	const oooDates = getOOODatesFromEntries(entries);
+	const startHour = appState.settings.dayStartHour || 8;
+
+	/* Don't count expected hours before the user started tracking */
+	const firstDate = await getFirstTrackedDate();
+	const effectiveStart =
+		firstDate && firstDate > range.startDate ? firstDate : range.startDate;
+
 	return countExpectedHoursUpToNow(
-		range.startDate,
+		effectiveStart,
 		range.endDate,
 		TARGETS.dailyTrackableHours,
 		oooDates,
+		startHour,
 	);
 }
 
