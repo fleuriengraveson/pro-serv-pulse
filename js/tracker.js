@@ -752,9 +752,13 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
           </label>
         </div>
 
+        <!-- Warning (hidden, fills remaining space) -->
+        <div id="edit-warning" style="display: none; flex: 1; align-items: flex-end; justify-content: flex-end; font-size: 11px; color: var(--danger);">
+          Select a category
+        </div>
+
       </div>
     </div>
-
     <!-- Full-width button row -->
     <div class="dropdown-buttons">
       <button id="edit-save"
@@ -841,12 +845,21 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 				.forEach((o) => o.classList.remove("selected"));
 			opt.classList.add("selected");
 			selectedCategory = opt.dataset.category;
+			/* Hide warning if it was showing */
+			const warning = dropdown.querySelector("#edit-warning");
+			if (warning) warning.style.display = "flex";
 		});
 	});
 
 	/* Save button */
 	dropdown.querySelector("#edit-save").addEventListener("click", async () => {
-		if (!selectedCategory) return;
+		if (!selectedCategory) {
+			const warning = dropdown.querySelector("#edit-warning");
+			if (warning) {
+				warning.style.display = "block";
+			}
+			return;
+		}
 
 		const newEntry = {
 			date: date || formatDateISO(currentDate),
