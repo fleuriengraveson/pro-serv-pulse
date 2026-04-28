@@ -415,25 +415,6 @@ async function renderStats() {
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
 
-	console.log(
-		"All entries:",
-		allEntries.length,
-		"Filtered entries:",
-		entries.length,
-		"Tracked hours:",
-		tracked,
-	);
-	console.log("Future entries removed:", allEntries.length - entries.length);
-
-	console.log("Date range:", range.startDate, "to", range.endDate);
-	console.log(
-		"Entries by date:",
-		[...new Set(entries.map((e) => e.date))].sort().map((d) => {
-			const dayEntries = entries.filter((e) => e.date === d);
-			return `${d}: ${dayEntries.length} blocks (${dayEntries.length * 0.5}h)`;
-		}),
-	);
-
 	const total = countTotalHours(entries);
 	const billable = countBillableHours(entries);
 	const byCategory = aggregateByCategory(entries);
@@ -441,8 +422,6 @@ async function renderStats() {
 	const byMerchant = aggregateByMerchant(entries);
 	const byPOS = aggregateByPOS(entries);
 	const expectedHours = await getExpectedHours(allEntries);
-	console.log("OOO dates detected:", [...getOOODatesFromEntries(allEntries)]);
-	console.log("Expected hours:", expectedHours);
 	const untracked = expectedHours - tracked;
 
 	const currentStats = {

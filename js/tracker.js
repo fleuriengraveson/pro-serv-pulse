@@ -95,6 +95,15 @@ document.addEventListener("keydown", (e) => {
 			updateClipboardIndicator();
 		}
 	}
+	/* Enter saves the active dropdown if one is open */
+	if (e.key === "Enter" && activeDropdown) {
+		/* Don't interfere if there's no dropdown */
+		e.preventDefault();
+		const saveBtn = document.querySelector("#edit-save");
+		if (saveBtn) {
+			saveBtn.click();
+		}
+	}
 
 	/* View switching shortcuts — only when not typing */
 	if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {

@@ -316,30 +316,6 @@ export function countExpectedHoursUpToNow(
 		d.setDate(d.getDate() + 1);
 	}
 
-	console.log("countExpectedHoursUpToNow debug:", {
-		startDate,
-		endDate,
-		hoursPerDay,
-		dayStartHour,
-		todayStr: formatDateISO(new Date()),
-		oooDaysSkipped: oooDates.size,
-		pastDaysCount: (() => {
-			let count = 0;
-			const s = parseDate(startDate);
-			const e = parseDate(endDate);
-			const t = formatDateISO(new Date());
-			const dd = new Date(s);
-			while (dd <= e) {
-				const dow = dd.getDay();
-				const ds = formatDateISO(dd);
-				if (dow !== 0 && dow !== 6 && ds < t && !oooDates.has(ds)) count++;
-				dd.setDate(dd.getDate() + 1);
-			}
-			return count;
-		})(),
-		total,
-	});
-
 	return Math.round(total * 10) / 10;
 }
 
