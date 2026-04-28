@@ -974,12 +974,16 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 8px 12px;
-	margin-bottom: 8px;
-	background: var(--accent-light);
+	gap: 12px;
+	padding: 8px 16px;
+	background: var(--bg-dropdown);
 	border: 1px solid var(--accent-border);
-	border-radius: 8px;
+	border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 	animation: fade-in 0.15s ease;
+}
+[data-theme="dark"] .clipboard-indicator {
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 .clipboard-indicator::before {
 	content: "";
@@ -987,8 +991,8 @@ body {
 	height: 6px;
 	border-radius: 50%;
 	background: var(--accent);
-	margin-right: 8px;
 	animation: pulse-dot 2s infinite;
+	flex-shrink: 0;
 }
 
 /* ----------------------------------------------------------------------------

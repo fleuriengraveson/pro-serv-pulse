@@ -1591,9 +1591,15 @@ function updateClipboardIndicator() {
     </button>
   `;
 
-	/* Insert at the top of the time grid */
-	const grid = document.getElementById("time-grid");
-	if (grid) grid.prepend(indicator);
+	/* Fixed position at the top of the viewport */
+	indicator.style.position = "fixed";
+	indicator.style.top = "8px";
+	indicator.style.left = "50%";
+	indicator.style.transform = "translateX(-50%)";
+	indicator.style.zIndex = "9999";
+	indicator.style.width = "auto";
+	indicator.style.maxWidth = "500px";
+	document.body.appendChild(indicator);
 
 	/* Clear button listener */
 	document.getElementById("clipboard-clear")?.addEventListener("click", () => {
