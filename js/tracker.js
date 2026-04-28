@@ -381,7 +381,7 @@ function renderTimeBlock(slot) {
 		const label = cat ? cat.label : entry.category;
 
 		return `
-      <div class="time-row flex items-stretch border-b border-stone-100 relative"
+      <div class="time-row flex items-stretch border-b relative" style="border-color: var(--border-subtle);"
            data-slot="${slot}">
         <!-- Time label -->
         <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-400 select-none">
@@ -422,7 +422,7 @@ function renderTimeBlock(slot) {
 	} else {
 		/* --- EMPTY BLOCK --- */
 		return `
-      <div class="time-row flex items-stretch border-b border-stone-100 relative"
+      <div class="time-row flex items-stretch border-b relative" style="border-color: var(--border-subtle);"
            data-slot="${slot}">
         <div class="w-14 flex-shrink-0 pt-2.5 text-xs text-stone-400 select-none">
           ${formatTimeSlot(slot)}
@@ -1663,7 +1663,7 @@ async function renderWeekView() {
 							(slot) => `
             <div class="week-grid-row">
               <!-- Time label -->
-              <div class="w-14 flex-shrink-0 text-[10px] text-stone-400 pt-1 select-none">
+              <div class="w-14 flex-shrink-0 text-xs text-stone-400 pt-2.5 select-none">
                 ${formatTimeSlot(slot)}
               </div>
               <!-- 5 day columns -->
@@ -1679,19 +1679,38 @@ async function renderWeekView() {
 
 									if (entry && entry.category) {
 										return `
-                    <div class="flex-1 week-block time-block-filled cat-${entry.category} rounded-sm mx-0.5 cursor-pointer relative group"
-                        data-slot="${slot}" data-date="${dateStr}">
+                    <div class="flex-1 week-block time-block-filled cat-${entry.category} cursor-pointer relative group"
+                        data-slot="${slot}" data-date="${dateStr}" style="position: relative;">
                       <span class="week-block-label">${cat?.label || ""}</span>
-                      ${entry.subCategory ? `<span class="week-block-sub">${entry.subCategory}</span>` : ""}
+                      ${entry.merchant || entry.subCategory ? `<span class="week-block-sub">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
                       <div class="absolute top-0.5 right-1 flex items-center gap-1">
                         ${entry.billable ? '<span class="text-[8px] text-emerald-500">$</span>' : ""}
                         ${entry.urgent ? '<span class="w-1 h-1 rounded-full bg-red-400 inline-block"></span>' : ""}
                       </div>
+                      ${
+												entry.category !== "lunch" && entry.category !== "ooo"
+													? `
+                      <div class="block-tooltip">
+                        <div class="tooltip-header">
+                          <div class="w-2 h-2 rounded-sm" style="background: var(${cat ? cat.cssVar : "--cat-other-border"})"></div>
+                          ${cat?.label || entry.category}
+                        </div>
+                        ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${entry.subCategory}</span></div>` : ""}
+                        ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${entry.merchant}</span></div>` : ""}
+                        ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${entry.formerPOS}</span></div>` : ""}
+                        ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
+                        ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
+                        <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
+                        ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
+                      </div>
+                      `
+													: ""
+											}
                     </div>
                   `;
 									} else {
 										return `
-                    <div class="flex-1 week-block time-block-empty rounded-sm mx-0.5 cursor-pointer"
+                    <div class="flex-1 week-block time-block-empty cursor-pointer"
                         data-slot="${slot}" data-date="${dateStr}">
                     </div>
                   `;
