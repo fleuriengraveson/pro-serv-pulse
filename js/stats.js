@@ -580,35 +580,6 @@ async function renderStats() {
 </div>
 
     <!-- ================================================================
-      INSIGHTS PANEL
-      ================================================================ -->
-    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
-      <div class="text-sm font-medium mb-3">Insights this period</div>
-      ${
-				insights.length > 0
-					? insights
-							.map(
-								(ins) => `
-          <div class="insight-card insight-${ins.type}">
-            <div class="insight-icon" style="background: ${
-							ins.type === "warning"
-								? "var(--warning)"
-								: ins.type === "positive"
-									? "var(--positive)"
-									: ins.type === "flag"
-										? "var(--danger)"
-										: "var(--info)"
-						}">${ins.icon}</div>
-            <div>${ins.message}</div>
-          </div>
-        `,
-							)
-							.join("")
-					: '<div class="text-sm text-stone-400">No entries for this period yet.</div>'
-			}
-    </div>
-
-    <!-- ================================================================
       CHARTS ROW 1: Hours by area + Tier breakdown
       ================================================================ -->
     <div class="grid grid-cols-2 gap-4 mb-6">
