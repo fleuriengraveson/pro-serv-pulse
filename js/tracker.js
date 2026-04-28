@@ -1159,6 +1159,17 @@ function attachEventListeners() {
 		});
 	});
 
+	/* Right-click on filled blocks to copy */
+	document.querySelectorAll(".time-block-filled").forEach((block) => {
+		block.addEventListener("contextmenu", (e) => {
+			e.preventDefault();
+			const slot = block.dataset.slot;
+			if (entries[slot]) {
+				copyBlock(slot);
+			}
+		});
+	});
+
 	/* --- Fill lunch button --- */
 	document
 		.getElementById("btn-fill-lunch")
@@ -1343,6 +1354,32 @@ function attachWeekEventListeners() {
 			setActiveView("day");
 			renderTracker();
 		});
+
+		/* Right-click on filled blocks to copy in week view */
+		document
+			.querySelectorAll(".week-block.time-block-filled")
+			.forEach((block) => {
+				block.addEventListener("contextmenu", async (e) => {
+					e.preventDefault();
+					const slot = block.dataset.slot;
+					const date = block.dataset.date;
+					const dayEntries = await getEntriesForDate(date);
+					const entry = dayEntries.find((ent) => ent.timeSlot === slot);
+					if (entry) {
+						clipboard = {
+							category: entry.category,
+							subCategory: entry.subCategory || "",
+							billable: entry.billable || false,
+							merchant: entry.merchant || "",
+							urgent: entry.urgent || false,
+							ticketLink: entry.ticketLink || "",
+							formerPOS: entry.formerPOS || "",
+							notes: entry.notes || "",
+						};
+						updateClipboardIndicator();
+					}
+				});
+			});
 	});
 }
 
