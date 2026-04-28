@@ -21,6 +21,7 @@ import {
 	getTierMap,
 	getWeeklyNotes,
 	saveWeeklyNotes,
+	getUniqueFieldValues,
 } from "./db.js";
 import {
 	generateTimeSlots,
@@ -97,7 +98,12 @@ document.addEventListener("keydown", (e) => {
 	}
 	/* Enter saves the active dropdown if one is open */
 	if (e.key === "Enter" && activeDropdown) {
-		/* Don't interfere if there's no dropdown */
+		/* Don't save if an autocomplete list is open with a selected item */
+		const autocompleteOpen = document.querySelector(
+			".autocomplete-list .autocomplete-item.active",
+		);
+		if (autocompleteOpen) return;
+
 		e.preventDefault();
 		const saveBtn = document.querySelector("#edit-save");
 		if (saveBtn) {
@@ -647,6 +653,139 @@ function renderSidebar(stats) {
  * ========================================================================= */
 
 /**
+ * attachAutocomplete
+ * Attaches autocomplete behavior to a text input. Shows suggestions
+ * from historical data after at least 1 character is typed.
+ *
+ * @param {HTMLInputElement} input - The input element
+ * @param {string} field - The db field name ('subCategory', 'merchant', 'formerPOS')
+ */
+async function attachAutocomplete(input, field) {
+	const allValues = await getUniqueFieldValues(field);
+	if (allValues.length === 0) return;
+
+	let activeIndex = -1;
+	let listEl = null;
+
+	/* Wrap the input's parent in relative positioning */
+	input.parentElement.style.position = "relative";
+
+	function showList(filter) {
+		removeList();
+		if (!filter || filter.length === 0) return;
+
+		const matches = allValues.filter((v) =>
+			v.toLowerCase().includes(filter.toLowerCase()),
+		);
+		if (matches.length === 0) return;
+
+		/* Don't show if the input value exactly matches one result */
+		if (
+			matches.length === 1 &&
+			matches[0].toLowerCase() === filter.toLowerCase()
+		)
+			return;
+
+		activeIndex = -1;
+		listEl = document.createElement("div");
+		listEl.className = "autocomplete-list";
+
+		matches.forEach((val, i) => {
+			const item = document.createElement("div");
+			item.className = "autocomplete-item";
+
+			/* Highlight the matching portion */
+			const lowerVal = val.toLowerCase();
+			const lowerFilter = filter.toLowerCase();
+			const matchStart = lowerVal.indexOf(lowerFilter);
+			if (matchStart >= 0) {
+				const before = val.substring(0, matchStart);
+				const match = val.substring(matchStart, matchStart + filter.length);
+				const after = val.substring(matchStart + filter.length);
+				item.innerHTML = `${before}<span class="autocomplete-match">${match}</span>${after}`;
+			} else {
+				item.textContent = val;
+			}
+
+			item.addEventListener("mousedown", (e) => {
+				/* mousedown instead of click so it fires before input blur */
+				e.preventDefault();
+				input.value = val;
+				removeList();
+				/* Trigger input event so any listeners are notified */
+				input.dispatchEvent(new Event("input"));
+			});
+
+			listEl.appendChild(item);
+		});
+
+		input.parentElement.appendChild(listEl);
+	}
+
+	function removeList() {
+		if (listEl) {
+			listEl.remove();
+			listEl = null;
+		}
+		activeIndex = -1;
+	}
+
+	/* Show suggestions as user types */
+	input.addEventListener("input", () => {
+		showList(input.value.trim());
+	});
+
+	/* Keyboard navigation */
+	input.addEventListener("keydown", (e) => {
+		if (!listEl) return;
+
+		const items = listEl.querySelectorAll(".autocomplete-item");
+
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			activeIndex = Math.min(activeIndex + 1, items.length - 1);
+			items.forEach((el, i) =>
+				el.classList.toggle("active", i === activeIndex),
+			);
+			if (items[activeIndex])
+				items[activeIndex].scrollIntoView({ block: "nearest" });
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			activeIndex = Math.max(activeIndex - 1, 0);
+			items.forEach((el, i) =>
+				el.classList.toggle("active", i === activeIndex),
+			);
+			if (items[activeIndex])
+				items[activeIndex].scrollIntoView({ block: "nearest" });
+		} else if (e.key === "Tab" || (e.key === "Enter" && activeIndex >= 0)) {
+			/* Tab or Enter with a selected item fills it in */
+			if (activeIndex >= 0 && items[activeIndex]) {
+				e.preventDefault();
+				e.stopPropagation();
+				input.value = items[activeIndex].textContent;
+				removeList();
+				input.dispatchEvent(new Event("input"));
+			}
+		} else if (e.key === "Escape") {
+			removeList();
+		}
+	});
+
+	/* Hide on blur */
+	input.addEventListener("blur", () => {
+		/* Small delay to allow mousedown on items to fire first */
+		setTimeout(removeList, 150);
+	});
+
+	/* Show on focus if there's already text */
+	input.addEventListener("focus", () => {
+		if (input.value.trim().length > 0) {
+			showList(input.value.trim());
+		}
+	});
+}
+
+/**
  * showEditDropdown
  * Opens the category selection dropdown for a specific time slot.
  *
@@ -832,6 +971,16 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 	dropdown.style.zIndex = "9999";
 
 	activeDropdown = { element: dropdown, slot };
+
+	/* Attach autocomplete to searchable fields */
+	const subCatInput = dropdown.querySelector("#edit-subcategory");
+	if (subCatInput) attachAutocomplete(subCatInput, "subCategory");
+
+	const merchantInput = dropdown.querySelector("#edit-merchant");
+	if (merchantInput) attachAutocomplete(merchantInput, "merchant");
+
+	const posInput = dropdown.querySelector("#edit-formerpos");
+	if (posInput) attachAutocomplete(posInput, "formerPOS");
 
 	/* --- Dropdown event listeners --- */
 

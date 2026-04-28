@@ -222,6 +222,27 @@ export async function getFirstTrackedDate() {
 	return earliest ? earliest.date : null;
 }
 
+/**
+ * getUniqueFieldValues
+ * Returns all unique non-empty values for a given field across all entries.
+ * Used for autocomplete suggestions on merchant, sub-category, and former POS.
+ *
+ * @param {string} field - The entry field name (e.g., 'subCategory', 'merchant', 'formerPOS')
+ * @returns {Promise<Array<string>>} Sorted array of unique values
+ */
+export async function getUniqueFieldValues(field) {
+	const entries = await db.entries.toArray();
+	const values = new Set();
+	entries.forEach((e) => {
+		if (e[field] && e[field].trim()) {
+			values.add(e[field].trim());
+		}
+	});
+	return [...values].sort((a, b) =>
+		a.toLowerCase().localeCompare(b.toLowerCase()),
+	);
+}
+
 /* ============================================================================
  * WEEKLY NOTES OPERATIONS
  * ========================================================================= */
