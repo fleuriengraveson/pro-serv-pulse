@@ -56,7 +56,12 @@ let weekDates = []; // Mon-Fri dates for the current week
 let clipboard = null; // Stores the copied entry data (without date/timeSlot)
 let isShiftDown = false; // Tracks if Shift key is held for range fill
 let lastClickedSlot = null; // The last block clicked — used as range fill anchor
-let activeView = "day"; // 'day' or 'week' — which sub-view is active
+let activeView = localStorage.getItem("chronos-tracker-view") || "day";
+
+function setActiveView(view) {
+	activeView = view;
+	localStorage.setItem("chronos-tracker-view", view);
+}
 
 /* Track Shift key state globally for range-fill */
 document.addEventListener("keydown", (e) => {
@@ -97,21 +102,21 @@ document.addEventListener("keydown", (e) => {
 			closeDropdown();
 			closeWeekPopover();
 			closeOOOPopover();
-			activeView = "day";
+			setActiveView("day");
 			renderTracker();
 		}
 		if (e.key === "w" || e.key === "W") {
 			closeDropdown();
 			closeWeekPopover();
 			closeOOOPopover();
-			activeView = "week";
+			setActiveView("week");
 			renderWeekView();
 		}
 		if (e.key === "n" || e.key === "N") {
 			closeDropdown();
 			closeWeekPopover();
 			closeOOOPopover();
-			activeView = "notes";
+			setActiveView("notes");
 			renderNotesView();
 		}
 		if (e.key === "t" || e.key === "T") {
@@ -953,14 +958,14 @@ function attachEventListeners() {
 
 	/* View toggle */
 	document.getElementById("toggle-day")?.addEventListener("click", () => {
-		activeView = "day";
+		setActiveView("day");
 		renderTracker();
 	});
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "week";
+		setActiveView("week");
 		renderWeekView();
 	});
 
@@ -968,7 +973,7 @@ function attachEventListeners() {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "notes";
+		setActiveView("notes");
 		renderNotesView();
 	});
 
@@ -1021,11 +1026,11 @@ function attachWeekEventListeners() {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "day";
+		setActiveView("day");
 		renderTracker();
 	});
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
-		activeView = "week";
+		setActiveView("week");
 		renderWeekView();
 	});
 
@@ -1033,7 +1038,7 @@ function attachWeekEventListeners() {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "notes";
+		setActiveView("notes");
 		renderNotesView();
 	});
 
@@ -1066,7 +1071,7 @@ function attachWeekEventListeners() {
 			closeWeekPopover();
 			closeOOOPopover();
 			currentDate = parseDate(chip.dataset.date);
-			activeView = "day";
+			setActiveView("day");
 			renderTracker();
 		});
 	});
@@ -1125,7 +1130,7 @@ function attachWeekEventListeners() {
 		block.addEventListener("dblclick", () => {
 			const date = block.dataset.date;
 			currentDate = parseDate(date);
-			activeView = "day";
+			setActiveView("day");
 			renderTracker();
 		});
 	});
@@ -1585,21 +1590,21 @@ function attachNotesListeners() {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "day";
+		setActiveView("day");
 		renderTracker();
 	});
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "week";
+		setActiveView("week");
 		renderWeekView();
 	});
 	document.getElementById("toggle-notes")?.addEventListener("click", () => {
 		closeDropdown();
 		closeWeekPopover();
 		closeOOOPopover();
-		activeView = "notes";
+		setActiveView("notes");
 		renderNotesView();
 	});
 

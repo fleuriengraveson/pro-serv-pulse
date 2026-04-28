@@ -70,7 +70,8 @@ async function init() {
 	updateManagerVisibility();
 
 	/* Initialize and render the default view (tracker) */
-	await switchView(VIEWS.TRACKER);
+	const savedView = localStorage.getItem("chronos-app-view") || VIEWS.TRACKER;
+	await switchView(savedView);
 }
 
 /* ============================================================================
@@ -170,6 +171,7 @@ async function switchView(viewId) {
 	/* Manager view will be initialized in Phase 2 */
 
 	state.currentView = viewId;
+	localStorage.setItem("chronos-app-view", viewId);
 }
 
 /**
