@@ -1407,10 +1407,8 @@ function attachWeekEventListeners() {
 	/* Block clicks */
 	document.querySelectorAll(".week-block").forEach((block) => {
 		block.addEventListener("click", async (e) => {
-			if (e.target.closest(".week-popover")) return;
 			if (e.target.closest(".edit-dropdown")) return;
 
-			/* If a dropdown is already open, close it and stop — don't open a new one */
 			if (activeDropdown) {
 				closeDropdown();
 				return;
@@ -1419,16 +1417,6 @@ function attachWeekEventListeners() {
 			const slot = block.dataset.slot;
 			const date = block.dataset.date;
 
-			if (block.classList.contains("time-block-filled")) {
-				/* Filled block: show detail popover */
-				const dayEntries = await getEntriesForDate(date);
-				const entry = dayEntries.find((e) => e.timeSlot === slot);
-				if (entry) {
-					showWeekPopover(entry, block);
-				}
-				return;
-			}
-
 			if (block.classList.contains("time-block-empty")) {
 				/* Empty block with clipboard: paste */
 				if (clipboard) {
@@ -1436,12 +1424,10 @@ function attachWeekEventListeners() {
 					await renderWeekView();
 					return;
 				}
-
-				/* Empty block without clipboard: open edit dropdown */
-				closeWeekPopover();
-				showEditDropdown(slot, block, date, renderWeekView);
-				return;
 			}
+
+			/* Both filled and empty blocks: open edit dropdown */
+			showEditDropdown(slot, block, date, renderWeekView);
 		});
 
 		/* Double-click: jump to day view for that date */
