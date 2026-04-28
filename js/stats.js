@@ -208,7 +208,8 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 	const d = new Date(periodDate);
 	const firstDate = await getFirstTrackedDate();
 
-	for (let i = 0; i < numWeeks; i++) {
+	/* Start from last week, skip the current incomplete week */
+	for (let i = 1; i <= numWeeks; i++) {
 		const refDate = new Date(d);
 		refDate.setDate(refDate.getDate() - i * 7);
 
@@ -219,10 +220,7 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 		/* Stop if this week is entirely before the first tracked date */
 		if (firstDate && endDate < firstDate) break;
 
-		const rawEntries = await getEntriesForDateRange(startDate, endDate);
-
-		/* For the current week, filter out future blocks */
-		const entries = i === 0 ? filterEntriesUpToNow(rawEntries) : rawEntries;
+		const entries = await getEntriesForDateRange(startDate, endDate);
 
 		/* Skip weeks with zero entries — they're gaps, not real data */
 		if (entries.length === 0 && i > 0) continue;
@@ -278,7 +276,8 @@ function generateInsights(currentStats, history) {
 	}
 
 	/* Skip the current week in history for comparisons */
-	const pastWeeks = history.slice(1).filter((w) => w.tracked > 0);
+	/* All weeks in history are now completed past weeks */
+	const pastWeeks = history.filter((w) => w.tracked > 0);
 	const tierMap = appState.tierMap || {};
 
 	/* --- Compliance check --- */
@@ -437,6 +436,7 @@ async function renderStats() {
 
 	/* Fetch historical data for insights and trend chart */
 	const history = await getHistoricalWeeklyData(8);
+	/* Pass current stats separately since history now excludes the current week */
 	const insights = generateInsights(currentStats, history);
 
 	/* Determine compliance status */
@@ -451,7 +451,7 @@ async function renderStats() {
 	}
 
 	/* Historical averages for comparison labels */
-	const pastWeeks = history.slice(1);
+	const pastWeeks = history.filter((w) => w.tracked > 0);
 	const avgTracked =
 		pastWeeks.length > 0
 			? (
@@ -735,34 +735,44 @@ async function renderStats() {
 		})()}
 
     <!-- ================================================================
-      TREND CHART (past 8 weeks)
-      ================================================================ -->
+        TREND CHART (past completed weeks)
+	================================================================ -->
+    ${
+			history.length >= 3
+				? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
-      <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
-      <div class="chart-container" style="height: 200px;">
-        <canvas id="chart-trend"></canvas>
-      </div>
-      <div class="flex gap-4 mt-2">
-        <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
+        <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
+        <div class="chart-container" style="height: 200px;">
+            <canvas id="chart-trend"></canvas>
         </div>
-        <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded" style="background: var(--positive); border-top: 1px dashed var(--positive);"></div>Tier 1 hours
+        <div class="flex gap-4 mt-2">
+            <div class="flex items-center gap-1.5 text-xs text-stone-400">
+                <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-stone-400">
+                <div class="w-4 h-0.5 rounded" style="background: var(--positive); border-top: 1px dashed var(--positive);"></div>Tier 1 hours
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-stone-400">
+                <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
+            </div>
         </div>
-        <div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
-        </div>
-		<div class="flex items-center gap-1.5 text-xs text-stone-400">
-          <div class="w-4 h-0.5 rounded" style="background: var(--text-placeholder); border-top: 1px dashed var(--text-placeholder);"></div>Expected hours
-        </div>
-      </div>
     </div>
-  `;
+    `
+				: `
+    <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
+        <div class="text-sm font-medium mb-3">Weekly trend</div>
+        <div class="flex items-center justify-center" style="height: 120px; color: var(--text-muted); font-size: 13px;">
+            Trends will appear once you have 3+ completed weeks of data.
+        </div>
+    </div>
+    `
+		}
+	`;
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
 	renderDailyChart(entries, range);
-	renderTrendChart(history);
+	if (history.length >= 3) renderTrendChart(history);
 
 	/* Attach event listeners */
 	attachStatsListeners();
@@ -1206,16 +1216,6 @@ function renderTrendChart(history) {
 					pointRadius: 3,
 					pointBackgroundColor: getChartColors().warning,
 					borderWidth: 1.5,
-					fill: false,
-				},
-				{
-					label: "Expected (OOO-adjusted)",
-					data: reversed.map((w) => w.expectedHours),
-					borderColor: "var(--text-placeholder)",
-					borderDash: [2, 4],
-					tension: 0,
-					pointRadius: 0,
-					borderWidth: 1,
 					fill: false,
 				},
 			],
