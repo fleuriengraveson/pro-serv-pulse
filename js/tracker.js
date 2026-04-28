@@ -862,14 +862,12 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 
 	/* --- Category list --- */
 	let html = `
-    <!-- Two-column body: categories left, fields right -->
     <div class="dropdown-body">
 
       <!-- LEFT: Category list -->
       <div class="dropdown-categories">
         ${CATEGORIES.filter((cat) => {
 					const hidden = appState.settings.hiddenCategories || [];
-					/* Always show: lunch, ooo, other, and any category already assigned to this entry */
 					if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other")
 						return true;
 					if (entry.category === cat.id) return true;
@@ -891,28 +889,33 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
       <!-- RIGHT: Detail fields -->
       <div class="detail-panel" id="detail-fields">
 
-        <!-- Sub-category (full width, most used field) -->
-        <div>
+        <!-- Sub-category (full width) -->
+        <div class="field-group">
           <label class="field-label">Sub-category</label>
-          <input type="text" id="edit-subcategory" autocomplete="off"
+          <input type="text" id="edit-subcategory" autocomplete="chrome-off"
                  value="${entry.subCategory || ""}"
                  placeholder="e.g., product import, team standup..." />
         </div>
 
-        <!-- Ticket + Merchant/Former POS row -->
-        <div class="flex gap-2">
-          <div class="flex-1">
-            <label class="field-label">Ticket</label>
-            <input type="text" id="edit-ticket" autocomplete="off"
-                   value="${entry.ticketLink || ""}"
-                   placeholder="URL or #..." />
-          </div>
+        <!-- Ticket (full width — URLs are long) -->
+        <div class="field-group">
+          <label class="field-label">Ticket</label>
+          <input type="text" id="edit-ticket" autocomplete="chrome-off"
+                 value="${entry.ticketLink || ""}"
+                 placeholder="URL or ticket number..." />
+        </div>
+
+        <!-- Merchant + Former POS (side by side) -->
+        ${
+					appState.settings.enableMerchant || appState.settings.enableFormerPOS
+						? `
+        <div class="field-row">
           ${
 						appState.settings.enableMerchant
 							? `
-          <div class="flex-1">
+          <div class="field-group">
             <label class="field-label">Merchant</label>
-            <input type="text" id="edit-merchant" autocomplete="off"
+            <input type="text" id="edit-merchant" autocomplete="chrome-off"
                    value="${entry.merchant || ""}"
                    placeholder="Merchant name..." />
           </div>
@@ -922,9 +925,9 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
           ${
 						appState.settings.enableFormerPOS
 							? `
-          <div class="flex-1">
+          <div class="field-group">
             <label class="field-label">Former POS</label>
-            <input type="text" id="edit-formerpos" autocomplete="off"
+            <input type="text" id="edit-formerpos" autocomplete="chrome-off"
                    value="${entry.formerPOS || ""}"
                    placeholder="Former POS..." />
           </div>
@@ -932,28 +935,31 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 							: ""
 					}
         </div>
+        `
+						: ""
+				}
 
         <!-- Notes (full width) -->
-        <div>
+        <div class="field-group">
           <label class="field-label">Notes</label>
-          <input type="text" id="edit-notes" autocomplete="off"
+          <input type="text" id="edit-notes" autocomplete="chrome-off"
                  value="${entry.notes || ""}"
                  placeholder="Any additional context..." />
         </div>
 
         <!-- Billable + Urgent checkboxes -->
-        <div class="flex gap-3 items-center py-1">
+        <div class="flex gap-4 items-center" style="padding: 2px 0;">
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="edit-billable"
                    ${entry.billable ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
-            <span class="text-xs text-stone-500">Billable</span>
+            <span class="text-xs" style="color: var(--text-secondary);">Billable</span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="edit-urgent"
                    ${entry.urgent ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
-            <span class="text-xs text-stone-500">Urgent</span>
+            <span class="text-xs" style="color: var(--text-secondary);">Urgent</span>
           </label>
         </div>
 
@@ -964,28 +970,29 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 
       </div>
     </div>
+
     <!-- Full-width button row -->
     <div class="dropdown-buttons">
       <button id="edit-save"
-              class="bg-chronos-500 text-white hover:bg-chronos-600">
+              class="export-button text-white">
         Save
       </button>
       <button id="edit-copy"
-              class="border border-stone-200 text-stone-500 hover:text-chronos-500 hover:border-chronos-200">
+              style="border: 0.5px solid var(--border-default); background: none; color: var(--text-secondary);">
         Copy
       </button>
       ${
 				entry.category
 					? `
       <button id="edit-clear"
-              class="border border-stone-200 text-stone-400 hover:text-red-500 hover:border-red-200">
+              style="border: 0.5px solid var(--border-default); background: none; color: var(--text-secondary);">
         Clear
       </button>
       `
 					: ""
 			}
       <button id="edit-cancel"
-              class="border border-stone-200 text-stone-400 hover:text-stone-600">
+              style="border: 0.5px solid var(--border-default); background: none; color: var(--text-secondary);">
         Cancel
       </button>
     </div>
