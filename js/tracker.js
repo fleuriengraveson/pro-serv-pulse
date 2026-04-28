@@ -359,7 +359,7 @@ function renderTimeBlock(slot) {
         <div class="flex-1 time-block-filled cat-${entry.category} rounded-md px-3 py-2 my-0.5 flex items-center gap-2 min-h-[40px]"
              data-slot="${slot}">
           <span class="text-xs font-medium ${isLunch ? "text-stone-400" : "text-stone-700"}">${label}</span>
-          ${entry.subCategory ? `<span class="text-xs text-stone-400">${entry.subCategory}</span>` : ""}
+          ${entry.merchant || entry.subCategory ? `<span class="text-xs text-stone-400">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
           <div class="ml-auto flex items-center gap-2">
             ${entry.urgent ? '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>' : ""}
             ${entry.billable ? '<span class="text-[10px] font-medium text-emerald-500">$</span>' : ""}
