@@ -219,7 +219,10 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 		/* Stop if this week is entirely before the first tracked date */
 		if (firstDate && endDate < firstDate) break;
 
-		const entries = await getEntriesForDateRange(startDate, endDate);
+		const rawEntries = await getEntriesForDateRange(startDate, endDate);
+
+		/* For the current week, filter out future blocks */
+		const entries = i === 0 ? filterEntriesUpToNow(rawEntries) : rawEntries;
 
 		/* Skip weeks with zero entries — they're gaps, not real data */
 		if (entries.length === 0 && i > 0) continue;
@@ -402,8 +405,13 @@ async function renderStats() {
 	const tierMap = await getTierMap();
 	const range = getPeriodRange();
 
-	/* Fetch entries for the current period */
-	const entries = await getEntriesForDateRange(range.startDate, range.endDate);
+	const allEntries = await getEntriesForDateRange(
+		range.startDate,
+		range.endDate,
+	);
+
+	/* Filter out future blocks — only count past and current time */
+	const entries = filterEntriesUpToNow(allEntries);
 
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
@@ -413,7 +421,7 @@ async function renderStats() {
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
 	const byPOS = aggregateByPOS(entries);
-	const expectedHours = getExpectedHours(entries);
+	const expectedHours = getExpectedHours(allEntries);
 	const untracked = expectedHours - tracked;
 
 	const currentStats = {
@@ -525,31 +533,51 @@ async function renderStats() {
         <div class="stat-card-sub">${getDaysInPeriod()} days</div>
       </div>
 
-      <!-- Tracked hours -->
-      <div class="stat-card">
-        <div class="stat-card-label">Tracked hours</div>
-        <div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
-        <div class="progress-track">
-          <div class="progress-fill ${progressClass}"
-               style="width: ${Math.min(100, trackedPercent)}%"></div>
-        </div>
-        <div class="stat-card-sub">${trackedPercent}% tracked — target ${TARGETS.compliancePercent}%</div>
-      </div>
-
-      <!-- Tier 1 (billable) -->
-      <div class="stat-card">
-        <div class="stat-card-label">Tier 1 (customer)</div>
-        <div class="stat-card-value">${tier1Hours}<span class="text-sm font-normal text-stone-400"> hrs</span></div>
-        ${tier1Trend ? `<div class="mt-1">${tier1Trend}</div>` : ""}
-      </div>
-
-      <!-- Untracked -->
-      <div class="stat-card">
-        <div class="stat-card-label">Untracked hours</div>
-        <div class="stat-card-value">${Math.max(0, untracked).toFixed(1)}</div>
-        <div class="stat-card-sub">${avgTracked ? `Avg tracked: ${avgTracked} hrs` : ""}</div>
-      </div>
+	<!-- Tracked hours -->
+	<div class="stat-card">
+		<div class="stat-card-label">Tracked hours</div>
+		<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
+		<div class="progress-with-marker">
+			<div class="progress-fill progress-fill-good"
+				style="width: ${expectedHours > 0 ? Math.min(100, Math.round((tracked / expectedHours) * 100)) : 0}%"></div>
+			${
+				expectedHours > 0
+					? `
+			<div class="progress-marker" style="left: ${TARGETS.compliancePercent}%;"></div>
+			<div class="progress-marker-label" style="left: ${TARGETS.compliancePercent}%;">${((expectedHours * TARGETS.compliancePercent) / 100).toFixed(1)}h min</div>
+			`
+					: ""
+			}
+		</div>
+		<div class="pace-text ${
+			tracked >= (expectedHours * TARGETS.compliancePercent) / 100
+				? "pace-ahead"
+				: (expectedHours * TARGETS.compliancePercent) / 100 - tracked < 2
+					? "pace-behind"
+					: "pace-far-behind"
+		}">${
+			tracked >= expectedHours
+				? `Complete — ${(tracked - expectedHours).toFixed(1)} hrs over`
+				: tracked >= (expectedHours * TARGETS.compliancePercent) / 100
+					? `On track — ${(expectedHours - tracked).toFixed(1)} hrs remaining`
+					: `${((expectedHours * TARGETS.compliancePercent) / 100 - tracked).toFixed(1)} hrs below minimum`
+		}</div>
     </div>
+
+	<!-- Tier 1 (billable) -->
+	<div class="stat-card">
+		<div class="stat-card-label">Tier 1 (customer)</div>
+		<div class="stat-card-value">${tier1Hours}<span class="text-sm font-normal text-stone-400"> hrs</span></div>
+			${tier1Trend ? `<div class="mt-1">${tier1Trend}</div>` : ""}
+		</div>
+
+	<!-- Untracked -->
+	<div class="stat-card">
+		<div class="stat-card-label">Untracked hours</div>
+		<div class="stat-card-value">${Math.max(0, untracked).toFixed(1)}</div>
+		<div class="stat-card-sub">${avgTracked ? `Avg tracked: ${avgTracked} hrs` : ""}</div>
+	</div>
+</div>
 
     <!-- ================================================================
       INSIGHTS PANEL
