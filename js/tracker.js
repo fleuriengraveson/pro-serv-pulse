@@ -828,7 +828,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <!-- Sub-category (full width, most used field) -->
         <div>
           <label class="field-label">Sub-category</label>
-          <input type="text" id="edit-subcategory"
+          <input type="text" id="edit-subcategory" autocomplete="off"
                  value="${entry.subCategory || ""}"
                  placeholder="e.g., product import, team standup..." />
         </div>
@@ -837,7 +837,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <div class="flex gap-2">
           <div class="flex-1">
             <label class="field-label">Ticket</label>
-            <input type="text" id="edit-ticket"
+            <input type="text" id="edit-ticket" autocomplete="off"
                    value="${entry.ticketLink || ""}"
                    placeholder="URL or #..." />
           </div>
@@ -846,7 +846,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 							? `
           <div class="flex-1">
             <label class="field-label">Merchant</label>
-            <input type="text" id="edit-merchant"
+            <input type="text" id="edit-merchant" autocomplete="off"
                    value="${entry.merchant || ""}"
                    placeholder="Merchant name..." />
           </div>
@@ -858,7 +858,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 							? `
           <div class="flex-1">
             <label class="field-label">Former POS</label>
-            <input type="text" id="edit-formerpos"
+            <input type="text" id="edit-formerpos" autocomplete="off"
                    value="${entry.formerPOS || ""}"
                    placeholder="Former POS..." />
           </div>
@@ -870,7 +870,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <!-- Notes (full width) -->
         <div>
           <label class="field-label">Notes</label>
-          <input type="text" id="edit-notes"
+          <input type="text" id="edit-notes" autocomplete="off"
                  value="${entry.notes || ""}"
                  placeholder="Any additional context..." />
         </div>
