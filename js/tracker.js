@@ -114,6 +114,18 @@ document.addEventListener("keydown", (e) => {
 			activeView = "notes";
 			renderNotesView();
 		}
+		if (e.key === "t" || e.key === "T") {
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			document.querySelector('.nav-btn[data-view="tracker"]')?.click();
+		}
+		if (e.key === "s" || e.key === "S") {
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			document.querySelector('.nav-btn[data-view="stats"]')?.click();
+		}
 	}
 });
 document.addEventListener("keyup", (e) => {
