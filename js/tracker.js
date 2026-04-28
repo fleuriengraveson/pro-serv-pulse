@@ -257,6 +257,10 @@ async function renderTracker() {
 		return;
 	}
 
+	/* Preserve scroll position across re-renders */
+	const existingGrid = document.querySelector(".tracker-grid");
+	const savedScroll = existingGrid ? existingGrid.scrollTop : 0;
+
 	const container = document.getElementById("view-tracker");
 
 	/* Load entries for the current day from IndexedDB */
@@ -360,6 +364,10 @@ async function renderTracker() {
 
 	/* Re-show clipboard indicator if clipboard is active */
 	if (clipboard) updateClipboardIndicator();
+
+	/* Restore scroll position */
+	const newGrid = document.querySelector(".tracker-grid");
+	if (newGrid) newGrid.scrollTop = savedScroll;
 }
 
 /* ============================================================================
@@ -1636,6 +1644,9 @@ function navigateDay(direction) {
  * Builds the 5-column week grid and inserts it into the tracker container.
  */
 async function renderWeekView() {
+	const existingGrid = document.querySelector(".tracker-grid");
+	const savedScroll = existingGrid ? existingGrid.scrollTop : 0;
+
 	const container = document.getElementById("view-tracker");
 
 	/* Load entries for all 5 days */
@@ -1797,6 +1808,9 @@ async function renderWeekView() {
 
 	/* Attach week view event listeners */
 	attachWeekEventListeners();
+
+	const newGrid = document.querySelector(".tracker-grid");
+	if (newGrid) newGrid.scrollTop = savedScroll;
 }
 
 /* ============================================================================
