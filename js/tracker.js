@@ -22,6 +22,7 @@ import {
 	getWeeklyNotes,
 	saveWeeklyNotes,
 	getUniqueFieldValues,
+	getLastEntryForMerchant,
 } from "./db.js";
 import {
 	generateTimeSlots,
@@ -1042,7 +1043,72 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 	if (subCatInput) attachAutocomplete(subCatInput, "subCategory");
 
 	const merchantInput = dropdown.querySelector("#edit-merchant");
-	if (merchantInput) attachAutocomplete(merchantInput, "merchant");
+	if (merchantInput) {
+		attachAutocomplete(merchantInput, "merchant");
+
+		/* Auto-fill POS and ticket when merchant matches a known entry */
+		let merchantFillTimeout;
+		const autoFillFromMerchant = async () => {
+			const merchantValue = merchantInput.value.trim();
+			if (!merchantValue) return;
+
+			const lastEntry = await getLastEntryForMerchant(merchantValue);
+			if (!lastEntry) return;
+
+			/* Only auto-fill if the field is empty — don't overwrite user input */
+			const subCatInput = dropdown.querySelector("#edit-subcategory");
+			if (subCatInput && !subCatInput.value.trim() && lastEntry.subCategory) {
+				subCatInput.value = lastEntry.subCategory;
+				subCatInput.style.color = "var(--accent-text-light)";
+				subCatInput.addEventListener(
+					"input",
+					() => {
+						subCatInput.style.color = "";
+					},
+					{ once: true },
+				);
+			}
+
+			const posInput = dropdown.querySelector("#edit-formerpos");
+			if (posInput && !posInput.value.trim() && lastEntry.formerPOS) {
+				posInput.value = lastEntry.formerPOS;
+				posInput.style.color = "var(--accent-text-light)";
+				/* Reset color when user edits */
+				posInput.addEventListener(
+					"input",
+					() => {
+						posInput.style.color = "";
+					},
+					{ once: true },
+				);
+			}
+
+			const ticketInput = dropdown.querySelector("#edit-ticket");
+			if (ticketInput && !ticketInput.value.trim() && lastEntry.ticketLink) {
+				ticketInput.value = lastEntry.ticketLink;
+				ticketInput.style.color = "var(--accent-text-light)";
+				ticketInput.addEventListener(
+					"input",
+					() => {
+						ticketInput.style.color = "";
+					},
+					{ once: true },
+				);
+			}
+		};
+
+		merchantInput.addEventListener("input", () => {
+			clearTimeout(merchantFillTimeout);
+			merchantFillTimeout = setTimeout(autoFillFromMerchant, 500);
+		});
+
+		/* Also trigger on autocomplete selection (which fires an input event) */
+		/* and on blur in case they tabbed away */
+		merchantInput.addEventListener("blur", () => {
+			clearTimeout(merchantFillTimeout);
+			autoFillFromMerchant();
+		});
+	}
 
 	const posInput = dropdown.querySelector("#edit-formerpos");
 	if (posInput) attachAutocomplete(posInput, "formerPOS");

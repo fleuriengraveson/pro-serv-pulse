@@ -243,6 +243,36 @@ export async function getUniqueFieldValues(field) {
 	);
 }
 
+/**
+ * getLastEntryForMerchant
+ * Finds the most recent time entry for a given merchant name.
+ * Returns the entry's formerPOS and ticketLink for auto-fill.
+ *
+ * @param {string} merchant - The merchant name to look up (case-insensitive)
+ * @returns {Promise<Object|null>} { formerPOS, ticketLink } or null if not found
+ */
+export async function getLastEntryForMerchant(merchant) {
+	if (!merchant || !merchant.trim()) return null;
+
+	const lowerMerchant = merchant.trim().toLowerCase();
+
+	/* Get all entries, sorted by date descending then timeSlot descending */
+	const allEntries = await db.entries.orderBy("date").reverse().toArray();
+
+	/* Find the first (most recent) entry matching this merchant */
+	const match = allEntries.find(
+		(e) => e.merchant && e.merchant.trim().toLowerCase() === lowerMerchant,
+	);
+
+	if (!match) return null;
+
+	return {
+		formerPOS: match.formerPOS || "",
+		ticketLink: match.ticketLink || "",
+		subCategory: match.subCategory || "",
+	};
+}
+
 /* ============================================================================
  * WEEKLY NOTES OPERATIONS
  * ========================================================================= */
