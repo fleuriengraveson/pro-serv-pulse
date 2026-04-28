@@ -632,11 +632,15 @@ async function renderStats() {
 
         <!-- Tier legend with hours -->
         <div class="space-y-2">
-          ${[1, 2, 3]
-						.map((t) => {
-							const hours = byTier[t] || 0;
-							const pct = tracked > 0 ? Math.round((hours / tracked) * 100) : 0;
-							return `
+          ${(() => {
+						const tierTotal =
+							(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
+						return [1, 2, 3]
+							.map((t) => {
+								const hours = byTier[t] || 0;
+								const pct =
+									tierTotal > 0 ? Math.round((hours / tierTotal) * 100) : 0;
+								return `
               <div class="flex items-center justify-between text-xs">
                 <div class="flex items-center gap-2">
                   <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${TIERS[t].hexVar})"></div>
@@ -645,8 +649,9 @@ async function renderStats() {
                 <span class="font-medium">${hours} hrs (${pct}%)</span>
               </div>
             `;
-						})
-						.join("")}
+							})
+							.join("");
+					})()}
         </div>
 
         ${
@@ -772,20 +777,23 @@ async function renderStats() {
  * Generates the inline HTML for the horizontal stacked tier bar.
  */
 function renderTierBar(byTier, total) {
-	if (total === 0) {
+	/* Calculate tier-only total (excludes lunch/OOO which have null tier) */
+	const tierTotal = (byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
+
+	if (tierTotal === 0) {
 		return '<div class="flex-1 bg-stone-100 flex items-center justify-center text-xs text-stone-400">No data</div>';
 	}
 
 	return [1, 2, 3]
 		.map((t) => {
 			const hours = byTier[t] || 0;
-			const pct = Math.round((hours / total) * 100);
+			const pct = Math.round((hours / tierTotal) * 100);
 			if (pct === 0) return "";
 			return `
-      <div class="flex items-center justify-center text-xs font-medium"
-           style="width: ${pct}%; background: var(${TIERS[t].bgVar}); color: var(${TIERS[t].hexVar});">
-        ${pct >= 10 ? `${pct}%` : ""}
-      </div>
+        <div class="flex items-center justify-center text-xs font-medium"
+            style="width: ${pct}%; background: var(${TIERS[t].bgVar}); color: var(${TIERS[t].hexVar});">
+            ${pct >= 10 ? `${pct}%` : ""}
+        </div>
     `;
 		})
 		.join("");
