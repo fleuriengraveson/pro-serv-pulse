@@ -357,7 +357,7 @@ function renderTimeBlock(slot) {
         </div>
         <!-- Filled block content -->
         <div class="flex-1 time-block-filled cat-${entry.category} rounded-md px-3 py-2 my-0.5 flex items-center gap-2 min-h-[40px]"
-             data-slot="${slot}">
+             data-slot="${slot}" style="position: relative;">
           <span class="text-xs font-medium ${isLunch ? "text-stone-400" : "text-stone-700"}">${label}</span>
           ${entry.merchant || entry.subCategory ? `<span class="text-xs text-stone-400">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
           <div class="ml-auto flex items-center gap-2">
@@ -365,6 +365,25 @@ function renderTimeBlock(slot) {
             ${entry.billable ? '<span class="text-[10px] font-medium text-emerald-500">$</span>' : ""}
             ${entry.ticketLink ? `<a href="${entry.ticketLink}" target="_blank" rel="noopener" class="text-[10px] text-blue-400 hover:underline" onclick="event.stopPropagation();">#${entry.ticketLink.split("/").pop()}</a>` : ""}
           </div>
+          ${
+						entry.category !== "lunch" && entry.category !== "ooo"
+							? `
+          <div class="block-tooltip">
+            <div class="tooltip-header">
+              <div class="w-2 h-2 rounded-sm" style="background: var(${cat ? cat.cssVar : "--cat-other-border"})"></div>
+              ${label}
+            </div>
+            ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${entry.subCategory}</span></div>` : ""}
+            ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${entry.merchant}</span></div>` : ""}
+            ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${entry.formerPOS}</span></div>` : ""}
+            ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
+            ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
+            <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
+            ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
+          </div>
+          `
+							: ""
+					}
         </div>
       </div>
     `;

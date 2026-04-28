@@ -377,6 +377,74 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+ * TIME BLOCK TOOLTIP
+ * --------------------------------------------------------------------------
+ * Shows full details on hover. Pure CSS, no JS needed.
+ * ------------------------------------------------------------------------- */
+
+.block-tooltip {
+	display: none;
+	position: absolute;
+	z-index: 40;
+	bottom: calc(100% + 6px);
+	left: 50%;
+	transform: translateX(-50%);
+	background: var(--bg-dropdown);
+	border: 1px solid var(--border-default);
+	border-radius: 8px;
+	padding: 8px 10px;
+	min-width: 200px;
+	max-width: 280px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+	pointer-events: none;
+	white-space: nowrap;
+}
+[data-theme="dark"] .block-tooltip {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.time-block-filled:hover .block-tooltip {
+	display: block;
+}
+.tooltip-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	font-size: 11px;
+	padding: 1.5px 0;
+}
+.tooltip-label {
+	color: var(--text-muted);
+}
+.tooltip-value {
+	color: var(--text-primary);
+	font-weight: 500;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.tooltip-header {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--text-primary);
+	padding-bottom: 4px;
+	margin-bottom: 4px;
+	border-bottom: 0.5px solid var(--border-default);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+/* Arrow */
+.block-tooltip::after {
+	content: "";
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	border: 5px solid transparent;
+	border-top-color: var(--border-default);
+}
+
+/* ----------------------------------------------------------------------------
  * INLINE EDIT DROPDOWN
  * --------------------------------------------------------------------------
  * The dropdown that appears when clicking a time block to assign a category.
