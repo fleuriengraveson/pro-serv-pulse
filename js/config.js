@@ -74,18 +74,18 @@ export const CATEGORIES = [
 		cssVar: "--cat-meeting-merch-border",
 	},
 	{
-		id: "other",
-		label: "Other",
-		color: "slate",
-		hex: "#64748B",
-		cssVar: "--cat-other-border",
-	},
-	{
 		id: "research_sync",
 		label: "Research / Product Sync",
 		color: "lime",
 		hex: "#84CC16",
 		cssVar: "--cat-research-border",
+	},
+	{
+		id: "other",
+		label: "Other",
+		color: "slate",
+		hex: "#64748B",
+		cssVar: "--cat-other-border",
 	},
 	{
 		id: "lunch",
@@ -227,6 +227,7 @@ export const DEFAULT_USER_SETTINGS = {
 	lunchBlocks: TIME_DEFAULTS.lunchBlocks,
 	enableMerchant: false,
 	enableFormerPOS: false,
+	hiddenCategories: [],
 	backupFolderHandle: null, // File System Access API handle
 	backupFrequency: "daily", // 'daily' or 'weekly'
 	lastBackupDate: null,

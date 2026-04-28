@@ -173,6 +173,36 @@ async function renderSettings() {
       </div>
 
       <!-- ================================================================
+        VISIBLE CATEGORIES
+        ================================================================ -->
+      <div class="mb-8">
+        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Visible categories</h3>
+        <p class="text-xs text-stone-400 mb-3">Choose which categories appear in your tracker dropdown. Hidden categories won't be lost from existing data.</p>
+        <div class="bg-white rounded-xl border border-stone-200 p-5 space-y-2">
+          ${CATEGORIES.filter(
+						(c) => c.id !== "lunch" && c.id !== "ooo" && c.id !== "other",
+					)
+						.map((cat) => {
+							const isHidden = (settings.hiddenCategories || []).includes(
+								cat.id,
+							);
+							return `
+              <label class="flex items-center justify-between cursor-pointer ${cat.id !== CATEGORIES.filter((c) => c.id !== "lunch" && c.id !== "ooo" && c.id !== "other")[0].id ? "border-t border-stone-100 pt-2" : ""}">
+                <div class="flex items-center gap-2">
+                  <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${cat.cssVar})"></div>
+                  <span class="text-sm text-stone-600">${cat.label}</span>
+                </div>
+                <input type="checkbox" class="category-toggle w-4 h-4 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300"
+                       data-category="${cat.id}"
+                       ${!isHidden ? "checked" : ""} />
+              </label>
+            `;
+						})
+						.join("")}
+        </div>
+      </div>
+
+      <!-- ================================================================
         TIER MAPPINGS (MANAGER ONLY)
         ================================================================ -->
       ${
@@ -418,4 +448,24 @@ function attachSettingsListeners() {
 
 			e.target.value = "";
 		});
+	/* Category visibility toggles */
+	container.querySelectorAll(".category-toggle").forEach((toggle) => {
+		toggle.addEventListener("change", async () => {
+			const settings = { ...appState.settings };
+			const hidden = new Set(settings.hiddenCategories || []);
+
+			if (toggle.checked) {
+				hidden.delete(toggle.dataset.category);
+			} else {
+				hidden.add(toggle.dataset.category);
+			}
+
+			settings.hiddenCategories = [...hidden];
+			await saveUserSettings(settings);
+
+			if (onChangeCallback) {
+				onChangeCallback(settings);
+			}
+		});
+	});
 }

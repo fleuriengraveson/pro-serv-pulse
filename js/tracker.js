@@ -631,7 +631,12 @@ function renderSidebar(stats) {
     <!-- Category legend -->
     <div class="mt-4">
       <div class="text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-2">Categories</div>
-      ${CATEGORIES.filter((c) => c.id !== "lunch" && c.id !== "other")
+      ${CATEGORIES.filter((c) => {
+				if (c.id === "lunch" || c.id === "other" || c.id === "ooo")
+					return false;
+				const hidden = appState.settings.hiddenCategories || [];
+				return !hidden.includes(c.id);
+			})
 				.map(
 					(cat) => `
         <div class="flex items-center gap-2 mb-1.5">
@@ -810,16 +815,25 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 
       <!-- LEFT: Category list -->
       <div class="dropdown-categories">
-        ${CATEGORIES.map((cat) => {
-					const isSelected = entry.category === cat.id;
-					return `
+        ${CATEGORIES.filter((cat) => {
+					const hidden = appState.settings.hiddenCategories || [];
+					/* Always show: lunch, ooo, other, and any category already assigned to this entry */
+					if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other")
+						return true;
+					if (entry.category === cat.id) return true;
+					return !hidden.includes(cat.id);
+				})
+					.map((cat) => {
+						const isSelected = entry.category === cat.id;
+						return `
             <div class="dropdown-option ${isSelected ? "selected" : ""}"
                  data-category="${cat.id}">
               <div class="cat-dot" style="background: var(${cat.cssVar})"></div>
               <span>${cat.label}</span>
             </div>
           `;
-				}).join("")}
+					})
+					.join("")}
       </div>
 
       <!-- RIGHT: Detail fields -->
@@ -994,19 +1008,22 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 				.forEach((o) => o.classList.remove("selected"));
 			opt.classList.add("selected");
 			selectedCategory = opt.dataset.category;
+			console.log("Category selected:", selectedCategory);
 			/* Hide warning if it was showing */
 			const warning = dropdown.querySelector("#edit-warning");
-			if (warning) warning.style.display = "flex";
+			if (warning) warning.style.display = "none";
 		});
 	});
 
 	/* Save button */
 	dropdown.querySelector("#edit-save").addEventListener("click", async () => {
+		/* Read selection from DOM in case the closure variable didn't update */
+		const selectedOpt = dropdown.querySelector(".dropdown-option.selected");
+		if (selectedOpt) selectedCategory = selectedOpt.dataset.category;
+
 		if (!selectedCategory) {
 			const warning = dropdown.querySelector("#edit-warning");
-			if (warning) {
-				warning.style.display = "block";
-			}
+			if (warning) warning.style.display = "flex";
 			return;
 		}
 
