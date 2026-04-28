@@ -456,6 +456,18 @@ body {
 	border-top-color: var(--border-default);
 }
 
+/* Flipped tooltip — appears below the block instead of above */
+.block-tooltip.tooltip-below {
+	bottom: auto;
+	top: calc(100% + 6px);
+}
+.block-tooltip.tooltip-below::after {
+	top: auto;
+	bottom: 100%;
+	border-top-color: transparent;
+	border-bottom-color: var(--border-default);
+}
+
 /* ----------------------------------------------------------------------------
  * INLINE EDIT DROPDOWN
  * --------------------------------------------------------------------------

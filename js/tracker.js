@@ -1342,6 +1342,27 @@ function attachEventListeners() {
 				lastClickedSlot = slot;
 			});
 		});
+
+	/* Tooltip positioning — flip below if near top of grid */
+	document.querySelectorAll(".time-block-filled").forEach((block) => {
+		block.addEventListener("mouseenter", () => {
+			const tooltip = block.querySelector(".block-tooltip");
+			if (!tooltip) return;
+
+			const grid = document.querySelector(".tracker-grid");
+			if (!grid) return;
+
+			const blockRect = block.getBoundingClientRect();
+			const gridRect = grid.getBoundingClientRect();
+
+			/* If the block is within 120px of the top of the grid, flip tooltip below */
+			if (blockRect.top - gridRect.top < 120) {
+				tooltip.classList.add("tooltip-below");
+			} else {
+				tooltip.classList.remove("tooltip-below");
+			}
+		});
+	});
 }
 
 /**
@@ -1474,6 +1495,27 @@ function attachWeekEventListeners() {
 				});
 			});
 	});
+	/* Tooltip positioning — flip below if near top of grid */
+	document
+		.querySelectorAll(".week-block.time-block-filled")
+		.forEach((block) => {
+			block.addEventListener("mouseenter", () => {
+				const tooltip = block.querySelector(".block-tooltip");
+				if (!tooltip) return;
+
+				const grid = document.querySelector(".tracker-grid");
+				if (!grid) return;
+
+				const blockRect = block.getBoundingClientRect();
+				const gridRect = grid.getBoundingClientRect();
+
+				if (blockRect.top - gridRect.top < 120) {
+					tooltip.classList.add("tooltip-below");
+				} else {
+					tooltip.classList.remove("tooltip-below");
+				}
+			});
+		});
 }
 
 /* ============================================================================
