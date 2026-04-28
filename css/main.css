@@ -414,6 +414,9 @@ body {
 .time-block-filled:hover .block-tooltip {
 	display: block;
 }
+.tooltip-hidden .block-tooltip {
+	display: none !important;
+}
 .tooltip-row {
 	display: flex;
 	justify-content: space-between;

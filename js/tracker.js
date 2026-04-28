@@ -845,6 +845,11 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 	/* Close any existing dropdown first */
 	closeDropdown();
 
+	/* Hide tooltips while dropdown is open */
+	document.querySelectorAll(".time-block-filled").forEach((el) => {
+		el.classList.add("tooltip-hidden");
+	});
+
 	const entry = entries[slot] || {};
 
 	/* Create the dropdown element */
@@ -1204,6 +1209,11 @@ function closeDropdown() {
 	/* Also catch any orphaned dropdowns */
 	const orphan = document.getElementById("active-dropdown");
 	if (orphan) orphan.remove();
+
+	/* Re-enable tooltips */
+	document.querySelectorAll(".tooltip-hidden").forEach((el) => {
+		el.classList.remove("tooltip-hidden");
+	});
 }
 
 /* ============================================================================
