@@ -876,7 +876,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <!-- Sub-category (full width) -->
         <div class="field-group">
           <label class="field-label">Sub-category</label>
-          <input type="text" id="edit-subcategory" autocomplete="chrome-off"
+          <input type="text" id="edit-subcategory" autocomplete="off"
                  value="${entry.subCategory || ""}"
                  placeholder="e.g., product import, team standup..." />
         </div>
@@ -884,7 +884,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <!-- Ticket (full width — URLs are long) -->
         <div class="field-group">
           <label class="field-label">Ticket</label>
-          <input type="text" id="edit-ticket" autocomplete="chrome-off"
+          <input type="text" id="edit-ticket" autocomplete="off"
                  value="${entry.ticketLink || ""}"
                  placeholder="URL or ticket number..." />
         </div>
@@ -899,7 +899,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 							? `
           <div class="field-group">
             <label class="field-label">Merchant</label>
-            <input type="text" id="edit-merchant" autocomplete="chrome-off"
+            <input type="text" id="edit-merchant" autocomplete="off"
                    value="${entry.merchant || ""}"
                    placeholder="Merchant name..." />
           </div>
@@ -911,7 +911,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 							? `
           <div class="field-group">
             <label class="field-label">Former POS</label>
-            <input type="text" id="edit-formerpos" autocomplete="chrome-off"
+            <input type="text" id="edit-formerpos" autocomplete="off"
                    value="${entry.formerPOS || ""}"
                    placeholder="Former POS..." />
           </div>
@@ -926,7 +926,7 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
         <!-- Notes (full width) -->
         <div class="field-group">
           <label class="field-label">Notes</label>
-          <input type="text" id="edit-notes" autocomplete="chrome-off"
+          <input type="text" id="edit-notes" autocomplete="off"
                  value="${entry.notes || ""}"
                  placeholder="Any additional context..." />
         </div>
