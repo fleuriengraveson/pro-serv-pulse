@@ -363,7 +363,7 @@ function renderTimeBlock(slot) {
           <div class="ml-auto flex items-center gap-2">
             ${entry.urgent ? '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>' : ""}
             ${entry.billable ? '<span class="text-[10px] font-medium text-emerald-500">$</span>' : ""}
-            ${entry.ticketLink ? `<span class="text-[10px] text-blue-400">#${entry.ticketLink.split("/").pop()}</span>` : ""}
+            ${entry.ticketLink ? `<a href="${entry.ticketLink}" target="_blank" rel="noopener" class="text-[10px] text-blue-400 hover:underline" onclick="event.stopPropagation();">#${entry.ticketLink.split("/").pop()}</a>` : ""}
           </div>
         </div>
       </div>
