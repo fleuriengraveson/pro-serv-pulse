@@ -146,6 +146,38 @@ document.addEventListener("keydown", (e) => {
 			closeOOOPopover();
 			document.querySelector('.nav-btn[data-view="stats"]')?.click();
 		}
+		if (e.key === "ArrowLeft") {
+			e.preventDefault();
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			if (activeView === "day") {
+				navigateDay(-1);
+			} else if (activeView === "week" || activeView === "notes") {
+				const mon = weekDates[0];
+				mon.setDate(mon.getDate() - 7);
+				weekDates = getWeekDates(mon);
+				currentDate = weekDates[0];
+				if (activeView === "week") renderWeekView();
+				else renderNotesView();
+			}
+		}
+		if (e.key === "ArrowRight") {
+			e.preventDefault();
+			closeDropdown();
+			closeWeekPopover();
+			closeOOOPopover();
+			if (activeView === "day") {
+				navigateDay(1);
+			} else if (activeView === "week" || activeView === "notes") {
+				const mon = weekDates[0];
+				mon.setDate(mon.getDate() + 7);
+				weekDates = getWeekDates(mon);
+				currentDate = weekDates[0];
+				if (activeView === "week") renderWeekView();
+				else renderNotesView();
+			}
+		}
 	}
 });
 document.addEventListener("keyup", (e) => {
