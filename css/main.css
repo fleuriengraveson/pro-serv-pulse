@@ -789,6 +789,78 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+ * STICKY LAYOUT
+ * --------------------------------------------------------------------------
+ * Header and navigation stay fixed. Time grid scrolls independently.
+ * Sidebar stays visible alongside the scrolling grid.
+ * ------------------------------------------------------------------------- */
+
+#app-header {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	background: var(--bg-page);
+	padding-top: 8px;
+	padding-bottom: 12px;
+}
+
+.tracker-nav {
+	position: sticky;
+	top: 52px;
+	z-index: 29;
+	background: var(--bg-page);
+	padding-bottom: 4px;
+}
+
+.tracker-chips {
+	position: sticky;
+	top: 100px;
+	z-index: 28;
+	background: var(--bg-page);
+	padding-bottom: 12px;
+}
+
+.tracker-content {
+	display: flex;
+	gap: 24px;
+}
+
+.tracker-grid {
+	flex: 1;
+	max-height: calc(100vh - 210px);
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+.tracker-sidebar {
+	width: 224px;
+	flex-shrink: 0;
+	position: sticky;
+	top: 160px;
+	max-height: calc(100vh - 180px);
+	overflow-y: auto;
+	align-self: flex-start;
+}
+
+/* Subtle scrollbar for the time grid */
+.tracker-grid::-webkit-scrollbar {
+	width: 4px;
+}
+.tracker-grid::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: 2px;
+}
+
+/* Subtle scrollbar for sidebar if it overflows */
+.tracker-sidebar::-webkit-scrollbar {
+	width: 4px;
+}
+.tracker-sidebar::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: 2px;
+}
+
+/* ----------------------------------------------------------------------------
  * INSIGHT / ALERT CARDS
  * --------------------------------------------------------------------------
  * Colored cards used in the insights panel for outlier detection.

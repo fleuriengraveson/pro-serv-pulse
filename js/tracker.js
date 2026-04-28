@@ -277,7 +277,8 @@ async function renderTracker() {
         DAY NAVIGATION
         Date display with prev/next arrows and week day chips.
         ================================================================ -->
-    <div class="flex items-center justify-between mb-4">
+        <div class="tracker-nav">
+		<div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
             <button id="prev-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -312,8 +313,10 @@ async function renderTracker() {
 			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
 		</div>
     </div>
+	</div>
 
     <!-- Week day chips -->
+	<div class="tracker-chips">
     <div class="flex gap-1 mb-6" style="padding-right: calc(224px + 24px);">
         ${weekDates
 					.map((d) => {
@@ -332,19 +335,20 @@ async function renderTracker() {
 					})
 					.join("")}
     </div>
+	</div>
 
     <!-- ================================================================
         MAIN CONTENT: TIME GRID + SIDEBAR
 	================================================================ -->
-    <div class="flex gap-6">
+    <div class="tracker-content">
 
-        <!-- Time grid (left) -->
-        <div class="flex-1" id="time-grid">
+      <!-- Time grid (left, scrollable) -->
+      <div class="tracker-grid" id="time-grid">
             ${timeSlots.map((slot) => renderTimeBlock(slot)).join("")}
         </div>
 
-		<!-- Sidebar stats (right) -->
-		<div class="w-56 flex-shrink-0 space-y-3">
+		<!-- Sidebar stats (right, sticky) -->
+      <div class="tracker-sidebar space-y-3">
 			${renderSidebar(sidebarStats)}
 		</div>
 
@@ -678,26 +682,6 @@ function renderSidebar(stats) {
         ${stats.dailyBillable}
         <span class="text-sm font-normal text-stone-400">hrs</span>
       </div>
-    </div>
-
-    <!-- Category legend -->
-    <div class="mt-4">
-      <div class="text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-2">Categories</div>
-      ${CATEGORIES.filter((c) => {
-				if (c.id === "lunch" || c.id === "other" || c.id === "ooo")
-					return false;
-				const hidden = appState.settings.hiddenCategories || [];
-				return !hidden.includes(c.id);
-			})
-				.map(
-					(cat) => `
-        <div class="flex items-center gap-2 mb-1.5">
-          <div class="w-2 h-2 rounded-sm flex-shrink-0" style="background: var(${cat.cssVar})"></div>
-          <span class="text-[11px] text-stone-400">${cat.label}</span>
-        </div>
-      `,
-				)
-				.join("")}
     </div>
   `;
 }
@@ -1674,6 +1658,7 @@ async function renderWeekView() {
 
 	container.innerHTML = `
     <!-- Week navigation (same as day view but with week context) -->
+    <div class="tracker-nav">
     <div class="flex items-center justify-between mb-4">
         <div class="flex items-center gap-3">
             <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
@@ -1701,12 +1686,14 @@ async function renderWeekView() {
 			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
 		</div>
     </div>
+	</div>
 
     <!-- Clipboard indicator mounts here -->
     <div id="clipboard-mount"></div>
 
 	<!-- Week day chips (matches day view) -->
-	<div class="flex gap-1 mb-4" style="padding-left: 56px; padding-right: calc(224px + 24px);">
+	<div class="tracker-chips">
+    <div class="flex gap-1" style="padding-left: 56px; padding-right: calc(224px + 24px);">
 	${weekDates
 		.map((d) => {
 			const isToday = formatDateISO(d) === formatDateISO(new Date());
@@ -1724,10 +1711,11 @@ async function renderWeekView() {
 		})
 		.join("")}
 	</div>
+	</div>
 
     <!-- Week grid -->
-    <div class="flex gap-6">
-      <div class="flex-1 overflow-x-auto" id="time-grid">
+    <div class="tracker-content">
+      <div class="tracker-grid" id="time-grid">
         <div class="week-grid">
 
           <!-- Time rows -->
@@ -1798,7 +1786,7 @@ async function renderWeekView() {
       </div>
 
       <!-- Sidebar (same stats) -->
-      <div class="w-56 flex-shrink-0 space-y-3">
+        <div class="tracker-sidebar space-y-3">
         ${renderSidebar(sidebarStats)}
       </div>
     </div>
