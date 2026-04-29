@@ -39,6 +39,7 @@ import {
 	filterEntriesUpToNow,
 	countExpectedHoursUpToNow,
 	isToday,
+	isFutureDate,
 	countOOOHours,
 	countOOODays,
 } from "./utils.js";
@@ -479,19 +480,21 @@ async function calculateSidebarStats() {
 	const dailyTiers = aggregateByTier(relevantDayEntries, tierMap);
 
 	/* Daily expected hours — for today, only up to current time */
-	const dailyIsOOO = oooDates.has(currentDateStr);
 	const startHour = appState.settings.dayStartHour || 8;
+	const dailyIsOOO = oooDates.has(currentDateStr);
 	const dailyExpected = dailyIsOOO
 		? 0
-		: isToday(currentDateStr)
-			? countExpectedHoursUpToNow(
-					currentDateStr,
-					currentDateStr,
-					TARGETS.dailyTrackableHours,
-					oooDates,
-					startHour,
-				)
-			: TARGETS.dailyTrackableHours;
+		: isFutureDate(currentDateStr)
+			? 0
+			: isToday(currentDateStr)
+				? countExpectedHoursUpToNow(
+						currentDateStr,
+						currentDateStr,
+						TARGETS.dailyTrackableHours,
+						oooDates,
+						startHour,
+					)
+				: TARGETS.dailyTrackableHours;
 
 	/* --- Weekly stats --- */
 	const relevantWeekEntries = filterEntriesUpToNow(weekEntries);
@@ -608,7 +611,8 @@ function renderSidebar(stats) {
 			: 0;
 
 	/* Pace text and color class */
-	function paceDisplay(pace) {
+	function paceDisplay(pace, expected) {
+		if (expected === 0) return { text: "Upcoming", cls: "pace-even" };
 		const absPace = Math.abs(pace);
 		if (pace >= 0.5)
 			return { text: `${absPace} hrs ahead of pace`, cls: "pace-ahead" };
@@ -618,8 +622,8 @@ function renderSidebar(stats) {
 		return { text: `${absPace} hrs behind pace`, cls: "pace-far-behind" };
 	}
 
-	const dailyPaceInfo = paceDisplay(stats.dailyPace);
-	const weeklyPaceInfo = paceDisplay(stats.weeklyPace);
+	const dailyPaceInfo = paceDisplay(stats.dailyPace, stats.dailyExpected);
+	const weeklyPaceInfo = paceDisplay(stats.weeklyPace, stats.weeklyExpected);
 
 	return `
     <!-- Daily tracked hours -->
@@ -632,7 +636,7 @@ function renderSidebar(stats) {
       <div class="progress-with-marker">
         <div class="progress-fill progress-fill-good" style="width: ${dailyBarPercent}%;"></div>
         ${
-					dailyMarkerPercent > 0
+					dailyMarkerPercent > 0 && stats.dailyExpected > 0
 						? `
           <div class="progress-marker" style="left: ${dailyMarkerPercent}%;"></div>
           <div class="progress-marker-label" style="left: ${dailyMarkerPercent}%;">${stats.dailyTarget}h min</div>
