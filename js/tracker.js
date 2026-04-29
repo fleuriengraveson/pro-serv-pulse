@@ -310,46 +310,50 @@ async function renderTracker() {
         Date display with prev/next arrows and week day chips.
         ================================================================ -->
         <div class="tracker-nav">
-		<div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-            <button id="prev-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-            </button>
-            <span id="current-date" class="text-sm font-medium min-w-[160px] text-center">${formatDateDisplay(currentDate)}</span>
-            <button id="next-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-            </button>
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-3">
+        <button id="prev-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <span id="current-date" class="text-sm font-medium min-w-[200px] text-center">
+          Week of ${formatDateDisplay(weekDates[0])}
+        </span>
+        <button id="next-day" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- View toggle -->
+        <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
+          <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+          <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+          <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
         </div>
 
         <!-- Quick actions -->
         <div class="flex items-center gap-2">
-            <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                Fill lunch
-            </button>
-            <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                Today
-            </button>
+          <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+            Fill lunch
+          </button>
+          <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+            Today
+          </button>
         </div>
-
-		<!-- View toggle -->
-		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
-		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm " : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
-		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
-		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
-		</div>
+      </div>
     </div>
-	</div>
+    </div>
 
     <!-- Week day chips -->
 	<div class="tracker-chips">
-    <div class="flex gap-1 mb-6" style="padding-right: calc(224px + 24px);">
+    <div class="flex gap-1" style="padding-left: 56px; padding-right: calc(224px + 24px);">
         ${weekDates
 					.map((d) => {
 						const isActive = formatDateISO(d) === formatDateISO(currentDate);
@@ -1547,6 +1551,23 @@ function attachWeekEventListeners() {
 				}
 			});
 		});
+	/* Fill lunch for all days in the week */
+	document
+		.getElementById("btn-fill-lunch")
+		?.addEventListener("click", async () => {
+			await fillLunchWeek();
+		});
+
+	/* Today button — switch to day view on today's date */
+	document.getElementById("btn-today")?.addEventListener("click", () => {
+		closeDropdown();
+		closeWeekPopover();
+		closeOOOPopover();
+		currentDate = new Date();
+		weekDates = getWeekDates(currentDate);
+		setActiveView("day");
+		renderTracker();
+	});
 }
 
 /* ============================================================================
@@ -1745,34 +1766,46 @@ async function renderWeekView() {
 	container.innerHTML = `
     <!-- Week navigation (same as day view but with week context) -->
     <div class="tracker-nav">
-    <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-            <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                </svg>
-            </button>
-            <span class="text-sm font-medium min-w-[200px] text-center">
-                Week of ${formatDateDisplay(weekDates[0])}
-            </span>
-            <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-            </button>
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-3">
+        <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <span class="text-sm font-medium min-w-[200px] text-center">
+          Week of ${formatDateDisplay(weekDates[0])}
+        </span>
+        <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- View toggle -->
+        <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
+          <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+          <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
+          <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
+            ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
         </div>
 
-		<!-- View toggle -->
-		<div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
-		<button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
-		<button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
-		<button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-			${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes (N)</button>
-		</div>
+        <!-- Quick actions -->
+        <div class="flex items-center gap-2">
+          <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+            Fill lunch
+          </button>
+          <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
+            Today
+          </button>
+        </div>
+      </div>
     </div>
-	</div>
+    </div>
 
     <!-- Clipboard indicator mounts here -->
     <div id="clipboard-mount"></div>
@@ -2516,4 +2549,45 @@ async function fillLunch() {
 
 	/* Re-render to show the filled lunch blocks */
 	await renderTracker();
+}
+
+/**
+ * fillLunchWeek
+ * Auto-fills lunch blocks for all 5 days of the current week.
+ */
+async function fillLunchWeek() {
+	const lunchStart =
+		appState.settings.lunchStartHour || TIME_DEFAULTS.lunchStartHour;
+	const lunchBlocks =
+		appState.settings.lunchBlocks || TIME_DEFAULTS.lunchBlocks;
+
+	for (const day of weekDates) {
+		const dateStr = formatDateISO(day);
+
+		for (let i = 0; i < lunchBlocks; i++) {
+			const hour = lunchStart + Math.floor((i * 30) / 60);
+			const minute = (i * 30) % 60;
+			const slot = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+
+			/* Only fill if the block is empty */
+			const existing = await getEntriesForDate(dateStr);
+			const blockExists = existing.find((e) => e.timeSlot === slot);
+			if (!blockExists) {
+				await saveEntry({
+					date: dateStr,
+					timeSlot: slot,
+					category: "lunch",
+					subCategory: "",
+					billable: false,
+					urgent: false,
+					ticketLink: "",
+					merchant: "",
+					formerPOS: "",
+					notes: "",
+				});
+			}
+		}
+	}
+
+	await renderWeekView();
 }
