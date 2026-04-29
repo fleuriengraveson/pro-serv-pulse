@@ -28,6 +28,8 @@ import {
 	generateExportFilename,
 	downloadJSON,
 	parseDate,
+	markWeekExported,
+	getUnexportedWeeks,
 } from "./utils.js";
 
 /**
@@ -194,6 +196,9 @@ async function switchView(viewId) {
 
 	state.currentView = viewId;
 	localStorage.setItem("chronos-app-view", viewId);
+
+	/* Check if export reminders are needed */
+	await updateExportReminder();
 }
 
 /**
@@ -243,6 +248,146 @@ function setupExportButton() {
 	/* Close dropdown on outside click */
 	document.addEventListener("click", () => {
 		dropdown?.classList.add("hidden");
+	});
+}
+
+/**
+ * updateExportReminder
+ * Shows or hides the export reminder banner based on unexported weeks.
+ */
+async function updateExportReminder() {
+	/* Remove existing banner */
+	const existing = document.getElementById("export-reminder");
+	if (existing) existing.remove();
+
+	const { getFirstTrackedDate } = await import("./db.js");
+	const firstDate = await getFirstTrackedDate();
+	const unexported = getUnexportedWeeks(firstDate);
+
+	if (unexported.length === 0) return;
+
+	const banner = document.createElement("div");
+	banner.id = "export-reminder";
+	banner.style.cssText = `
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: linear-gradient(135deg, rgba(192,132,252,0.1), rgba(103,232,249,0.1));
+    border: 0.5px solid var(--accent-border);
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  `;
+
+	const weekLabels =
+		unexported.length === 1
+			? unexported[0]
+			: `${unexported.length} weeks (${unexported[0]} — ${unexported[unexported.length - 1]})`;
+
+	banner.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 500; flex-shrink: 0;">!</div>
+      <div>
+        <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">Don't forget to export your time</div>
+        <div style="font-size: 11px; color: var(--text-muted);">
+          ${
+						unexported.length === 1
+							? `${unexported[0]} hasn't been exported yet. Fill out your notes and export before the weekend.`
+							: `${weekLabels} haven't been exported. Please export your missing weeks.`
+					}
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 6px; flex-shrink: 0;">
+      <button id="reminder-export" style="
+        font-size: 12px; font-weight: 500; padding: 5px 14px; border-radius: 8px;
+        background: var(--accent); color: white; border: none; cursor: pointer; font-family: inherit;
+      ">${unexported.length === 1 ? "Export week" : "Export all"}</button>
+      <button id="reminder-dismiss" style="
+        font-size: 12px; padding: 5px 10px; border-radius: 8px;
+        background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
+      ">Later</button>
+    </div>
+  `;
+
+	/* Insert at the top of the app container, after the header */
+	const header = document.getElementById("app-header");
+	header.parentNode.insertBefore(banner, header.nextSibling);
+
+	/* Export button — exports the missing week(s) */
+	banner
+		.querySelector("#reminder-export")
+		.addEventListener("click", async () => {
+			if (unexported.length === 1) {
+				/* Single week — export just that one */
+				const weekKey = unexported[0];
+				const refDate = parseDate(
+					weekKey.replace(/W/, "") + "-1",
+				); /* Approximate — we'll use getWeekDates */
+
+				/* Parse week key to get a date in that week */
+				const [yearStr, weekStr] = weekKey.split("-W");
+				const year = parseInt(yearStr);
+				const week = parseInt(weekStr);
+				const jan4 = new Date(year, 0, 4);
+				const dayOfYear = (week - 1) * 7 + 1 - jan4.getDay() + 1;
+				const weekDate = new Date(year, 0, dayOfYear);
+
+				const { startDate, endDate } = getWeekDateRange(weekDate);
+				const entries = await getEntriesForDateRange(startDate, endDate);
+				const notes = await getWeeklyNotes(weekKey);
+
+				const exportData = {
+					exportDate: new Date().toISOString(),
+					appVersion: "1.0.0",
+					weekKey,
+					startDate,
+					endDate,
+					contributor: {
+						name: state.settings.name || "Unnamed",
+						role: state.settings.role,
+					},
+					entries: entries.map((e) => ({
+						date: e.date,
+						timeSlot: e.timeSlot,
+						category: e.category,
+						subCategory: e.subCategory || "",
+						billable: e.billable || false,
+						merchant: e.merchant || "",
+						urgent: e.urgent || false,
+						ticketLink: e.ticketLink || "",
+						formerPOS: e.formerPOS || "",
+						notes: e.notes || "",
+					})),
+					weeklyNotes: notes
+						? {
+								wins: notes.wins || "",
+								losses: notes.losses || "",
+								issues: notes.issues || "",
+								customerMeetings: notes.customerMeetings || "",
+							}
+						: null,
+					tierMap: state.tierMap,
+				};
+
+				const filename = generateExportFilename(state.settings.name, weekKey);
+				downloadJSON(exportData, filename);
+				markWeekExported(weekKey);
+			} else {
+				/* Multiple weeks — use export all */
+				await exportAllWeeks();
+				unexported.forEach((wk) => markWeekExported(wk));
+			}
+			updateExportReminder();
+		});
+
+	/* Dismiss — hide for this session only */
+	banner.querySelector("#reminder-dismiss").addEventListener("click", () => {
+		banner.remove();
 	});
 }
 
@@ -297,6 +442,10 @@ async function exportCurrentWeek() {
 
 	const filename = generateExportFilename(state.settings.name, weekKey);
 	downloadJSON(exportData, filename);
+
+	/* Mark this week as exported and update the reminder banner */
+	markWeekExported(weekKey);
+	updateExportReminder();
 }
 
 /**
@@ -379,6 +528,10 @@ async function exportAllWeeks() {
 		.replace(/[^a-z0-9_]/g, "");
 	const filename = `${safeName}_all_weeks.json`;
 	downloadJSON(exportData, filename);
+
+	/* Mark all exported weeks */
+	weeks.forEach((w) => markWeekExported(w.weekKey));
+	updateExportReminder();
 }
 
 /* ============================================================================

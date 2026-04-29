@@ -690,6 +690,75 @@ export function readJSONFile(file) {
 	});
 }
 
+/**
+ * getExportedWeeks
+ * Returns the set of week keys that have been exported.
+ *
+ * @returns {Set<string>} Set of week keys like '2026-W18'
+ */
+export function getExportedWeeks() {
+	const stored = localStorage.getItem("chronos-exported-weeks");
+	return stored ? new Set(JSON.parse(stored)) : new Set();
+}
+
+/**
+ * markWeekExported
+ * Records that a specific week has been exported.
+ *
+ * @param {string} weekKey - ISO week key, e.g., '2026-W18'
+ */
+export function markWeekExported(weekKey) {
+	const exported = getExportedWeeks();
+	exported.add(weekKey);
+	localStorage.setItem("chronos-exported-weeks", JSON.stringify([...exported]));
+}
+
+/**
+ * getUnexportedWeeks
+ * Returns an array of week keys that have tracked data but haven't
+ * been exported yet. Only checks from the first tracked date to now.
+ *
+ * @param {string|null} firstDate - Earliest tracked date ('YYYY-MM-DD')
+ * @returns {Array<string>} Array of unexported week keys
+ */
+export function getUnexportedWeeks(firstDate) {
+	if (!firstDate) return [];
+
+	const exported = getExportedWeeks();
+	const unexported = [];
+	const now = new Date();
+	const today = now.getDay(); /* 0=Sun, 1=Mon ... 5=Fri, 6=Sat */
+
+	/* Start from Monday of the first tracked week */
+	const d = parseDate(firstDate);
+	const dayOfWeek = d.getDay();
+	const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+	d.setDate(d.getDate() + mondayOffset);
+
+	/* Check each week up to and including the current week */
+	while (d <= now) {
+		const weekKey = getISOWeekKey(d);
+		const friday = new Date(d);
+		friday.setDate(friday.getDate() + 4); /* Friday of that week */
+
+		/* Only flag a week if:
+		 * - It hasn't been exported
+		 * - It's Friday or later of that week (gives people until Friday to track)
+		 * - OR it's a past week entirely (they missed it) */
+		const isPastWeek = friday < now && now.getDay() !== 0 && now.getDay() !== 6;
+		const isFridayOrLater =
+			formatDateISO(d) === formatDateISO(getWeekDates(now)[0]) && today >= 5;
+
+		if (!exported.has(weekKey) && (isPastWeek || isFridayOrLater)) {
+			unexported.push(weekKey);
+		}
+
+		d.setDate(d.getDate() + 7);
+	}
+
+	return unexported;
+}
+
 /* ============================================================================
  * CATEGORY LOOKUP HELPERS
  * ========================================================================= */
