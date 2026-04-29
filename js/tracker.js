@@ -113,8 +113,35 @@ document.addEventListener("keydown", (e) => {
 		}
 	}
 
-	/* View switching shortcuts — only when not typing */
 	if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
+		/* Stats period shortcuts — only when stats view is active */
+		const statsVisible = !document
+			.getElementById("view-stats")
+			?.classList.contains("hidden");
+		if (statsVisible) {
+			const periodKeys = {
+				w: "weekly",
+				W: "weekly",
+				m: "monthly",
+				M: "monthly",
+				q: "quarterly",
+				Q: "quarterly",
+				f: "fy",
+				F: "fy",
+				y: "cy",
+				Y: "cy",
+			};
+			if (periodKeys[e.key]) {
+				e.preventDefault();
+				const chip = document.querySelector(
+					`.period-chip[data-period="${periodKeys[e.key]}"]`,
+				);
+				if (chip) chip.click();
+				return;
+			}
+		}
+
+		/* Tracker shortcuts below only apply when stats is NOT active */
 		if (e.key === "d" || e.key === "D") {
 			closeDropdown();
 			closeWeekPopover();
