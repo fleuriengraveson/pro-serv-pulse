@@ -762,8 +762,10 @@ function renderTierBar(byTier, total) {
  * Generates the merchant time breakdown table.
  */
 function renderMerchantTable(byMerchant, total) {
-	/* Sort merchants by hours descending */
 	const sorted = Object.entries(byMerchant).sort((a, b) => b[1] - a[1]);
+
+	/* Calculate percentage against merchant time only, not all tracked time */
+	const merchantTotal = sorted.reduce((sum, [, hours]) => sum + hours, 0);
 
 	const topMerchants = sorted.slice(0, 8);
 	const remaining = sorted.slice(8);
@@ -774,7 +776,8 @@ function renderMerchantTable(byMerchant, total) {
 	html += '<div class="space-y-1.5">';
 
 	topMerchants.forEach(([name, hours]) => {
-		const pct = total > 0 ? Math.round((hours / total) * 100) : 0;
+		const pct =
+			merchantTotal > 0 ? Math.round((hours / merchantTotal) * 100) : 0;
 		const barWidth = Math.round((hours / maxHours) * 100);
 		html += `
       <div class="flex items-center gap-2 text-xs">
@@ -807,6 +810,8 @@ function renderMerchantTable(byMerchant, total) {
 function renderPOSTable(byPOS, total) {
 	const sorted = Object.entries(byPOS).sort((a, b) => b[1] - a[1]);
 
+	const posTotal = sorted.reduce((sum, [, hours]) => sum + hours, 0);
+
 	const topItems = sorted.slice(0, 8);
 	const remaining = sorted.slice(8);
 	const remainingHours = remaining.reduce((s, [, h]) => s + h, 0);
@@ -816,7 +821,7 @@ function renderPOSTable(byPOS, total) {
 	html += '<div class="space-y-1.5">';
 
 	topItems.forEach(([name, hours]) => {
-		const pct = total > 0 ? Math.round((hours / total) * 100) : 0;
+		const pct = posTotal > 0 ? Math.round((hours / posTotal) * 100) : 0;
 		const barWidth = Math.round((hours / maxHours) * 100);
 		html += `
       <div class="flex items-center gap-2 text-xs">
