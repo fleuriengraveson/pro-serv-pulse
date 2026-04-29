@@ -494,9 +494,9 @@ async function calculateSidebarStats() {
 	const oooDates = getOOODatesFromEntries(weekEntries);
 
 	/* --- Daily stats --- */
-	const dayEntries = Object.values(entries).filter((e) => e.category);
-	/* For today, only count blocks up to the current time */
 	const currentDateStr = formatDateISO(currentDate);
+	const rawDayEntries = await getEntriesForDate(currentDateStr);
+	const dayEntries = rawDayEntries.filter((e) => e.category);
 	const relevantDayEntries = isToday(currentDateStr)
 		? filterEntriesUpToNow(dayEntries)
 		: dayEntries;
