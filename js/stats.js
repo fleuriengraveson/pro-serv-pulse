@@ -1043,7 +1043,7 @@ async function renderStats() {
       <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
 
         <div class="p-4 rounded-xl border border-stone-100 bg-white">
-          <div class="text-sm font-medium mb-3">Daily breakdown</div>
+          <div class="text-sm font-medium mb-3">${currentPeriod === "weekly" ? "Daily breakdown" : "Average day breakdown"}</div>
           <div class="chart-container" style="height: ${hasRightColumn ? "100%" : "220px"}; min-height: 220px;">
             <canvas id="chart-daily"></canvas>
           </div>
@@ -2137,19 +2137,17 @@ function renderDailyChart(entries, range) {
 				},
 			},
 		});
-	} else {
-		/* For weekly+ views, show stacked bars per day of the week */
+	} else if (currentPeriod === "weekly") {
+		/* Weekly view: 5 bars for Mon-Fri of the specific week */
 		const weekDates = getWeekDates(periodDate);
 		const dayLabels = weekDates.map((d) => formatDateShort(d));
 
-		/* Group entries by date */
 		const byDate = {};
 		entries.forEach((e) => {
 			if (!byDate[e.date]) byDate[e.date] = [];
 			byDate[e.date].push(e);
 		});
 
-		/* Build datasets for each category that has data */
 		const activeCats = CATEGORIES.filter((cat) => {
 			return (
 				cat.id !== "ooo" &&
@@ -2201,6 +2199,160 @@ function renderDailyChart(entries, range) {
 						},
 						grid: { color: getChartColors().gridColor },
 						max: 8,
+					},
+				},
+			},
+		});
+	} else if (currentPeriod === "weekly") {
+		/* Weekly view: 5 bars for Mon-Fri of the specific week */
+		const weekDates = getWeekDates(periodDate);
+		const dayLabels = weekDates.map((d) => formatDateShort(d));
+
+		const byDate = {};
+		entries.forEach((e) => {
+			if (!byDate[e.date]) byDate[e.date] = [];
+			byDate[e.date].push(e);
+		});
+
+		const activeCats = CATEGORIES.filter((cat) => {
+			return (
+				cat.id !== "ooo" &&
+				cat.id !== "lunch" &&
+				entries.some((e) => e.category === cat.id)
+			);
+		});
+
+		const datasets = activeCats.map((cat) => ({
+			label: cat.label,
+			data: weekDates.map((d) => {
+				const dateEntries = byDate[formatDateISO(d)] || [];
+				return (
+					dateEntries.filter((e) => e.category === cat.id).length *
+					(TIME_DEFAULTS.blockMinutes / 60)
+				);
+			}),
+			backgroundColor: getChartColors().categories[cat.id],
+			borderWidth: 0,
+			borderRadius: 2,
+		}));
+
+		chartInstances.daily = new Chart(canvas, {
+			type: "bar",
+			data: { labels: dayLabels, datasets },
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				plugins: {
+					legend: { display: false },
+					tooltip: {
+						callbacks: {
+							label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} hrs`,
+						},
+					},
+				},
+				scales: {
+					x: {
+						stacked: true,
+						ticks: { font: { size: 11 }, color: getChartColors().tickColor },
+						grid: { display: false },
+					},
+					y: {
+						stacked: true,
+						ticks: {
+							font: { size: 10 },
+							color: getChartColors().tickColor,
+							callback: (v) => `${v}h`,
+						},
+						grid: { color: getChartColors().gridColor },
+						max: 8,
+					},
+				},
+			},
+		});
+	} else {
+		/* Monthly+ views: aggregate all Mondays, all Tuesdays, etc. */
+		const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+		/* Group entries by day of week (1=Mon through 5=Fri) */
+		const byDayOfWeek = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+		entries.forEach((e) => {
+			if (!e.date) return;
+			const d = parseDate(e.date);
+			const dow = d.getDay(); /* 0=Sun, 1=Mon ... 6=Sat */
+			if (dow >= 1 && dow <= 5) {
+				byDayOfWeek[dow].push(e);
+			}
+		});
+
+		/* Count how many of each weekday are in the period for averaging */
+		const dayCount = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+		const trackedDates = new Set(entries.map((e) => e.date));
+		trackedDates.forEach((dateStr) => {
+			const d = parseDate(dateStr);
+			const dow = d.getDay();
+			if (dow >= 1 && dow <= 5) dayCount[dow]++;
+		});
+
+		const activeCats = CATEGORIES.filter((cat) => {
+			return (
+				cat.id !== "ooo" &&
+				cat.id !== "lunch" &&
+				entries.some((e) => e.category === cat.id)
+			);
+		});
+
+		const datasets = activeCats.map((cat) => ({
+			label: cat.label,
+			data: [1, 2, 3, 4, 5].map((dow) => {
+				const dayEntries = byDayOfWeek[dow];
+				const totalHours =
+					dayEntries.filter((e) => e.category === cat.id).length *
+					(TIME_DEFAULTS.blockMinutes / 60);
+				/* Average across the number of that weekday in the period */
+				const count = dayCount[dow] || 1;
+				return parseFloat((totalHours / count).toFixed(1));
+			}),
+			backgroundColor: getChartColors().categories[cat.id],
+			borderWidth: 0,
+			borderRadius: 2,
+		}));
+
+		/* Calculate max for y-axis from the stacked totals */
+		const stackedTotals = [1, 2, 3, 4, 5].map((dow) => {
+			return datasets.reduce((sum, ds) => sum + (ds.data[dow - 1] || 0), 0);
+		});
+		const maxStacked = Math.ceil(Math.max(...stackedTotals, 8));
+
+		chartInstances.daily = new Chart(canvas, {
+			type: "bar",
+			data: { labels: dayNames, datasets },
+			options: {
+				responsive: true,
+				maintainAspectRatio: false,
+				plugins: {
+					legend: { display: false },
+					tooltip: {
+						callbacks: {
+							label: (ctx) =>
+								` ${ctx.dataset.label}: ${ctx.parsed.y} hrs (avg)`,
+						},
+					},
+				},
+				scales: {
+					x: {
+						stacked: true,
+						ticks: { font: { size: 11 }, color: getChartColors().tickColor },
+						grid: { display: false },
+					},
+					y: {
+						stacked: true,
+						ticks: {
+							font: { size: 10 },
+							color: getChartColors().tickColor,
+							callback: (v) => `${v}h`,
+						},
+						grid: { color: getChartColors().gridColor },
+						max: maxStacked,
 					},
 				},
 			},
