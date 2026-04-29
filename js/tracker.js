@@ -877,8 +877,12 @@ async function attachAutocomplete(input, field) {
  * @param {string} slot - The time slot being edited
  * @param {Element} blockEl - The DOM element of the clicked block
  */
-function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
-	/* Close any existing dropdown first */
+async function showEditDropdown(
+	slot,
+	blockEl,
+	date = null,
+	onSaveCallback = null,
+) {
 	closeDropdown();
 
 	/* Hide tooltips while dropdown is open */
@@ -886,7 +890,17 @@ function showEditDropdown(slot, blockEl, date = null, onSaveCallback = null) {
 		el.classList.add("tooltip-hidden");
 	});
 
-	const entry = entries[slot] || {};
+	/* Load entry from the correct source — module entries for day view,
+	   database for week view or when a specific date is provided */
+	let entry;
+	if (date) {
+		/* Week view or explicit date — always fetch from database */
+		const dayEntries = await getEntriesForDate(date);
+		entry = dayEntries.find((e) => e.timeSlot === slot) || {};
+	} else {
+		/* Day view — use the cached module entries */
+		entry = entries[slot] || {};
+	}
 
 	/* Create the dropdown element */
 	const dropdown = document.createElement("div");

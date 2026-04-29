@@ -1178,7 +1178,31 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 		const compliancePct =
 			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
 
-		rows.push({ name, tracked, billable, byTier, t1Pct, t2Pct, compliancePct });
+		/* Calculate lunch compliance — how many tracked days included lunch */
+		const memberDates = [...new Set(memberEntries.map((e) => e.date))];
+		const trackedDays = memberDates.filter((date) => {
+			const dayEntries = memberEntries.filter((e) => e.date === date);
+			return dayEntries.some((e) => e.category && e.category !== "ooo");
+		});
+		const lunchDays = trackedDays.filter((date) => {
+			const dayEntries = memberEntries.filter((e) => e.date === date);
+			return dayEntries.some((e) => e.category === "lunch");
+		});
+		const lunchRatio =
+			trackedDays.length > 0 ? lunchDays.length / trackedDays.length : 0;
+
+		rows.push({
+			name,
+			tracked,
+			billable,
+			byTier,
+			t1Pct,
+			t2Pct,
+			compliancePct,
+			lunchDays: lunchDays.length,
+			trackedDays: trackedDays.length,
+			lunchRatio,
+		});
 	}
 
 	/* Sort by name */
@@ -1195,6 +1219,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Compliance</th>
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Billable</th>
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Tier 1</th>
+          <th style="text-align: center; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Lunch</th>
           <th style="padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px; width: 120px;">Tier split</th>
         </tr>
       </thead>
@@ -1229,6 +1254,11 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
           </td>
           <td style="text-align: right; padding: 8px 6px;">${r.billable} hrs</td>
           <td style="text-align: right; padding: 8px 6px;">${r.t1Pct}%</td>
+          <td style="text-align: center; padding: 8px 6px;">
+            <span style="font-size: 11px; font-weight: 500; color: ${r.lunchRatio >= 0.8 ? "var(--positive)" : r.lunchRatio >= 0.5 ? "var(--warning)" : "var(--danger)"};">
+              ${r.lunchDays}/${r.trackedDays}
+            </span>
+          </td>
           <td style="padding: 8px 6px;">
             <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden;">
               ${r.t1Pct > 0 ? `<div style="width: ${r.t1Pct}%; background: var(${TIERS[1].hexVar}); opacity: 0.7;"></div>` : ""}
