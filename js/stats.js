@@ -627,15 +627,19 @@ async function renderStats() {
 			return `
       <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
 
+        ${
+					currentPeriod !== "daily"
+						? `
         <!-- Daily breakdown -->
         <div class="p-4 rounded-xl border border-stone-100 bg-white">
-          <div class="text-sm font-medium mb-3">
-            ${currentPeriod === "daily" ? "Hourly breakdown" : "Daily breakdown"}
-          </div>
+          <div class="text-sm font-medium mb-3">Daily breakdown</div>
           <div class="chart-container" style="height: ${hasRightColumn ? "100%" : "220px"}; min-height: 220px;">
             <canvas id="chart-daily"></canvas>
           </div>
         </div>
+        `
+						: ""
+				}
 
         ${
 					hasRightColumn
@@ -719,7 +723,7 @@ async function renderStats() {
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
-	renderDailyChart(entries, range);
+	if (currentPeriod !== "daily") renderDailyChart(entries, range);
 	if (history.length >= 3) renderTrendChart(history);
 
 	/* Attach event listeners */
@@ -1019,7 +1023,8 @@ function renderDailyChart(entries, range) {
 		/* For daily view, show hours per category as a simple bar */
 		const byCategory = aggregateByCategory(entries);
 		const data = CATEGORIES.filter(
-			(cat) => (byCategory[cat.id] || 0) > 0 && cat.id !== "ooo",
+			(cat) =>
+				(byCategory[cat.id] || 0) > 0 && cat.id !== "ooo" && cat.id !== "lunch",
 		).sort((a, b) => (byCategory[b.id] || 0) - (byCategory[a.id] || 0));
 
 		chartInstances.daily = new Chart(canvas, {
