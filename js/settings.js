@@ -559,6 +559,38 @@ function attachSettingsListeners() {
 				const data = await readJSONFile(file);
 
 				/* Validate the file has the expected structure */
+				const { importTeamMemberData } = await import("./db.js");
+
+				/* Handle multi-week format */
+				if (
+					data.format === "multi-week" &&
+					data.weeks &&
+					data.contributor?.name
+				) {
+					for (const week of data.weeks) {
+						const weekData = {
+							...data,
+							weekKey: week.weekKey,
+							startDate: week.startDate,
+							endDate: week.endDate,
+							entries: week.entries,
+							weeklyNotes: week.weeklyNotes,
+						};
+						const isNew = await importTeamMemberData(
+							data.contributor.name,
+							week.weekKey,
+							weekData,
+						);
+						if (isNew) successCount++;
+						else updateCount++;
+					}
+					results.push(
+						`<div style="font-size: 12px; color: var(--positive);">${data.contributor.name} — ${data.weeks.length} weeks imported</div>`,
+					);
+					continue;
+				}
+
+				/* Handle single-week format */
 				if (!data.contributor?.name || !data.weekKey || !data.entries) {
 					results.push(
 						`<div style="font-size: 12px; color: var(--danger);">${file.name} — invalid format</div>`,
@@ -567,7 +599,6 @@ function attachSettingsListeners() {
 					continue;
 				}
 
-				const { importTeamMemberData } = await import("./db.js");
 				const isNew = await importTeamMemberData(
 					data.contributor.name,
 					data.weekKey,

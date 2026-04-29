@@ -24,9 +24,34 @@ import { initStats } from "./stats.js";
 import {
 	getISOWeekKey,
 	getWeekDateRange,
+	getWeekDates,
 	generateExportFilename,
 	downloadJSON,
+	parseDate,
 } from "./utils.js";
+
+/**
+ * getTrackerWeekDates
+ * Reads the currently displayed week from the tracker module.
+ * Returns null if the tracker hasn't rendered yet.
+ */
+function getTrackerWeekDates() {
+	/* The tracker stores weekDates in its module scope, but we can
+     infer it from the displayed date label in the nav */
+	const dateLabel = document.getElementById("current-date");
+	if (!dateLabel) return null;
+
+	/* Parse "Week of Monday, Apr 27" or similar */
+	const text = dateLabel.textContent.trim();
+	const match = text.match(/Week of (.+)/);
+	if (!match) return null;
+
+	/* Try to parse the date from the label */
+	const parsed = new Date(match[1] + ", " + new Date().getFullYear());
+	if (isNaN(parsed.getTime())) return null;
+
+	return getWeekDates(parsed);
+}
 
 /* ============================================================================
  * STATE
@@ -197,25 +222,46 @@ async function onSettingsChanged(newSettings) {
 
 function setupExportButton() {
 	const btn = document.getElementById("btn-export");
+	const menuBtn = document.getElementById("btn-export-menu");
+	const dropdown = document.getElementById("export-dropdown");
+	const exportAllBtn = document.getElementById("btn-export-all");
+
 	btn.addEventListener("click", exportCurrentWeek);
+
+	/* Toggle dropdown on arrow click */
+	menuBtn?.addEventListener("click", (e) => {
+		e.stopPropagation();
+		dropdown?.classList.toggle("hidden");
+	});
+
+	/* Export all weeks */
+	exportAllBtn?.addEventListener("click", async () => {
+		dropdown?.classList.add("hidden");
+		await exportAllWeeks();
+	});
+
+	/* Close dropdown on outside click */
+	document.addEventListener("click", () => {
+		dropdown?.classList.add("hidden");
+	});
 }
 
 /**
  * exportCurrentWeek
- * Gathers all data for the current week and triggers a JSON download.
+ * Exports whichever week is currently displayed in the tracker.
+ * Falls back to the current week if tracker hasn't been initialized.
  */
 async function exportCurrentWeek() {
-	const today = new Date();
-	const weekKey = getISOWeekKey(today);
-	const { startDate, endDate } = getWeekDateRange(today);
+	/* Try to get the displayed week from the tracker's nav label */
+	const trackerWeekDates = getTrackerWeekDates();
+	const refDate = trackerWeekDates ? trackerWeekDates[0] : new Date();
 
-	/* Gather time entries for the week */
+	const weekKey = getISOWeekKey(refDate);
+	const { startDate, endDate } = getWeekDateRange(refDate);
+
 	const entries = await getEntriesForDateRange(startDate, endDate);
-
-	/* Gather qualitative notes for the week */
 	const notes = await getWeeklyNotes(weekKey);
 
-	/* Build the export object */
 	const exportData = {
 		exportDate: new Date().toISOString(),
 		appVersion: "1.0.0",
@@ -227,7 +273,6 @@ async function exportCurrentWeek() {
 			role: state.settings.role,
 		},
 		entries: entries.map((e) => ({
-			/* Strip the internal auto-increment ID — not needed in exports */
 			date: e.date,
 			timeSlot: e.timeSlot,
 			category: e.category,
@@ -250,8 +295,89 @@ async function exportCurrentWeek() {
 		tierMap: state.tierMap,
 	};
 
-	/* Generate filename and trigger download */
 	const filename = generateExportFilename(state.settings.name, weekKey);
+	downloadJSON(exportData, filename);
+}
+
+/**
+ * exportAllWeeks
+ * Exports all tracked weeks as a single JSON file.
+ * The manager import handler accepts this multi-week format.
+ */
+async function exportAllWeeks() {
+	const { getFirstTrackedDate } = await import("./db.js");
+	const firstDate = await getFirstTrackedDate();
+
+	if (!firstDate) {
+		alert("No tracked data to export.");
+		return;
+	}
+
+	/* Build week-by-week exports from first tracked date to now */
+	const weeks = [];
+	const now = new Date();
+	const d = parseDate(firstDate);
+
+	/* Rewind to Monday of the first week */
+	const dayOfWeek = d.getDay();
+	const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+	d.setDate(d.getDate() + mondayOffset);
+
+	while (d <= now) {
+		const weekKey = getISOWeekKey(d);
+		const { startDate, endDate } = getWeekDateRange(d);
+		const entries = await getEntriesForDateRange(startDate, endDate);
+
+		if (entries.length > 0) {
+			const notes = await getWeeklyNotes(weekKey);
+
+			weeks.push({
+				weekKey,
+				startDate,
+				endDate,
+				entries: entries.map((e) => ({
+					date: e.date,
+					timeSlot: e.timeSlot,
+					category: e.category,
+					subCategory: e.subCategory || "",
+					billable: e.billable || false,
+					merchant: e.merchant || "",
+					urgent: e.urgent || false,
+					ticketLink: e.ticketLink || "",
+					formerPOS: e.formerPOS || "",
+					notes: e.notes || "",
+				})),
+				weeklyNotes: notes
+					? {
+							wins: notes.wins || "",
+							losses: notes.losses || "",
+							issues: notes.issues || "",
+							customerMeetings: notes.customerMeetings || "",
+						}
+					: null,
+			});
+		}
+
+		d.setDate(d.getDate() + 7);
+	}
+
+	const exportData = {
+		exportDate: new Date().toISOString(),
+		appVersion: "1.0.0",
+		format: "multi-week",
+		contributor: {
+			name: state.settings.name || "Unnamed",
+			role: state.settings.role,
+		},
+		weeks,
+		tierMap: state.tierMap,
+	};
+
+	const safeName = (state.settings.name || "unnamed")
+		.toLowerCase()
+		.replace(/\s+/g, "_")
+		.replace(/[^a-z0-9_]/g, "");
+	const filename = `${safeName}_all_weeks.json`;
 	downloadJSON(exportData, filename);
 }
 

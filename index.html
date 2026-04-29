@@ -142,12 +142,70 @@
 					</button>
 
 					<!-- Export button -->
-					<button
-						id="btn-export"
-						class="export-button text-sm px-3.5 py-1.5 rounded-lg text-white font-medium transition-colors"
-					>
-						Export week
-					</button>
+					<div style="position: relative; display: inline-flex">
+						<button
+							id="btn-export"
+							class="text-sm pl-3.5 pr-2.5 py-1.5 rounded-l-lg bg-chronos-500 text-white font-medium hover:bg-chronos-600 transition-colors"
+						>
+							Export week
+						</button>
+						<button
+							id="btn-export-menu"
+							class="text-sm px-1.5 py-1.5 rounded-r-lg bg-chronos-600 text-white hover:bg-chronos-700 transition-colors"
+							style="border-left: 1px solid rgba(255, 255, 255, 0.2)"
+						>
+							<svg
+								class="w-3 h-3"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M19 9l-7 7-7-7"
+								/>
+							</svg>
+						</button>
+						<div
+							id="export-dropdown"
+							class="hidden"
+							style="
+								position: absolute;
+								top: 100%;
+								right: 0;
+								margin-top: 4px;
+								width: 200px;
+								background: var(--bg-dropdown);
+								border: 0.5px solid var(--border-default);
+								border-radius: 8px;
+								box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+								z-index: 100;
+								padding: 4px;
+							"
+						>
+							<button
+								id="btn-export-all"
+								style="
+									width: 100%;
+									text-align: left;
+									padding: 8px 10px;
+									font-size: 12px;
+									border-radius: 6px;
+									border: none;
+									background: none;
+									color: var(--text-primary);
+									cursor: pointer;
+									font-family: inherit;
+								"
+								onmouseover="this.style.background = 'var(--bg-surface)'"
+								onmouseout="this.style.background = 'none'"
+							>
+								Export all weeks to date
+							</button>
+						</div>
+					</div>
 				</nav>
 			</header>
 
