@@ -690,7 +690,9 @@ async function renderStats() {
         TREND CHART (past completed weeks)
 	================================================================ -->
     ${
-			history.length >= 3
+			history.length >= 3 &&
+			currentPeriod !== "daily" &&
+			currentPeriod !== "weekly"
 				? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
         <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
@@ -702,15 +704,13 @@ async function renderStats() {
                 <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
             </div>
             <div class="flex items-center gap-1.5 text-xs text-stone-400">
-                <div class="w-4 h-0.5 rounded" style="background: var(--positive); border-top: 1px dashed var(--positive);"></div>Tier 1 hours
-            </div>
-            <div class="flex items-center gap-1.5 text-xs text-stone-400">
                 <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
             </div>
         </div>
     </div>
     `
-				: `
+				: currentPeriod !== "daily" && currentPeriod !== "weekly"
+					? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
         <div class="text-sm font-medium mb-3">Weekly trend</div>
         <div class="flex items-center justify-center" style="height: 120px; color: var(--text-muted); font-size: 13px;">
@@ -718,13 +718,19 @@ async function renderStats() {
         </div>
     </div>
     `
+					: ""
 		}
 	`;
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
 	if (currentPeriod !== "daily") renderDailyChart(entries, range);
-	if (history.length >= 3) renderTrendChart(history);
+	if (
+		history.length >= 3 &&
+		currentPeriod !== "daily" &&
+		currentPeriod !== "weekly"
+	)
+		renderTrendChart(history);
 
 	/* Attach event listeners */
 	attachStatsListeners();
@@ -1144,8 +1150,8 @@ function renderTrendChart(history) {
 	const canvas = document.getElementById("chart-trend");
 	if (!canvas) return;
 
-	/* Reverse so oldest is on the left */
-	const reversed = [...history].reverse();
+	/* Exclude weeks with 0 tracked hours (e.g., full OOO weeks) */
+	const reversed = [...history].filter((w) => w.tracked > 0).reverse();
 
 	chartInstances.trend = new Chart(canvas, {
 		type: "line",
@@ -1162,17 +1168,7 @@ function renderTrendChart(history) {
 					pointRadius: 3,
 					pointBackgroundColor: getChartColors().accent,
 					borderWidth: 2,
-				},
-				{
-					label: "Tier 1 hours",
-					data: reversed.map((w) => w.byTier[1] || 0),
-					borderColor: getChartColors().positive,
-					borderDash: [6, 3],
-					tension: 0.3,
-					pointRadius: 3,
-					pointBackgroundColor: getChartColors().positive,
-					borderWidth: 2,
-					fill: false,
+					order: 2,
 				},
 				{
 					label: "Billable hours",
@@ -1184,6 +1180,7 @@ function renderTrendChart(history) {
 					pointBackgroundColor: getChartColors().warning,
 					borderWidth: 1.5,
 					fill: false,
+					order: 1,
 				},
 			],
 		},
