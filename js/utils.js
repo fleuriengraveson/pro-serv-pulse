@@ -150,8 +150,8 @@ export function getWeekDateRange(date) {
 export function getFiscalYear(date) {
 	const month = date.getMonth() + 1; // 1-indexed
 	const year = date.getFullYear();
-	/* If before April, we're still in the previous fiscal year */
-	return month < TARGETS.fiscalYearStartMonth ? year - 1 : year;
+	/* FY is named after the year it ends, not starts */
+	return month < TARGETS.fiscalYearStartMonth ? year : year + 1;
 }
 
 /**
@@ -163,8 +163,8 @@ export function getFiscalYear(date) {
  */
 export function getFiscalYearRange(fy) {
 	return {
-		startDate: `${fy}-04-01`,
-		endDate: `${fy + 1}-03-31`,
+		startDate: `${fy - 1}-04-01`,
+		endDate: `${fy}-03-31`,
 	};
 }
 

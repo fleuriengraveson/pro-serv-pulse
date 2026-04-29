@@ -129,12 +129,31 @@ function getPeriodRange() {
 		}
 
 		case "quarterly": {
-			const year = d.getFullYear();
-			const quarter = Math.floor(d.getMonth() / 3);
-			const startMonth = quarter * 3;
-			const startDate = formatDateISO(new Date(year, startMonth, 1));
-			const endDate = formatDateISO(new Date(year, startMonth + 3, 0));
-			const label = `Q${quarter + 1} ${year}`;
+			const fy = getFiscalYear(d);
+			const month = d.getMonth(); // 0-indexed
+			let fq, startMonth, startYear;
+
+			if (month >= 3 && month <= 5) {
+				fq = 1;
+				startMonth = 3;
+				startYear = fy - 1;
+			} else if (month >= 6 && month <= 8) {
+				fq = 2;
+				startMonth = 6;
+				startYear = fy - 1;
+			} else if (month >= 9 && month <= 11) {
+				fq = 3;
+				startMonth = 9;
+				startYear = fy - 1;
+			} else {
+				fq = 4;
+				startMonth = 0;
+				startYear = fy;
+			}
+
+			const startDate = formatDateISO(new Date(startYear, startMonth, 1));
+			const endDate = formatDateISO(new Date(startYear, startMonth + 3, 0));
+			const label = `Q${fq} FY${fy}`;
 			return { startDate, endDate, label };
 		}
 
