@@ -58,7 +58,6 @@ let chartInstances = {}; // Track Chart.js instances for cleanup
 
 /* Period filter options */
 const PERIODS = [
-	{ id: "daily", label: "Daily" },
 	{ id: "weekly", label: "Weekly" },
 	{ id: "monthly", label: "Monthly" },
 	{ id: "quarterly", label: "Quarterly" },
@@ -419,6 +418,7 @@ function getOOODatesFromEntries(entries) {
  * ========================================================================= */
 
 async function renderStats() {
+	if (currentPeriod === "daily") currentPeriod = "weekly";
 	const container = document.getElementById("view-stats");
 	const tierMap = await getTierMap();
 	const range = getPeriodRange();
@@ -686,51 +686,15 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-        CHARTS ROW 1: Hours by area + Tier breakdown
-    ================================================================ -->
-    <div class="grid grid-cols-2 gap-4 mb-6">
-
-        <!-- Hours by area donut -->
-        <div class="p-4 rounded-xl border border-stone-100 bg-white">
-			<div class="text-sm font-medium mb-3">Hours by area</div>
-			<div class="chart-container" style="height: 220px;">
-            <canvas id="chart-category"></canvas>
+      CHARTS ROW 1: Hours by area (full width)
+      ================================================================ -->
+    <div class="mb-6">
+      <div class="p-4 rounded-xl border border-stone-100 bg-white">
+        <div class="text-sm font-medium mb-3">Hours by area</div>
+        <div class="chart-container" style="height: 240px;">
+          <canvas id="chart-category"></canvas>
         </div>
-    </div>
-
-    <!-- Tier breakdown -->
-    <div class="p-4 rounded-xl border border-stone-100 bg-white">
-        <div class="text-sm font-medium mb-3">Tier breakdown</div>
-
-        <!-- Stacked horizontal bar -->
-        <div class="flex h-8 rounded-md overflow-hidden mb-3">
-            ${renderTierBar(byTier, tracked)}
-        </div>
-
-        <!-- Tier legend with hours -->
-        <div class="space-y-2">
-            ${(() => {
-							const tierTotal =
-								(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
-							return [1, 2, 3]
-								.map((t) => {
-									const hours = byTier[t] || 0;
-									const pct =
-										tierTotal > 0 ? Math.round((hours / tierTotal) * 100) : 0;
-									return `
-                <div class="flex items-center justify-between text-xs">
-                    <div class="flex items-center gap-2">
-                        <div class="w-2.5 h-2.5 rounded-sm" style="background: var(${TIERS[t].hexVar})"></div>
-                        <span class="text-stone-500">${TIERS[t].label} — ${TIERS[t].description}</span>
-                    </div>
-                    <span class="font-medium">${hours} hrs (${pct}%)</span>
-                </div>
-            `;
-								})
-								.join("");
-						})()}
-        </div>
-	</div>
+      </div>
     </div>
 
     <!-- ================================================================
@@ -738,7 +702,6 @@ async function renderStats() {
       ================================================================ -->
     ${(() => {
 			const hasRightColumn =
-				billable > 0 ||
 				(appState.settings.enableMerchant &&
 					Object.keys(byMerchant).length > 0) ||
 				(appState.settings.enableFormerPOS && Object.keys(byPOS).length > 0);
@@ -746,9 +709,6 @@ async function renderStats() {
 			return `
       <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
 
-        ${
-					currentPeriod !== "daily"
-						? `
         <!-- Daily breakdown -->
         <div class="p-4 rounded-xl border border-stone-100 bg-white">
           <div class="text-sm font-medium mb-3">Daily breakdown</div>
@@ -756,25 +716,12 @@ async function renderStats() {
             <canvas id="chart-daily"></canvas>
           </div>
         </div>
-        `
-						: ""
-				}
 
         ${
 					hasRightColumn
 						? `
         <!-- Data tables stacked vertically -->
         <div class="flex flex-col gap-4" style="min-height: 220px;">
-
-          ${
-						billable > 0
-							? `
-          <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
-            ${renderBillableBreakdown(entries, tracked)}
-          </div>
-          `
-							: ""
-					}
 
           ${
 						appState.settings.enableMerchant &&
@@ -809,9 +756,7 @@ async function renderStats() {
         TREND CHART (past completed weeks)
 	================================================================ -->
     ${
-			history.length >= 3 &&
-			currentPeriod !== "daily" &&
-			currentPeriod !== "weekly"
+			history.length >= 3 && currentPeriod !== "weekly"
 				? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
         <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
@@ -828,7 +773,7 @@ async function renderStats() {
         </div>
     </div>
     `
-				: currentPeriod !== "daily" && currentPeriod !== "weekly"
+				: currentPeriod !== "weekly"
 					? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
         <div class="text-sm font-medium mb-3">Weekly trend</div>
@@ -843,12 +788,8 @@ async function renderStats() {
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
-	if (currentPeriod !== "daily") renderDailyChart(entries, range);
-	if (
-		history.length >= 3 &&
-		currentPeriod !== "daily" &&
-		currentPeriod !== "weekly"
-	)
+	renderDailyChart(entries, range);
+	if (history.length >= 3 && currentPeriod !== "weekly")
 		renderTrendChart(history);
 
 	/* Attach event listeners */
