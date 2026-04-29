@@ -867,6 +867,20 @@ async function renderStats() {
     <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
       ${renderTeamComplianceTable(entries, expectedHours)}
     </div>
+
+    <!-- ================================================================
+      OUTSOURCING CANDIDATES
+      ================================================================ -->
+    ${(() => {
+			const outsourcingHtml = renderOutsourcingCandidates(entries);
+			return outsourcingHtml
+				? `
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${outsourcingHtml}
+    </div>
+      `
+				: "";
+		})()}
     `
 			: ""
 	}
@@ -1296,6 +1310,108 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 	}
 
 	return alerts;
+}
+
+/**
+ * renderOutsourcingCandidates
+ * Shows the top 3 categories by team hours with FTE equivalents.
+ * Helps managers identify work that could be delegated to other teams.
+ */
+function renderOutsourcingCandidates(entries) {
+	const byCategory = aggregateByCategory(entries);
+
+	/* Sort categories by hours descending, exclude lunch and OOO */
+	const sorted = Object.entries(byCategory)
+		.filter(([id]) => id !== "lunch" && id !== "ooo")
+		.filter(([, hours]) => hours / 40 >= 0.75)
+		.sort((a, b) => b[1] - a[1])
+		.slice(0, 3);
+
+	if (sorted.length === 0) return "";
+
+	const totalTeamHours = sorted.reduce((sum, [, hrs]) => sum + hrs, 0);
+
+	/* Group entries by member for each category to show distribution */
+	const byMember = {};
+	entries.forEach((e) => {
+		if (!e.memberName) return;
+		if (!byMember[e.memberName]) byMember[e.memberName] = {};
+		if (!byMember[e.memberName][e.category])
+			byMember[e.memberName][e.category] = 0;
+		byMember[e.memberName][e.category] += 0.5;
+	});
+
+	const memberCount = Object.keys(byMember).length;
+
+	let html =
+		'<div class="text-sm font-medium mb-3">Potential Outsourcing Candidates</div>';
+	html += '<div style="display: flex; gap: 12px;">';
+
+	sorted.forEach(([catId, hours]) => {
+		const cat = CATEGORIES.find((c) => c.id === catId);
+		const tierMap = appState.tierMap || {};
+		const tier = tierMap[catId];
+		const tierLabel =
+			tier === 1
+				? "Tier 1"
+				: tier === 2
+					? "Tier 2"
+					: tier === 3
+						? "Tier 3"
+						: "";
+		const fte = (hours / 40).toFixed(1);
+
+		/* Count how many members contribute to this category */
+		const contributors = Object.entries(byMember)
+			.filter(([, cats]) => (cats[catId] || 0) > 0)
+			.sort((a, b) => (b[1][catId] || 0) - (a[1][catId] || 0));
+
+		const isSpread = contributors.length >= Math.ceil(memberCount * 0.5);
+
+		html += `
+      <div style="flex: 1; padding: 14px; border-radius: 10px; background: var(--bg-surface); border: 0.5px solid var(--border-default);">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+          <div style="width: 8px; height: 8px; border-radius: 2px; background: var(${cat?.cssVar || "--cat-other-border"}); flex-shrink: 0;"></div>
+          <span style="font-size: 13px; font-weight: 500; color: var(--text-primary);">${cat?.label || catId}</span>
+        </div>
+
+        <div style="font-size: 22px; font-weight: 500; color: var(--text-primary);">${hours}<span style="font-size: 12px; font-weight: 400; color: var(--text-muted);"> hrs/period</span></div>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px; margin-bottom: 8px;">
+          <span style="font-size: 11px; color: var(--accent-text); background: var(--accent-light); padding: 2px 8px; border-radius: 4px;">${fte} FTE</span>
+          ${tierLabel ? `<span style="font-size: 11px; color: var(--text-muted); background: var(--bg-card); padding: 2px 8px; border-radius: 4px; border: 0.5px solid var(--border-default);">${tierLabel}</span>` : ""}
+        </div>
+
+        <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">
+          ${
+						isSpread
+							? `Spread across ${contributors.length} of ${memberCount} members`
+							: `Concentrated in ${contributors.length} member${contributors.length > 1 ? "s" : ""}`
+					}
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+          ${contributors
+						.slice(0, 4)
+						.map(([name, cats]) => {
+							const initials = name
+								.split(" ")
+								.map((n) => n[0])
+								.join("")
+								.toUpperCase()
+								.slice(0, 2);
+							const memberHrs = cats[catId] || 0;
+							return `<span style="font-size: 10px; color: var(--text-muted); background: var(--bg-card); padding: 2px 6px; border-radius: 4px; border: 0.5px solid var(--border-default);">${initials} ${memberHrs}h</span>`;
+						})
+						.join("")}
+          ${contributors.length > 4 ? `<span style="font-size: 10px; color: var(--text-placeholder);">+${contributors.length - 4}</span>` : ""}
+        </div>
+      </div>
+    `;
+	});
+
+	html += "</div>";
+	return html;
 }
 
 /* ============================================================================
