@@ -54,6 +54,7 @@ import {
 	calculateStdDev,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
+import { showNotesPanel } from "./tracker.js";
 
 /* ============================================================================
  * MODULE STATE
@@ -627,6 +628,14 @@ async function renderStats() {
 				}
       </div>
 
+	  <!-- Notes + Period navigation -->
+      <div class="flex items-center gap-3">
+        <button id="stats-notes-btn" class="sidebar-btn sidebar-btn-notes" style="padding: 5px 12px; font-size: 12px;">
+          Notes (N)
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="period-prev"
+
       <!-- Period navigation -->
       <div class="flex items-center gap-2">
         <button id="period-prev" class="w-7 h-7 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 transition-colors">
@@ -641,6 +650,7 @@ async function renderStats() {
           </svg>
         </button>
       </div>
+	  </div>
     </div>
 
     <!-- ================================================================
@@ -1925,5 +1935,10 @@ function attachStatsListeners() {
 			if (select) select.value = selectedMember;
 			renderStats();
 		});
+	});
+
+	/* Notes button */
+	document.getElementById("stats-notes-btn")?.addEventListener("click", () => {
+		showNotesPanel(appState);
 	});
 }

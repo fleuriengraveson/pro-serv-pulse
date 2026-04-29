@@ -500,6 +500,24 @@ export async function getAllTeamEntriesForPeriod(startDate, endDate) {
 	return entries;
 }
 
+/**
+ * getAllTeamNotesForWeek
+ * Retrieves qualitative notes for all team members for a given week.
+ *
+ * @param {string} weekKey - ISO week key
+ * @returns {Promise<Array<Object>>} Array of { name, notes }
+ */
+export async function getAllTeamNotesForWeek(weekKey) {
+	const records = await db.teamData.where("weekKey").equals(weekKey).toArray();
+
+	return records
+		.filter((r) => r.data?.weeklyNotes)
+		.map((r) => ({
+			name: r.name,
+			notes: r.data.weeklyNotes,
+		}));
+}
+
 /* ============================================================================
  * BULK IMPORT / RESTORE
  * ========================================================================= */

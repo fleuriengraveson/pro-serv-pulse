@@ -23,6 +23,8 @@ import {
 	saveWeeklyNotes,
 	getUniqueFieldValues,
 	getLastEntryForMerchant,
+	getAllTeamNotesForWeek,
+	getTeamMemberNotes,
 } from "./db.js";
 import {
 	generateTimeSlots,
@@ -2294,9 +2296,17 @@ function closeOOOPopover() {
 
 /**
  * showNotesPanel
- * Opens the slide-out notes panel for the current week.
+ * Opens the slide-out notes panel. Behavior depends on context:
+ *   - Contributor or manager viewing self: editable personal notes
+ *   - Manager viewing specific team member: read-only member notes
+ *   - Manager viewing all team: read-only notes grouped by section
  */
-async function showNotesPanel() {
+export async function showNotesPanel(externalState = null) {
+	/* Use external state if tracker hasn't been initialized */
+	if (externalState && !appState) {
+		appState = externalState;
+	}
+	if (!appState) return;
 	/* Close if already open */
 	const existing = document.getElementById("notes-panel");
 	if (existing) {
@@ -2305,13 +2315,32 @@ async function showNotesPanel() {
 	}
 
 	const weekKey = getISOWeekKey(currentDate);
-	const existingNotes = await getWeeklyNotes(weekKey);
-	const notes = existingNotes || {
-		wins: "",
-		losses: "",
-		issues: "",
-		customerMeetings: "",
-	};
+
+	/* Determine which mode we're in by checking the stats page state */
+	const statsVisible = !document
+		.getElementById("view-stats")
+		?.classList.contains("hidden");
+	const teamSelect = document.getElementById("team-member-select");
+	const selectedMember = teamSelect ? teamSelect.value : "self";
+	const isManager = appState.settings.role === "manager";
+
+	let panelContent;
+	let panelTitle;
+	let panelSubtitle = `Week of ${formatDateDisplay(weekDates[0])}`;
+
+	if (isManager && statsVisible && selectedMember === "all") {
+		/* All team notes — grouped by section */
+		panelTitle = "Team notes";
+		panelContent = await renderAllTeamNotes(weekKey);
+	} else if (isManager && statsVisible && selectedMember !== "self") {
+		/* Specific team member notes — read only */
+		panelTitle = `${selectedMember}'s notes`;
+		panelContent = await renderTeamMemberNotes(selectedMember, weekKey);
+	} else {
+		/* Own notes — editable */
+		panelTitle = "Weekly notes";
+		panelContent = await renderOwnNotes(weekKey);
+	}
 
 	const panel = document.createElement("div");
 	panel.className = "notes-panel";
@@ -2320,14 +2349,52 @@ async function showNotesPanel() {
 	panel.innerHTML = `
     <div class="notes-panel-header">
       <div>
-        <div style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Weekly notes</div>
-        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Week of ${formatDateDisplay(weekDates[0])}</div>
+        <div style="font-size: 14px; font-weight: 500; color: var(--text-primary);">${panelTitle}</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">${panelSubtitle}</div>
       </div>
       <button id="notes-close" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 0.5px solid var(--border-default); background: none; color: var(--text-muted); cursor: pointer; font-size: 16px;">
         &times;
       </button>
     </div>
 
+    ${panelContent}
+  `;
+
+	document.body.appendChild(panel);
+
+	requestAnimationFrame(() => {
+		panel.classList.add("open");
+	});
+
+	/* Close button */
+	panel
+		.querySelector("#notes-close")
+		.addEventListener("click", closeNotesPanel);
+
+	/* Close on Escape */
+	const escHandler = (e) => {
+		if (e.key === "Escape") {
+			closeNotesPanel();
+			document.removeEventListener("keydown", escHandler);
+		}
+	};
+	document.addEventListener("keydown", escHandler);
+}
+
+/**
+ * renderOwnNotes
+ * Renders the editable personal notes form.
+ */
+async function renderOwnNotes(weekKey) {
+	const existingNotes = await getWeeklyNotes(weekKey);
+	const notes = existingNotes || {
+		wins: "",
+		losses: "",
+		issues: "",
+		customerMeetings: "",
+	};
+
+	const html = `
     <div class="notes-banner">
       These notes cover the entire week and will be included in your weekly export.
     </div>
@@ -2361,65 +2428,201 @@ async function showNotesPanel() {
     </div>
   `;
 
-	document.body.appendChild(panel);
+	/* Set up auto-save after the panel is in the DOM */
+	setTimeout(() => {
+		const panel = document.getElementById("notes-panel");
+		if (!panel) return;
 
-	/* Trigger the slide animation on next frame */
-	requestAnimationFrame(() => {
-		panel.classList.add("open");
-	});
+		let saveTimeout;
+		const statusEl = panel.querySelector("#notes-save-status");
 
-	/* Auto-save on typing */
-	let saveTimeout;
-	const statusEl = panel.querySelector("#notes-save-status");
-
-	const autoSave = async () => {
-		const notesData = {
-			wins: panel.querySelector("#notes-wins")?.value || "",
-			losses: panel.querySelector("#notes-losses")?.value || "",
-			issues: panel.querySelector("#notes-issues")?.value || "",
-			customerMeetings: panel.querySelector("#notes-meetings")?.value || "",
-		};
-		await saveWeeklyNotes(weekKey, notesData);
-		if (statusEl) {
-			statusEl.textContent = "Saved";
-			statusEl.style.color = "var(--positive)";
-			setTimeout(() => {
-				if (statusEl) statusEl.textContent = "";
-			}, 2000);
-		}
-	};
-
-	panel.querySelectorAll("textarea").forEach((ta) => {
-		ta.addEventListener("input", () => {
+		const autoSave = async () => {
+			const notesData = {
+				wins: panel.querySelector("#notes-wins")?.value || "",
+				losses: panel.querySelector("#notes-losses")?.value || "",
+				issues: panel.querySelector("#notes-issues")?.value || "",
+				customerMeetings: panel.querySelector("#notes-meetings")?.value || "",
+			};
+			await saveWeeklyNotes(weekKey, notesData);
 			if (statusEl) {
-				statusEl.textContent = "Saving...";
-				statusEl.style.color = "var(--text-muted)";
+				statusEl.textContent = "Saved";
+				statusEl.style.color = "var(--positive)";
+				setTimeout(() => {
+					if (statusEl) statusEl.textContent = "";
+				}, 2000);
 			}
-			clearTimeout(saveTimeout);
-			saveTimeout = setTimeout(autoSave, 500);
+		};
+
+		panel.querySelectorAll("textarea").forEach((ta) => {
+			ta.addEventListener("input", () => {
+				if (statusEl) {
+					statusEl.textContent = "Saving...";
+					statusEl.style.color = "var(--text-muted)";
+				}
+				clearTimeout(saveTimeout);
+				saveTimeout = setTimeout(autoSave, 500);
+			});
 		});
+	}, 100);
+
+	return html;
+}
+
+/**
+ * renderTeamMemberNotes
+ * Renders a specific team member's notes (read-only).
+ */
+async function renderTeamMemberNotes(name, weekKey) {
+	const notes = await getTeamMemberNotes(name, weekKey);
+
+	if (!notes) {
+		return `
+      <div class="notes-panel-body">
+        <div style="color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center;">
+          No notes submitted for this week.
+        </div>
+      </div>
+    `;
+	}
+
+	const sections = [
+		{ label: "Wins of the week", value: notes.wins },
+		{ label: "Losses of the week", value: notes.losses },
+		{ label: "Issues flagged to management", value: notes.issues },
+		{
+			label: "Customer meetings and engagements",
+			value: notes.customerMeetings,
+		},
+	];
+
+	return `
+    <div class="notes-banner">
+      Read-only — these are ${name}'s notes for this week.
+    </div>
+    <div class="notes-panel-body">
+      ${sections
+				.map((s) => {
+					if (!s.value) return "";
+					return `
+          <div style="margin-bottom: 16px;">
+            <div class="notes-field-label">${s.label}</div>
+            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 10px 12px; margin-top: 4px; white-space: pre-wrap;">${s.value}</div>
+          </div>
+        `;
+				})
+				.join("")}
+      ${
+				sections.every((s) => !s.value)
+					? `
+        <div style="color: var(--text-muted); font-size: 13px; text-align: center;">
+          All sections are empty.
+        </div>
+      `
+					: ""
+			}
+    </div>
+  `;
+}
+
+/**
+ * renderAllTeamNotes
+ * Renders all team members' notes grouped by section.
+ * Each entry is attributed to its author.
+ */
+async function renderAllTeamNotes(weekKey) {
+	const allNotes = await getAllTeamNotesForWeek(weekKey);
+
+	if (allNotes.length === 0) {
+		return `
+      <div class="notes-panel-body">
+        <div style="color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center;">
+          No notes submitted for this week.
+        </div>
+      </div>
+    `;
+	}
+
+	const sections = [
+		{
+			key: "wins",
+			label: "Wins of the week",
+			icon: "✓",
+			color: "var(--positive)",
+		},
+		{
+			key: "losses",
+			label: "Losses of the week",
+			icon: "—",
+			color: "var(--danger)",
+		},
+		{
+			key: "issues",
+			label: "Issues flagged to management",
+			icon: "!",
+			color: "var(--warning)",
+		},
+		{
+			key: "customerMeetings",
+			label: "Customer meetings",
+			icon: "●",
+			color: "var(--info)",
+		},
+	];
+
+	let html = `
+    <div class="notes-banner">
+      ${allNotes.length} team member${allNotes.length > 1 ? "s" : ""} submitted notes for this week.
+    </div>
+    <div class="notes-panel-body">
+  `;
+
+	sections.forEach((section) => {
+		/* Collect all non-empty entries for this section */
+		const entries = allNotes
+			.filter((n) => n.notes[section.key] && n.notes[section.key].trim())
+			.map((n) => ({ name: n.name, text: n.notes[section.key].trim() }));
+
+		if (entries.length === 0) return;
+
+		html += `
+      <div style="margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+          <span style="width: 18px; height: 18px; border-radius: 50%; background: ${section.color}; display: flex; align-items: center; justify-content: center; font-size: 10px; color: white; font-weight: 500; flex-shrink: 0;">${section.icon}</span>
+          <span class="notes-field-label" style="margin: 0;">${section.label} (${entries.length})</span>
+        </div>
+    `;
+
+		entries.forEach((entry) => {
+			const initials = entry.name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2);
+
+			html += `
+        <div style="display: flex; gap: 10px; margin-bottom: 10px; padding-left: 4px;">
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; color: var(--accent-text); flex-shrink: 0; margin-top: 2px;">${initials}</div>
+          <div style="flex: 1;">
+            <div style="font-size: 11px; font-weight: 500; color: var(--accent-text); margin-bottom: 2px;">${entry.name}</div>
+            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap;">${entry.text}</div>
+          </div>
+        </div>
+      `;
+		});
+
+		html += "</div>";
 	});
 
-	/* Close button */
-	panel
-		.querySelector("#notes-close")
-		.addEventListener("click", closeNotesPanel);
-
-	/* Close on Escape */
-	const escHandler = (e) => {
-		if (e.key === "Escape") {
-			closeNotesPanel();
-			document.removeEventListener("keydown", escHandler);
-		}
-	};
-	document.addEventListener("keydown", escHandler);
+	html += "</div>";
+	return html;
 }
 
 /**
  * closeNotesPanel
  * Slides the notes panel closed and removes it.
  */
-function closeNotesPanel() {
+export function closeNotesPanel() {
 	const panel = document.getElementById("notes-panel");
 	if (!panel) return;
 
