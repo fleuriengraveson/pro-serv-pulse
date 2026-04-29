@@ -66,9 +66,6 @@ async function init() {
 	/* Set up the export button */
 	setupExportButton();
 
-	/* Show/hide manager nav button based on role */
-	updateManagerVisibility();
-
 	/* Initialize and render the default view (tracker) */
 	const savedView = localStorage.getItem("chronos-app-view") || VIEWS.TRACKER;
 	await switchView(savedView);
@@ -175,20 +172,6 @@ async function switchView(viewId) {
 }
 
 /**
- * updateManagerVisibility
- * Shows/hides the "Team" nav button based on whether the user
- * has the manager role.
- */
-function updateManagerVisibility() {
-	const managerBtn = document.getElementById("nav-manager");
-	if (state.settings.role === "manager") {
-		managerBtn.classList.remove("hidden");
-	} else {
-		managerBtn.classList.add("hidden");
-	}
-}
-
-/**
  * onSettingsChanged
  * Callback fired by the settings module when the user updates their
  * settings. Refreshes cached state and updates the UI accordingly.
@@ -198,7 +181,6 @@ function updateManagerVisibility() {
 async function onSettingsChanged(newSettings) {
 	state.settings = newSettings;
 	state.tierMap = await getTierMap();
-	updateManagerVisibility();
 
 	/* If the tracker is currently visible, re-render it with new settings */
 	if (state.currentView === VIEWS.TRACKER) {

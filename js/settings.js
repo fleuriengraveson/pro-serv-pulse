@@ -250,6 +250,40 @@ async function renderSettings() {
 			}
 
       <!-- ================================================================
+        TEAM DATA IMPORT (MANAGER ONLY)
+        ================================================================ -->
+      ${
+				isManager
+					? `
+      <div class="mb-8">
+        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Team data</h3>
+        <div class="bg-white rounded-xl border border-stone-200 p-5">
+
+          <!-- Import zone -->
+          <div id="import-dropzone"
+               style="border: 2px dashed var(--border-default); border-radius: 10px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.15s ease;">
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+              Drop team export files here
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">
+              or click to browse — accepts multiple .json files
+            </div>
+            <input type="file" id="import-files" accept=".json" multiple class="hidden" />
+          </div>
+
+          <!-- Import status -->
+          <div id="import-status" style="margin-top: 12px;"></div>
+
+          <!-- Imported team members list -->
+          <div id="team-members-list" style="margin-top: 16px;"></div>
+
+        </div>
+      </div>
+      `
+					: ""
+			}
+
+      <!-- ================================================================
         DATA MANAGEMENT
         ================================================================ -->
       <div class="mb-8">
@@ -468,4 +502,155 @@ function attachSettingsListeners() {
 			}
 		});
 	});
+
+	/* --- Team data import (manager only) --- */
+	const dropzone = container.querySelector("#import-dropzone");
+	const fileInput = container.querySelector("#import-files");
+
+	if (dropzone && fileInput) {
+		/* Click to browse */
+		dropzone.addEventListener("click", () => fileInput.click());
+
+		/* Drag and drop styling */
+		dropzone.addEventListener("dragover", (e) => {
+			e.preventDefault();
+			dropzone.style.borderColor = "var(--accent)";
+			dropzone.style.background = "var(--accent-light)";
+		});
+		dropzone.addEventListener("dragleave", () => {
+			dropzone.style.borderColor = "var(--border-default)";
+			dropzone.style.background = "none";
+		});
+
+		/* Handle dropped files */
+		dropzone.addEventListener("drop", async (e) => {
+			e.preventDefault();
+			dropzone.style.borderColor = "var(--border-default)";
+			dropzone.style.background = "none";
+			await handleTeamImport(e.dataTransfer.files);
+		});
+
+		/* Handle file input change */
+		fileInput.addEventListener("change", async (e) => {
+			await handleTeamImport(e.target.files);
+			e.target.value = "";
+		});
+
+		/* Load and display existing team members */
+		loadTeamMembersList();
+	}
+
+	/**
+	 * handleTeamImport
+	 * Processes multiple dropped/selected JSON export files.
+	 */
+	async function handleTeamImport(files) {
+		const statusEl = document.getElementById("import-status");
+		if (!statusEl) return;
+
+		const results = [];
+		let successCount = 0;
+		let updateCount = 0;
+		let errorCount = 0;
+
+		for (const file of files) {
+			try {
+				const { readJSONFile } = await import("./utils.js");
+				const data = await readJSONFile(file);
+
+				/* Validate the file has the expected structure */
+				if (!data.contributor?.name || !data.weekKey || !data.entries) {
+					results.push(
+						`<div style="font-size: 12px; color: var(--danger);">${file.name} — invalid format</div>`,
+					);
+					errorCount++;
+					continue;
+				}
+
+				const { importTeamMemberData } = await import("./db.js");
+				const isNew = await importTeamMemberData(
+					data.contributor.name,
+					data.weekKey,
+					data,
+				);
+
+				if (isNew) {
+					results.push(
+						`<div style="font-size: 12px; color: var(--positive);">${data.contributor.name} — ${data.weekKey} imported</div>`,
+					);
+					successCount++;
+				} else {
+					results.push(
+						`<div style="font-size: 12px; color: var(--text-muted);">${data.contributor.name} — ${data.weekKey} updated</div>`,
+					);
+					updateCount++;
+				}
+			} catch (err) {
+				results.push(
+					`<div style="font-size: 12px; color: var(--danger);">${file.name} — ${err.message}</div>`,
+				);
+				errorCount++;
+			}
+		}
+
+		/* Show summary */
+		let summary = `<div style="font-size: 12px; font-weight: 500; margin-bottom: 6px;">`;
+		const parts = [];
+		if (successCount > 0) parts.push(`${successCount} imported`);
+		if (updateCount > 0) parts.push(`${updateCount} updated`);
+		if (errorCount > 0) parts.push(`${errorCount} failed`);
+		summary += parts.join(", ") + "</div>";
+
+		statusEl.innerHTML = summary + results.join("");
+
+		/* Refresh team members list */
+		loadTeamMembersList();
+	}
+
+	/**
+	 * loadTeamMembersList
+	 * Displays the list of imported team members in settings.
+	 */
+	async function loadTeamMembersList() {
+		const listEl = document.getElementById("team-members-list");
+		if (!listEl) return;
+
+		const { getTeamMemberList } = await import("./db.js");
+		const members = await getTeamMemberList();
+
+		if (members.length === 0) {
+			listEl.innerHTML =
+				'<div style="font-size: 12px; color: var(--text-muted);">No team data imported yet.</div>';
+			return;
+		}
+
+		let html = `
+    <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">
+      Imported team members (${members.length})
+    </div>
+  `;
+
+		members.forEach((m) => {
+			html += `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 0.5px solid var(--border-default);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: var(--accent-text);">
+            ${m.name
+							.split(" ")
+							.map((n) => n[0])
+							.join("")
+							.toUpperCase()
+							.slice(0, 2)}
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 500;">${m.name}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${m.weekCount} week${m.weekCount > 1 ? "s" : ""} — latest: ${m.lastImport}</div>
+          </div>
+        </div>
+      </div>
+    `;
+		});
+
+		listEl.innerHTML = html;
+	}
 }

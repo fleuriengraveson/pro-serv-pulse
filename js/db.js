@@ -382,6 +382,124 @@ export async function getTeamMemberNames() {
 	return records;
 }
 
+/**
+ * getTeamDataForPeriod
+ * Retrieves all imported team data that overlaps with a date range.
+ * Matches week keys that fall within the range.
+ *
+ * @param {string} startDate - Start date in 'YYYY-MM-DD' format
+ * @param {string} endDate   - End date in 'YYYY-MM-DD' format
+ * @returns {Promise<Array<Object>>} Array of team data records
+ */
+export async function getTeamDataForPeriod(startDate, endDate) {
+	const allData = await db.teamData.toArray();
+	return allData.filter((record) => {
+		/* Check if this record's week overlaps with the requested range */
+		const weekStart = record.data?.startDate;
+		const weekEnd = record.data?.endDate;
+		if (!weekStart || !weekEnd) return false;
+		return weekEnd >= startDate && weekStart <= endDate;
+	});
+}
+
+/**
+ * getTeamMemberList
+ * Returns a list of unique team member names with their most recent import date.
+ *
+ * @returns {Promise<Array<Object>>} Array of { name, lastImport, weekCount }
+ */
+export async function getTeamMemberList() {
+	const allData = await db.teamData.toArray();
+	const members = {};
+
+	allData.forEach((record) => {
+		const name = record.name;
+		if (!members[name]) {
+			members[name] = { name, lastImport: record.weekKey, weekCount: 0 };
+		}
+		members[name].weekCount++;
+		if (record.weekKey > members[name].lastImport) {
+			members[name].lastImport = record.weekKey;
+		}
+	});
+
+	return Object.values(members).sort((a, b) =>
+		a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+	);
+}
+
+/**
+ * getTeamMemberData
+ * Retrieves all imported data for a specific team member within a date range.
+ *
+ * @param {string} name      - Team member's name
+ * @param {string} startDate - Start date in 'YYYY-MM-DD' format
+ * @param {string} endDate   - End date in 'YYYY-MM-DD' format
+ * @returns {Promise<Array<Object>>} Array of time entry objects
+ */
+export async function getTeamMemberData(name, startDate, endDate) {
+	const records = await db.teamData.where("name").equals(name).toArray();
+
+	/* Collect all entries from matching weeks */
+	const entries = [];
+	records.forEach((record) => {
+		const weekStart = record.data?.startDate;
+		const weekEnd = record.data?.endDate;
+		if (!weekStart || !weekEnd) return;
+		if (weekEnd < startDate || weekStart > endDate) return;
+
+		(record.data.entries || []).forEach((e) => {
+			/* Only include entries within the requested date range */
+			if (e.date >= startDate && e.date <= endDate) {
+				entries.push(e);
+			}
+		});
+	});
+
+	return entries;
+}
+
+/**
+ * getTeamMemberNotes
+ * Retrieves qualitative notes for a specific team member for a given week.
+ *
+ * @param {string} name    - Team member's name
+ * @param {string} weekKey - ISO week key
+ * @returns {Promise<Object|null>} Notes object or null
+ */
+export async function getTeamMemberNotes(name, weekKey) {
+	const record = await db.teamData
+		.where("[name+weekKey]")
+		.equals([name, weekKey])
+		.first();
+
+	return record?.data?.weeklyNotes || null;
+}
+
+/**
+ * getAllTeamEntriesForPeriod
+ * Retrieves all entries from all team members for a date range.
+ * Returns entries with the member name attached to each entry.
+ *
+ * @param {string} startDate - Start date
+ * @param {string} endDate   - End date
+ * @returns {Promise<Array<Object>>} Entries with .memberName attached
+ */
+export async function getAllTeamEntriesForPeriod(startDate, endDate) {
+	const records = await getTeamDataForPeriod(startDate, endDate);
+	const entries = [];
+
+	records.forEach((record) => {
+		(record.data.entries || []).forEach((e) => {
+			if (e.date >= startDate && e.date <= endDate) {
+				entries.push({ ...e, memberName: record.name });
+			}
+		});
+	});
+
+	return entries;
+}
+
 /* ============================================================================
  * BULK IMPORT / RESTORE
  * ========================================================================= */

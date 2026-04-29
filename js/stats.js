@@ -19,6 +19,10 @@ import {
 	getEntriesForDateRange,
 	getTierMap,
 	getFirstTrackedDate,
+	getTeamMemberList,
+	getTeamMemberData,
+	getAllTeamEntriesForPeriod,
+	getTeamMemberNotes,
 } from "./db.js";
 import {
 	formatDateISO,
@@ -46,6 +50,8 @@ import {
 	getCategoryHex,
 	countUrgentHours,
 	detectDisproportionate,
+	calculateMean,
+	calculateStdDev,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
 
@@ -57,12 +63,14 @@ let appState = null; // Reference to global app state
 let currentPeriod = "weekly"; // Active time filter
 let periodDate = new Date(); // The reference date for period navigation
 let chartInstances = {}; // Track Chart.js instances for cleanup
+let selectedMember = "all"; // 'all', a member name, or 'self'
+let teamMembers = []; // Cached list of imported team members
 
 /* Period filter options */
 const PERIODS = [
 	{ id: "weekly", label: "Weekly (W)" },
 	{ id: "monthly", label: "Monthly (M)" },
-	{ id: "quarterly", label: "Quarterly" },
+	{ id: "quarterly", label: "Quarterly (Q)" },
 	{ id: "fy", label: "FY (F)" },
 	{ id: "cy", label: "Calendar year (Y)" },
 ];
@@ -79,6 +87,22 @@ const PERIODS = [
  */
 export async function initStats(state) {
 	appState = state;
+
+	/* Load team members if manager */
+	if (appState.settings.role === "manager") {
+		teamMembers = await getTeamMemberList();
+		/* Default to 'all' for managers, 'self' for contributors */
+		if (
+			selectedMember !== "self" &&
+			!teamMembers.find((m) => m.name === selectedMember)
+		) {
+			selectedMember = "all";
+		}
+	} else {
+		selectedMember = "self";
+		teamMembers = [];
+	}
+
 	await renderStats();
 }
 
@@ -425,13 +449,39 @@ async function renderStats() {
 	const tierMap = await getTierMap();
 	const range = getPeriodRange();
 
-	const allEntries = await getEntriesForDateRange(
-		range.startDate,
-		range.endDate,
-	);
+	let allEntries;
+	let entries;
 
-	/* Filter out future blocks — only count past and current time */
-	const entries = filterEntriesUpToNow(allEntries);
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		/* All team data — aggregate across all imported members */
+		allEntries = await getAllTeamEntriesForPeriod(
+			range.startDate,
+			range.endDate,
+		);
+		entries = filterEntriesUpToNow(allEntries);
+		console.log("Team data:", {
+			selectedMember,
+			range,
+			allEntriesCount: allEntries.length,
+			filteredCount: entries.length,
+			hasMemberNames: entries.length > 0 ? entries[0].memberName : "no entries",
+		});
+	} else if (
+		appState.settings.role === "manager" &&
+		selectedMember !== "self"
+	) {
+		/* Specific team member's data */
+		allEntries = await getTeamMemberData(
+			selectedMember,
+			range.startDate,
+			range.endDate,
+		);
+		entries = filterEntriesUpToNow(allEntries);
+	} else {
+		/* Own data (contributor or manager viewing self) */
+		allEntries = await getEntriesForDateRange(range.startDate, range.endDate);
+		entries = filterEntriesUpToNow(allEntries);
+	}
 
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
@@ -488,21 +538,50 @@ async function renderStats() {
       PERIOD FILTERS
       ================================================================ -->
     <div class="flex items-center justify-between mb-6 pb-4 border-b border-stone-100">
-      <!-- Filter chips -->
-      <div class="flex gap-1">
-        ${PERIODS.map(
-					(p) => `
-          <button class="period-chip text-xs px-3 py-1.5 rounded-lg transition-colors
-            ${
-							p.id === currentPeriod
-								? "bg-chronos-100 text-chronos-600 border border-chronos-200 font-medium"
-								: "text-stone-400 border border-stone-100 hover:text-stone-600 hover:border-stone-200"
-						}"
-            data-period="${p.id}">
-            ${p.label}
-          </button>
-        `,
-				).join("")}
+      <!-- Left: Period chips + team selector for managers -->
+      <div class="flex items-center gap-4">
+        <!-- Period filter chips -->
+        <div class="flex gap-1">
+          ${PERIODS.map(
+						(p) => `
+            <button class="period-chip text-xs px-3 py-1.5 rounded-lg transition-colors
+              ${
+								p.id === currentPeriod
+									? "bg-chronos-100 text-chronos-600 border border-chronos-200 font-medium"
+									: "text-stone-400 border border-stone-100 hover:text-stone-600 hover:border-stone-200"
+							}"
+              data-period="${p.id}">
+              ${p.label}
+            </button>
+          `,
+					).join("")}
+        </div>
+
+        ${
+					appState.settings.role === "manager" && teamMembers.length > 0
+						? `
+        <!-- Team member selector -->
+        <div style="border-left: 0.5px solid var(--border-default); padding-left: 12px;">
+          <select id="team-member-select"
+                  style="font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 0.5px solid var(--border-default); background: var(--bg-input); color: var(--text-primary); font-family: inherit; min-width: 160px;">
+            <option value="all" ${selectedMember === "all" ? "selected" : ""}>All team (${teamMembers.length})</option>
+            <optgroup label="Team members">
+              ${teamMembers
+								.map(
+									(m) => `
+                <option value="${m.name}" ${selectedMember === m.name ? "selected" : ""}>${m.name}</option>
+              `,
+								)
+								.join("")}
+            </optgroup>
+            <optgroup label="—">
+              <option value="self" ${selectedMember === "self" ? "selected" : ""}>My stats</option>
+            </optgroup>
+          </select>
+        </div>
+        `
+						: ""
+				}
       </div>
 
       <!-- Period navigation -->
@@ -694,6 +773,50 @@ async function renderStats() {
 			})()}
 
     </div>
+
+	${
+		appState.settings.role === "manager" && selectedMember === "all"
+			? `
+    <!-- ================================================================
+      TEAM ALERTS
+      ================================================================ -->
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${(() => {
+				const alerts = renderTeamAlerts(entries, expectedHours);
+				if (alerts.length === 0) {
+					return '<div style="font-size: 12px; color: var(--text-muted);">No alerts — team is on track.</div>';
+				}
+				return `
+          <div class="text-sm font-medium mb-3">Team alerts</div>
+          ${alerts
+						.map(
+							(a) => `
+            <div class="insight-card insight-${a.type}">
+              <div class="insight-icon" style="background: ${
+								a.type === "warning"
+									? "var(--warning)"
+									: a.type === "flag"
+										? "var(--danger)"
+										: "var(--info)"
+							}">${a.type === "flag" ? "!" : a.type === "warning" ? "!" : "i"}</div>
+              <div>${a.message}</div>
+            </div>
+          `,
+						)
+						.join("")}
+        `;
+			})()}
+    </div>
+
+    <!-- ================================================================
+      TEAM COMPLIANCE TABLE
+      ================================================================ -->
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${renderTeamComplianceTable(entries, expectedHours)}
+    </div>
+    `
+			: ""
+	}
 
     <!-- ================================================================
       ROW 2: Hours by area + Urgent / Disproportionate flags
@@ -903,6 +1026,214 @@ async function renderStats() {
 
 	/* Attach event listeners */
 	attachStatsListeners();
+}
+
+/**
+ * renderTeamComplianceTable
+ * Shows every team member's tracking compliance, tier split, and hours.
+ */
+function renderTeamComplianceTable(teamEntries, expectedHours) {
+	/* Group entries by member */
+	const byMember = {};
+	teamEntries.forEach((e) => {
+		const name = e.memberName || "Unknown";
+		if (!byMember[name]) byMember[name] = [];
+		byMember[name].push(e);
+	});
+
+	const tierMap = appState.tierMap || {};
+	const rows = [];
+
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		const tracked = countTrackedHours(memberEntries);
+		const billable = countBillableHours(memberEntries);
+		const byTier = aggregateByTier(memberEntries, tierMap);
+		const tierTotal = (byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
+		const t1Pct =
+			tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
+		const t2Pct =
+			tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
+		const compliancePct =
+			expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
+
+		rows.push({ name, tracked, billable, byTier, t1Pct, t2Pct, compliancePct });
+	}
+
+	/* Sort by name */
+	rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+	let html = `
+    <div class="text-sm font-medium mb-3">Team compliance</div>
+    <div style="overflow-x: auto;">
+    <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--border-default);">
+          <th style="text-align: left; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Name</th>
+          <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Tracked</th>
+          <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Compliance</th>
+          <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Billable</th>
+          <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Tier 1</th>
+          <th style="padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px; width: 120px;">Tier split</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+	rows.forEach((r) => {
+		const complianceColor =
+			r.compliancePct >= 60
+				? "var(--positive)"
+				: r.compliancePct >= 42
+					? "var(--warning)"
+					: "var(--danger)";
+		const initials = r.name
+			.split(" ")
+			.map((n) => n[0])
+			.join("")
+			.toUpperCase()
+			.slice(0, 2);
+
+		html += `
+        <tr style="border-bottom: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${r.name}">
+          <td style="padding: 8px 6px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="width: 26px; height: 26px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: var(--accent-text);">${initials}</div>
+              <span style="font-weight: 500; color: var(--accent-text);">${r.name}</span>
+            </div>
+          </td>
+          <td style="text-align: right; padding: 8px 6px;">${r.tracked} hrs</td>
+          <td style="text-align: right; padding: 8px 6px;">
+            <span style="color: ${complianceColor}; font-weight: 500;">${r.compliancePct}%</span>
+          </td>
+          <td style="text-align: right; padding: 8px 6px;">${r.billable} hrs</td>
+          <td style="text-align: right; padding: 8px 6px;">${r.t1Pct}%</td>
+          <td style="padding: 8px 6px;">
+            <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden;">
+              ${r.t1Pct > 0 ? `<div style="width: ${r.t1Pct}%; background: var(${TIERS[1].hexVar}); opacity: 0.7;"></div>` : ""}
+              ${r.t2Pct > 0 ? `<div style="width: ${r.t2Pct}%; background: var(${TIERS[2].hexVar}); opacity: 0.7;"></div>` : ""}
+              ${100 - r.t1Pct - r.t2Pct > 0 ? `<div style="width: ${100 - r.t1Pct - r.t2Pct}%; background: var(${TIERS[3].hexVar}); opacity: 0.7;"></div>` : ""}
+            </div>
+          </td>
+        </tr>
+    `;
+	});
+
+	html += "</tbody></table></div>";
+	return html;
+}
+
+/**
+ * renderTeamAlerts
+ * Generates auto-detected alerts across the team.
+ */
+function renderTeamAlerts(teamEntries, expectedHours) {
+	const alerts = [];
+	const tierMap = appState.tierMap || {};
+
+	/* Group entries by member */
+	const byMember = {};
+	teamEntries.forEach((e) => {
+		const name = e.memberName || "Unknown";
+		if (!byMember[name]) byMember[name] = [];
+		byMember[name].push(e);
+	});
+
+	/* Check compliance per member */
+	const belowTarget = [];
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		const tracked = countTrackedHours(memberEntries);
+		const pct =
+			expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
+		if (pct < TARGETS.compliancePercent) {
+			belowTarget.push({ name, pct });
+		}
+	}
+
+	if (belowTarget.length > 0) {
+		const names = belowTarget.map((m) => `${m.name} (${m.pct}%)`).join(", ");
+		alerts.push({
+			type: "flag",
+			message: `<strong>${belowTarget.length} member${belowTarget.length > 1 ? "s" : ""} below tracking target</strong> — ${names}`,
+		});
+	}
+
+	/* Check category concentration across team */
+	const teamByCategory = aggregateByCategory(teamEntries);
+	const totalTeamHours = Object.values(teamByCategory)
+		.filter((_, i, arr) => {
+			return true;
+		})
+		.reduce((sum, hrs) => sum + hrs, 0);
+
+	CATEGORIES.forEach((cat) => {
+		if (cat.id === "lunch" || cat.id === "ooo") return;
+		const hours = teamByCategory[cat.id] || 0;
+		const pct =
+			totalTeamHours > 0 ? Math.round((hours / totalTeamHours) * 100) : 0;
+		if (pct >= 30) {
+			alerts.push({
+				type: "warning",
+				message: `<strong>${cat.label} consuming ${pct}% of team time</strong> — ${hours} total hours across the team.`,
+			});
+		}
+	});
+
+	/* Check for individual outliers in category distribution */
+	const memberCount = Object.keys(byMember).length;
+	if (memberCount >= 3) {
+		CATEGORIES.forEach((cat) => {
+			if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other") return;
+
+			const memberHours = Object.entries(byMember).map(([name, entries]) => ({
+				name,
+				hours: entries.filter((e) => e.category === cat.id).length * 0.5,
+			}));
+
+			const values = memberHours.map((m) => m.hours);
+			const mean = calculateMean(values);
+			const stdDev = calculateStdDev(values);
+
+			if (stdDev > 0) {
+				memberHours.forEach((m) => {
+					const deviation = (m.hours - mean) / stdDev;
+					if (deviation >= 1.5 && m.hours > 2) {
+						const pct =
+							totalTeamHours > 0
+								? Math.round(
+										(m.hours / countTrackedHours(byMember[m.name])) * 100,
+									)
+								: 0;
+						alerts.push({
+							type: "info",
+							message: `<strong>${m.name} is an outlier on ${cat.label}</strong> — ${pct}% of their time (${m.hours} hrs) vs. team avg of ${mean.toFixed(1)} hrs.`,
+						});
+					}
+				});
+			}
+		});
+	}
+
+	/* Lunch compliance check */
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		const dates = [...new Set(memberEntries.map((e) => e.date))];
+		const daysWithoutLunch = dates.filter((date) => {
+			const dayEntries = memberEntries.filter((e) => e.date === date);
+			const hasLunch = dayEntries.some((e) => e.category === "lunch");
+			const hasWork = dayEntries.some(
+				(e) => e.category && e.category !== "lunch" && e.category !== "ooo",
+			);
+			return hasWork && !hasLunch;
+		});
+
+		if (daysWithoutLunch.length >= 2) {
+			alerts.push({
+				type: "info",
+				message: `<strong>${name} skipped lunch on ${daysWithoutLunch.length} days</strong> this period.`,
+			});
+		}
+	}
+
+	return alerts;
 }
 
 /* ============================================================================
@@ -1508,5 +1839,23 @@ function attachStatsListeners() {
 	document.getElementById("period-next")?.addEventListener("click", () => {
 		navigatePeriod(1);
 		renderStats();
+	});
+
+	/* Team member selector */
+	document
+		.getElementById("team-member-select")
+		?.addEventListener("change", (e) => {
+			selectedMember = e.target.value;
+			renderStats();
+		});
+
+	/* Clickable team member names in compliance table */
+	document.querySelectorAll(".team-member-row").forEach((row) => {
+		row.addEventListener("click", () => {
+			selectedMember = row.dataset.member;
+			const select = document.getElementById("team-member-select");
+			if (select) select.value = selectedMember;
+			renderStats();
+		});
 	});
 }
