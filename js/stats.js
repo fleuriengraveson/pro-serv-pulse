@@ -241,7 +241,7 @@ function navigatePeriod(direction) {
 /**
  * getHistoricalWeeklyData
  * Fetches the past N weeks of data for trend analysis and outlier detection.
- * Only includes weeks that fall on or after the user's first ever tracked date.
+ * Sources data from the appropriate place based on the selected member.
  *
  * @param {number} numWeeks - Maximum number of historical weeks to fetch
  * @returns {Promise<Array<Object>>} Array of { weekKey, entries, tracked, byCategory, byTier }
@@ -250,7 +250,39 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 	const weeks = [];
 	const tierMap = await getTierMap();
 	const d = new Date(periodDate);
-	const firstDate = await getFirstTrackedDate();
+
+	/* Find first tracked date from the appropriate source */
+	let firstDate;
+	if (selectedMember === "self") {
+		firstDate = await getFirstTrackedDate();
+	} else if (selectedMember === "all") {
+		/* For all team, find the earliest date across all team data */
+		const allTeamData = await getAllTeamEntriesForPeriod(
+			"2000-01-01",
+			"2099-12-31",
+		);
+		firstDate =
+			allTeamData.length > 0
+				? allTeamData
+						.map((e) => e.date)
+						.filter(Boolean)
+						.sort()[0]
+				: null;
+	} else {
+		/* Specific team member */
+		const memberData = await getTeamMemberData(
+			selectedMember,
+			"2000-01-01",
+			"2099-12-31",
+		);
+		firstDate =
+			memberData.length > 0
+				? memberData
+						.map((e) => e.date)
+						.filter(Boolean)
+						.sort()[0]
+				: null;
+	}
 
 	/* Start from last week, skip the current incomplete week */
 	for (let i = 1; i <= numWeeks; i++) {
@@ -264,10 +296,18 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 		/* Stop if this week is entirely before the first tracked date */
 		if (firstDate && endDate < firstDate) break;
 
-		const entries = await getEntriesForDateRange(startDate, endDate);
+		/* Fetch entries from the appropriate source */
+		let entries;
+		if (selectedMember === "self") {
+			entries = await getEntriesForDateRange(startDate, endDate);
+		} else if (selectedMember === "all") {
+			entries = await getAllTeamEntriesForPeriod(startDate, endDate);
+		} else {
+			entries = await getTeamMemberData(selectedMember, startDate, endDate);
+		}
 
 		/* Skip weeks with zero entries — they're gaps, not real data */
-		if (entries.length === 0 && i > 0) continue;
+		if (entries.length === 0) continue;
 
 		const oooDates = getOOODatesFromEntries(entries);
 		const oooCount = oooDates.size;
@@ -281,7 +321,6 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
 			byCategory: aggregateByCategory(entries),
 			byTier: aggregateByTier(entries, tierMap),
 			oooCount,
-			/* Adjusted expected hours: 5 working days minus OOO, times hours per day */
 			expectedHours: (5 - oooCount) * TARGETS.dailyTrackableHours,
 		});
 	}
@@ -494,13 +533,17 @@ async function renderStats() {
 	const byPOS = aggregateByPOS(entries);
 	const urgentHours = countUrgentHours(entries);
 	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
-	const flaggedMerchants = appState.settings.enableMerchant
-		? detectDisproportionate(byMerchant)
-		: [];
-	const flaggedPOS = appState.settings.enableFormerPOS
-		? detectDisproportionate(byPOS)
-		: [];
-	const expectedHours = await getExpectedHours(allEntries);
+	const flaggedMerchants =
+		Object.keys(byMerchant).length > 0 &&
+		(selectedMember !== "self" || appState.settings.enableMerchant)
+			? detectDisproportionate(byMerchant)
+			: [];
+	const flaggedPOS =
+		Object.keys(byPOS).length > 0 &&
+		(selectedMember !== "self" || appState.settings.enableFormerPOS)
+			? detectDisproportionate(byPOS)
+			: [];
+	const expectedHours = await getExpectedHours(allEntries, allEntries);
 
 	const currentStats = {
 		tracked,
@@ -915,10 +958,14 @@ async function renderStats() {
       ROW 3: Daily breakdown + Merchant / POS tables
       ================================================================ -->
     ${(() => {
-			const hasRightColumn =
-				(appState.settings.enableMerchant &&
-					Object.keys(byMerchant).length > 0) ||
-				(appState.settings.enableFormerPOS && Object.keys(byPOS).length > 0);
+			/* Show merchant/POS tables if data exists — for team views, don't rely on manager's settings */
+			const showMerchant =
+				Object.keys(byMerchant).length > 0 &&
+				(selectedMember !== "self" || appState.settings.enableMerchant);
+			const showPOS =
+				Object.keys(byPOS).length > 0 &&
+				(selectedMember !== "self" || appState.settings.enableFormerPOS);
+			const hasRightColumn = showMerchant || showPOS;
 
 			return `
       <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
@@ -938,8 +985,7 @@ async function renderStats() {
         <div class="flex flex-col gap-4">
 
           ${
-						appState.settings.enableMerchant &&
-						Object.keys(byMerchant).length > 0
+						showMerchant
 							? `
           <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
             ${renderMerchantTable(byMerchant, tracked)}
@@ -949,7 +995,7 @@ async function renderStats() {
 					}
 
           ${
-						appState.settings.enableFormerPOS && Object.keys(byPOS).length > 0
+						showPOS
 							? `
           <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
             ${renderPOSTable(byPOS, tracked)}
@@ -1053,8 +1099,14 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 			tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
 		const t2Pct =
 			tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
+		/* Calculate per-member expected hours accounting for their OOO days */
+		const memberOOO = getOOODatesFromEntries(memberEntries);
+		const memberExpected =
+			expectedHours > 0
+				? expectedHours - memberOOO.size * TARGETS.dailyTrackableHours
+				: 0;
 		const compliancePct =
-			expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
+			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
 
 		rows.push({ name, tracked, billable, byTier, t1Pct, t2Pct, compliancePct });
 	}
@@ -1389,18 +1441,34 @@ function renderBillableBreakdown(entries, total) {
  * getExpectedHours
  * Returns the expected trackable hours for the current period,
  * only counting days/hours up to now. Future days are not included.
- * OOO days are excluded.
+ * OOO days are excluded. First tracked date is derived from the
+ * entries themselves, not the local database.
  *
  * @param {Array<Object>} entries - Entries for the period (needed to detect OOO days)
- * @returns {number} Expected trackable hours up to now
+ * @param {Array<Object>} allAvailableEntries - All entries to find first tracked date (optional)
+ * @returns {Promise<number>} Expected trackable hours up to now
  */
-async function getExpectedHours(entries = []) {
+async function getExpectedHours(entries = [], allAvailableEntries = null) {
 	const range = getPeriodRange();
 	const oooDates = getOOODatesFromEntries(entries);
 	const startHour = appState.settings.dayStartHour || 8;
 
-	/* Don't count expected hours before the user started tracking */
-	const firstDate = await getFirstTrackedDate();
+	/* Find first tracked date from the appropriate source */
+	let firstDate;
+	if (selectedMember === "self") {
+		/* Own data — use local database */
+		firstDate = await getFirstTrackedDate();
+	} else if (allAvailableEntries && allAvailableEntries.length > 0) {
+		/* Team data — find earliest date from the entries */
+		firstDate =
+			allAvailableEntries
+				.map((e) => e.date)
+				.filter(Boolean)
+				.sort()[0] || null;
+	} else {
+		firstDate = null;
+	}
+
 	const effectiveStart =
 		firstDate && firstDate > range.startDate ? firstDate : range.startDate;
 
