@@ -881,6 +881,20 @@ async function renderStats() {
       `
 				: "";
 		})()}
+
+    <!-- ================================================================
+      CATEGORY HEATMAP
+      ================================================================ -->
+    ${(() => {
+			const heatmapHtml = renderCategoryHeatmap(entries);
+			return heatmapHtml
+				? `
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${heatmapHtml}
+    </div>
+      `
+				: "";
+		})()}
     `
 			: ""
 	}
@@ -1411,6 +1425,172 @@ function renderOutsourcingCandidates(entries) {
 	});
 
 	html += "</div>";
+	return html;
+}
+
+/**
+ * renderCategoryHeatmap
+ * Shows a grid with team members as rows and categories as columns.
+ * Cell color intensity indicates hours spent — darker means more time.
+ * Helps managers spot specialization patterns at a glance.
+ */
+function renderCategoryHeatmap(entries) {
+	/* Group entries by member */
+	const byMember = {};
+	entries.forEach((e) => {
+		if (!e.memberName || !e.category) return;
+		if (e.category === "lunch" || e.category === "ooo") return;
+		if (!byMember[e.memberName]) byMember[e.memberName] = {};
+		if (!byMember[e.memberName][e.category])
+			byMember[e.memberName][e.category] = 0;
+		byMember[e.memberName][e.category] += 0.5;
+	});
+
+	const members = Object.keys(byMember).sort((a, b) =>
+		a.toLowerCase().localeCompare(b.toLowerCase()),
+	);
+
+	if (members.length === 0) return "";
+
+	/* Get active categories (any category that has hours across the team) */
+	const activeCatIds = new Set();
+	members.forEach((name) => {
+		Object.keys(byMember[name]).forEach((catId) => {
+			if (byMember[name][catId] > 0) activeCatIds.add(catId);
+		});
+	});
+
+	const activeCats = CATEGORIES.filter((c) => activeCatIds.has(c.id));
+	if (activeCats.length === 0) return "";
+
+	/* Find the max hours in any single cell for scaling intensity */
+	let maxHours = 0;
+	members.forEach((name) => {
+		activeCats.forEach((cat) => {
+			const hrs = byMember[name]?.[cat.id] || 0;
+			if (hrs > maxHours) maxHours = hrs;
+		});
+	});
+
+	/* Intensity function: returns opacity 0.0 to 1.0 */
+	function intensity(hours) {
+		if (maxHours === 0 || hours === 0) return 0;
+		/* Use square root scale so low values are still visible */
+		return Math.sqrt(hours / maxHours);
+	}
+
+	/* Short category labels for column headers */
+	function shortLabel(label) {
+		const map = {
+			"Admin (Email/Slack)": "Admin",
+			"Analytics Support": "Analytics",
+			"API / Technical Scoping": "API",
+			"Data Migration / Cleaning": "Migration",
+			"Hardware Support": "Hardware",
+			"Internal Tools Dev": "Tools",
+			"Live Meeting — Internal": "Mtg int",
+			"Live Meeting — Merchant": "Mtg merch",
+			"Research / Product Sync": "Research",
+			Other: "Other",
+		};
+		return map[label] || label;
+	}
+
+	let html = `
+    <div class="text-sm font-medium mb-3">Category heatmap</div>
+    <div style="overflow-x: auto;">
+    <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+      <thead>
+        <tr>
+          <th style="text-align: left; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px; min-width: 100px;"></th>
+          ${activeCats
+						.map(
+							(cat) => `
+            <th style="text-align: center; padding: 6px 4px; font-weight: 500; color: var(--text-muted); font-size: 10px; min-width: 50px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                <div style="width: 6px; height: 6px; border-radius: 2px; background: var(${cat.cssVar});"></div>
+                ${shortLabel(cat.label)}
+              </div>
+            </th>
+          `,
+						)
+						.join("")}
+          <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+	members.forEach((name) => {
+		const initials = name
+			.split(" ")
+			.map((n) => n[0])
+			.join("")
+			.toUpperCase()
+			.slice(0, 2);
+		const memberTotal = Object.values(byMember[name] || {}).reduce(
+			(sum, h) => sum + h,
+			0,
+		);
+
+		html += `
+      <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${name}">
+        <td style="padding: 6px 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; color: var(--accent-text);">${initials}</div>
+            <span style="font-weight: 500; font-size: 11px; color: var(--accent-text);">${name}</span>
+          </div>
+        </td>
+    `;
+
+		activeCats.forEach((cat) => {
+			const hrs = byMember[name]?.[cat.id] || 0;
+			const opac = intensity(hrs);
+
+			html += `
+        <td style="text-align: center; padding: 4px;">
+          <div style="
+            border-radius: 4px;
+            padding: 4px 2px;
+            font-size: 10px;
+            font-weight: ${hrs > 0 ? "500" : "400"};
+            color: ${hrs > 0 ? "var(--text-primary)" : "var(--text-placeholder)"};
+            background: ${hrs > 0 ? `color-mix(in srgb, var(${cat.cssVar}) ${Math.round(opac * 40 + 10)}%, transparent)` : "none"};
+          ">${hrs > 0 ? hrs : ""}</div>
+        </td>
+      `;
+		});
+
+		html += `
+        <td style="text-align: right; padding: 6px 8px; font-weight: 500; font-size: 11px;">${memberTotal}h</td>
+      </tr>
+    `;
+	});
+
+	/* Team totals row */
+	html += `
+    <tr style="border-top: 1px solid var(--border-default);">
+      <td style="padding: 6px 8px; font-weight: 500; font-size: 11px; color: var(--text-muted);">Team total</td>
+  `;
+
+	let grandTotal = 0;
+	activeCats.forEach((cat) => {
+		const catTotal = members.reduce(
+			(sum, name) => sum + (byMember[name]?.[cat.id] || 0),
+			0,
+		);
+		grandTotal += catTotal;
+		html += `
+      <td style="text-align: center; padding: 6px 4px; font-weight: 500; font-size: 11px; color: var(--text-muted);">${catTotal > 0 ? catTotal : ""}</td>
+    `;
+	});
+
+	html += `
+      <td style="text-align: right; padding: 6px 8px; font-weight: 500; font-size: 11px; color: var(--text-primary);">${grandTotal}h</td>
+    </tr>
+  `;
+
+	html += "</tbody></table></div>";
 	return html;
 }
 
