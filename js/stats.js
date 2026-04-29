@@ -2613,3 +2613,79 @@ function attachStatsListeners() {
 		showNotesPanel(appState);
 	});
 }
+
+/**
+ * getStatsContext
+ * Returns the current stats view context for report generation.
+ * Called by app.js when exporting a team report.
+ */
+export async function getStatsContext() {
+	if (!appState) return null;
+
+	const range = getPeriodRange();
+	const tierMap = await getTierMap();
+
+	let allEntries;
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		allEntries = await getAllTeamEntriesForPeriod(
+			range.startDate,
+			range.endDate,
+		);
+	} else if (
+		appState.settings.role === "manager" &&
+		selectedMember !== "self"
+	) {
+		allEntries = await getTeamMemberData(
+			selectedMember,
+			range.startDate,
+			range.endDate,
+		);
+	} else {
+		allEntries = await getEntriesForDateRange(range.startDate, range.endDate);
+	}
+
+	const entries = filterEntriesUpToNow(allEntries);
+	const tracked = countTrackedHours(entries);
+	const billable = countBillableHours(entries);
+	const byCategory = aggregateByCategory(entries);
+	const byTier = aggregateByTier(entries, tierMap);
+	const byMerchant = aggregateByMerchant(entries);
+	const byPOS = aggregateByPOS(entries);
+	const urgentHours = countUrgentHours(entries);
+	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
+	const expectedHours = await getExpectedHours(allEntries, allEntries);
+
+	const flaggedMerchants =
+		Object.keys(byMerchant).length > 0
+			? detectDisproportionate(byMerchant)
+			: [];
+	const flaggedPOS =
+		Object.keys(byPOS).length > 0 ? detectDisproportionate(byPOS) : [];
+
+	/* Build byMember for team reports */
+	const byMember = {};
+	entries.forEach((e) => {
+		const name = e.memberName || "Self";
+		if (!byMember[name]) byMember[name] = [];
+		byMember[name].push(e);
+	});
+
+	return {
+		range,
+		entries,
+		tracked,
+		billable,
+		expectedHours,
+		byCategory,
+		byTier,
+		byMerchant,
+		byPOS,
+		urgentHours,
+		urgentPct,
+		selectedMember,
+		teamMembers,
+		flaggedMerchants,
+		flaggedPOS,
+		byMember,
+	};
+}

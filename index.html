@@ -3,7 +3,7 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Chronos — Time Tracker</title>
+		<title>Pro-Serv Time Tracker</title>
 
 		<!-- ====================================================================
     EXTERNAL DEPENDENCIES (CDN)
@@ -76,7 +76,7 @@
 				<!-- Left: App title + view badge -->
 				<div class="flex items-center gap-3">
 					<h1 class="text-lg font-semibold tracking-tight text-stone-900">
-						Chronos
+						Pro-Serv Time Tracker
 					</h1>
 					<span
 						id="view-badge"
@@ -204,6 +204,27 @@
 							>
 								Export all weeks to date
 							</button>
+							<button
+								id="btn-export-report"
+								class="hidden"
+								style="
+									width: 100%;
+									text-align: left;
+									padding: 8px 10px;
+									font-size: 12px;
+									border-radius: 6px;
+									border: none;
+									background: none;
+									color: var(--text-primary);
+									cursor: pointer;
+									font-family: inherit;
+									border-top: 0.5px solid var(--border-default);
+								"
+								onmouseover="this.style.background = 'var(--bg-surface)'"
+								onmouseout="this.style.background = 'none'"
+							>
+								Export team report (PDF)
+							</button>
 						</div>
 					</div>
 				</nav>
@@ -220,7 +241,7 @@
 				<div class="flex items-center gap-3">
 					<div class="flex-1">
 						<p class="text-sm font-medium text-chronos-700">
-							Welcome to Chronos
+							Welcome to the Pro-Serv Time Tracker!
 						</p>
 						<p class="text-sm text-chronos-500 mt-0.5">
 							Set your name so it appears on your exports.
