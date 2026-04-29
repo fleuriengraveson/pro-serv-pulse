@@ -144,6 +144,17 @@ document.addEventListener("keydown", (e) => {
 				if (chip) chip.click();
 				return;
 			}
+			/* Arrow keys navigate stats periods */
+			if (e.key === "ArrowLeft") {
+				e.preventDefault();
+				document.getElementById("period-prev")?.click();
+				return;
+			}
+			if (e.key === "ArrowRight") {
+				e.preventDefault();
+				document.getElementById("period-next")?.click();
+				return;
+			}
 		}
 
 		/* Tracker shortcuts below only apply when stats is NOT active */
