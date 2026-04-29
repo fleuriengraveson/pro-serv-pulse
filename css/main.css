@@ -691,6 +691,137 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+ * NOTES SLIDE-OUT PANEL
+ * --------------------------------------------------------------------------
+ * Slides in from the right side, overlaying the sidebar area.
+ * Grid stays visible behind it.
+ * ------------------------------------------------------------------------- */
+
+.notes-panel {
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: 380px;
+	height: 100vh;
+	background: var(--bg-card);
+	border-left: 1px solid var(--border-default);
+	box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+	z-index: 50;
+	display: flex;
+	flex-direction: column;
+	transform: translateX(100%);
+	transition: transform 0.25s ease;
+	overflow-y: auto;
+}
+[data-theme="dark"] .notes-panel {
+	box-shadow: -4px 0 24px rgba(0, 0, 0, 0.2);
+}
+.notes-panel.open {
+	transform: translateX(0);
+}
+.notes-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 20px;
+	border-bottom: 0.5px solid var(--border-default);
+	position: sticky;
+	top: 0;
+	background: var(--bg-card);
+	z-index: 1;
+}
+.notes-panel-body {
+	padding: 16px 20px;
+	flex: 1;
+}
+.notes-banner {
+	font-size: 12px;
+	color: var(--accent-text);
+	background: var(--accent-light);
+	border: 0.5px solid var(--accent-border);
+	border-radius: 8px;
+	padding: 8px 12px;
+	margin-bottom: 16px;
+}
+.notes-panel textarea {
+	width: 100%;
+	padding: 8px 10px;
+	font-size: 13px;
+	border: 0.5px solid var(--border-default);
+	border-radius: 8px;
+	background: var(--bg-input);
+	color: var(--text-primary);
+	font-family: inherit;
+	resize: vertical;
+	min-height: 80px;
+}
+.notes-panel textarea:focus {
+	border-color: var(--accent-text-light);
+	box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.15);
+	outline: none;
+}
+.notes-panel textarea::placeholder {
+	color: var(--text-placeholder);
+}
+.notes-field-label {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+	margin-bottom: 4px;
+}
+.notes-field-hint {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+.notes-save-status {
+	font-size: 11px;
+	height: 16px;
+	padding: 0 20px;
+}
+
+/* Sidebar action buttons */
+.sidebar-actions {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 10px;
+}
+.sidebar-btn {
+	flex: 1;
+	padding: 6px 0;
+	text-align: center;
+	font-size: 11px;
+	border-radius: 8px;
+	cursor: pointer;
+	font-family: inherit;
+	transition: all 0.15s ease;
+	border: 0.5px solid var(--border-default);
+	background: none;
+	color: var(--text-muted);
+}
+.sidebar-btn:hover {
+	color: var(--text-primary);
+	border-color: var(--border-strong);
+}
+.sidebar-btn-notes {
+	background: linear-gradient(
+		135deg,
+		rgba(192, 132, 252, 0.15),
+		rgba(103, 232, 249, 0.15)
+	) !important;
+	border-color: var(--accent-border) !important;
+	color: var(--accent-text) !important;
+	font-weight: 500;
+}
+.sidebar-btn-notes:hover {
+	background: linear-gradient(
+		135deg,
+		rgba(192, 132, 252, 0.25),
+		rgba(103, 232, 249, 0.25)
+	) !important;
+}
+
+/* ----------------------------------------------------------------------------
  * STAT CARDS
  * --------------------------------------------------------------------------
  * Used in both individual and manager dashboards.

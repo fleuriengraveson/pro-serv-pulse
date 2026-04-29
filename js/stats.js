@@ -60,11 +60,11 @@ let chartInstances = {}; // Track Chart.js instances for cleanup
 
 /* Period filter options */
 const PERIODS = [
-	{ id: "weekly", label: "Weekly" },
-	{ id: "monthly", label: "Monthly" },
+	{ id: "weekly", label: "Weekly (W)" },
+	{ id: "monthly", label: "Monthly (M)" },
 	{ id: "quarterly", label: "Quarterly" },
-	{ id: "fy", label: "FY" },
-	{ id: "cy", label: "Calendar year" },
+	{ id: "fy", label: "FY (F)" },
+	{ id: "cy", label: "Calendar year (Y)" },
 ];
 
 /* ============================================================================

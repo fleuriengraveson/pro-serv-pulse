@@ -60,8 +60,11 @@ let clipboard = null; // Stores the copied entry data (without date/timeSlot)
 let isShiftDown = false; // Tracks if Shift key is held for range fill
 let lastClickedSlot = null; // The last block clicked — used as range fill anchor
 let activeView = localStorage.getItem("chronos-tracker-view") || "day";
+if (activeView === "notes") activeView = "day";
 
 function setActiveView(view) {
+	/* Notes is now a panel, not a view — don't persist it */
+	if (view === "notes") return;
 	activeView = view;
 	localStorage.setItem("chronos-tracker-view", view);
 }
@@ -160,8 +163,7 @@ document.addEventListener("keydown", (e) => {
 			closeDropdown();
 			closeWeekPopover();
 			closeOOOPopover();
-			setActiveView("notes");
-			renderNotesView();
+			showNotesPanel();
 		}
 		if (e.key === "t" || e.key === "T") {
 			closeDropdown();
@@ -280,10 +282,6 @@ async function renderTracker() {
 		await renderWeekView();
 		return;
 	}
-	if (activeView === "notes") {
-		await renderNotesView();
-		return;
-	}
 
 	/* Preserve scroll position across re-renders */
 	const existingGrid = document.querySelector(".tracker-grid");
@@ -331,21 +329,9 @@ async function renderTracker() {
         <!-- View toggle -->
         <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
           <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
           <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
-          <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
-        </div>
-
-        <!-- Quick actions -->
-        <div class="flex items-center gap-2">
-          <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-            Fill lunch
-          </button>
-          <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-            Today
-          </button>
+            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
         </div>
       </div>
     </div>
@@ -657,6 +643,13 @@ function renderSidebar(stats) {
 	const weeklyPaceInfo = paceDisplay(stats.weeklyPace, stats.weeklyExpected);
 
 	return `
+    <!-- Action buttons -->
+    <div class="sidebar-actions">
+      <button id="btn-fill-lunch" class="sidebar-btn">Fill lunch</button>
+      <button id="btn-today" class="sidebar-btn">Today</button>
+      <button id="btn-notes" class="sidebar-btn sidebar-btn-notes">Notes (N)</button>
+    </div>
+
     <!-- Daily tracked hours -->
     <div class="stat-card">
       <div class="stat-card-label">Tracked today</div>
@@ -1319,6 +1312,11 @@ function attachEventListeners() {
 			await fillLunch();
 		});
 
+	/* Notes panel */
+	document.getElementById("btn-notes")?.addEventListener("click", () => {
+		showNotesPanel();
+	});
+
 	/* View toggle */
 	document.getElementById("toggle-day")?.addEventListener("click", () => {
 		setActiveView("day");
@@ -1330,14 +1328,6 @@ function attachEventListeners() {
 		closeOOOPopover();
 		setActiveView("week");
 		renderWeekView();
-	});
-
-	document.getElementById("toggle-notes")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		setActiveView("notes");
-		renderNotesView();
 	});
 
 	/* --- Time block clicks --- */
@@ -1416,14 +1406,6 @@ function attachWeekEventListeners() {
 	document.getElementById("toggle-week")?.addEventListener("click", () => {
 		setActiveView("week");
 		renderWeekView();
-	});
-
-	document.getElementById("toggle-notes")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		setActiveView("notes");
-		renderNotesView();
 	});
 
 	/* Week navigation */
@@ -1557,6 +1539,11 @@ function attachWeekEventListeners() {
 		?.addEventListener("click", async () => {
 			await fillLunchWeek();
 		});
+
+	/* Notes panel */
+	document.getElementById("btn-notes")?.addEventListener("click", () => {
+		showNotesPanel();
+	});
 
 	/* Today button — switch to day view on today's date */
 	document.getElementById("btn-today")?.addEventListener("click", () => {
@@ -1787,21 +1774,9 @@ async function renderWeekView() {
         <!-- View toggle -->
         <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
           <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
+            ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day (D)</button>
           <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
-          <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-            ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
-        </div>
-
-        <!-- Quick actions -->
-        <div class="flex items-center gap-2">
-          <button id="btn-fill-lunch" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-            Fill lunch
-          </button>
-          <button id="btn-today" class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-            Today
-          </button>
+            ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week (W)</button>
         </div>
       </div>
     </div>
@@ -1927,200 +1902,6 @@ async function renderWeekView() {
  * Weekly qualitative notes: wins, losses, issues to flag, and customer
  * meetings. Saved per ISO week and included in exports.
  * ========================================================================= */
-
-/**
- * renderNotesView
- * Builds the notes form for the current week.
- */
-async function renderNotesView() {
-	const container = document.getElementById("view-tracker");
-	const weekKey = getISOWeekKey(currentDate);
-
-	/* Load existing notes for this week */
-	const existing = await getWeeklyNotes(weekKey);
-	const notes = existing || {
-		wins: "",
-		losses: "",
-		issues: "",
-		customerMeetings: "",
-	};
-
-	container.innerHTML = `
-    <!-- Week navigation -->
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <button id="prev-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <span class="text-sm font-medium min-w-[200px] text-center">
-          Week of ${formatDateDisplay(weekDates[0])}
-        </span>
-        <button id="next-week" class="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- View toggle -->
-      <div class="flex gap-1 bg-surface-100 rounded-lg p-0.5">
-        <button id="toggle-day" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          ${activeView === "day" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Day</button>
-        <button id="toggle-week" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          ${activeView === "week" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Week</button>
-        <button id="toggle-notes" class="view-toggle text-xs px-3 py-1.5 rounded-md transition-colors
-          ${activeView === "notes" ? "bg-white text-stone-700 font-medium shadow-sm" : "text-stone-400 hover:text-stone-600"}">Notes</button>
-      </div>
-    </div>
-
-    <!-- Notes form -->
-    <div class="max-w-2xl">
-
-      <!-- Auto-save indicator -->
-      <div id="notes-save-status" class="text-xs text-stone-300 mb-4 h-4"></div>
-
-      <!-- Wins -->
-      <div class="mb-6">
-        <label class="block text-sm font-medium text-stone-700 mb-1.5">Wins of the week</label>
-        <p class="text-xs text-stone-400 mb-2">What went well? Successful migrations, resolved tickets, shipped features, positive customer feedback.</p>
-        <textarea id="notes-wins"
-                  rows="4"
-                  placeholder="e.g., Successfully helped migrate Merchant X to new POS, resolved high-priority ticket #1234..."
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
-        >${notes.wins || ""}</textarea>
-      </div>
-
-      <!-- Losses -->
-      <div class="mb-6">
-        <label class="block text-sm font-medium text-stone-700 mb-1.5">Losses of the week</label>
-        <p class="text-xs text-stone-400 mb-2">What didn't go as planned? Blockers, delays, things that took longer than expected.</p>
-        <textarea id="notes-losses"
-                  rows="4"
-                  placeholder="e.g., [merchant] churned due to [issue] that we couldn't resolve in time..."
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
-        >${notes.losses || ""}</textarea>
-      </div>
-
-      <!-- Issues to flag -->
-      <div class="mb-6">
-        <label class="block text-sm font-medium text-stone-700 mb-1.5">Issues to flag to management</label>
-        <p class="text-xs text-stone-400 mb-2">Recurring problems, resource constraints, customer patterns, high-capacity situations that need attention.</p>
-        <textarea id="notes-issues"
-                  rows="4"
-                  placeholder="e.g., LSR-1234 causing reoccurring issues for merchants, leading to high ticket volume..."
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300 resize-y"
-        >${notes.issues || ""}</textarea>
-      </div>
-    </div>
-  `;
-
-	/* Attach notes event listeners */
-	attachNotesListeners();
-}
-
-/**
- * attachNotesListeners
- * Sets up auto-save on notes fields and navigation handlers.
- */
-function attachNotesListeners() {
-	const statusEl = document.getElementById("notes-save-status");
-
-	/* Debounced auto-save for all textareas */
-	let saveTimeout;
-	const autoSave = async () => {
-		const weekKey = getISOWeekKey(currentDate);
-
-		const notesData = {
-			wins: document.getElementById("notes-wins")?.value || "",
-			losses: document.getElementById("notes-losses")?.value || "",
-			issues: document.getElementById("notes-issues")?.value || "",
-			customerMeetings: document.getElementById("notes-meetings")?.value || "",
-		};
-
-		await saveWeeklyNotes(weekKey, notesData);
-
-		/* Show save confirmation */
-		if (statusEl) {
-			statusEl.textContent = "Saved";
-			statusEl.style.color = "var(--positive)";
-			setTimeout(() => {
-				if (statusEl) {
-					statusEl.textContent = "";
-				}
-			}, 2000);
-		}
-	};
-
-	/* Attach to all textareas with debounce */
-	document.querySelectorAll("#view-tracker textarea").forEach((textarea) => {
-		textarea.addEventListener("input", () => {
-			/* Show "saving..." while debouncing */
-			if (statusEl) {
-				statusEl.textContent = "Saving...";
-				statusEl.style.color = "var(--cat-lunch-text)";
-			}
-			clearTimeout(saveTimeout);
-			saveTimeout = setTimeout(autoSave, 500);
-		});
-	});
-
-	/* View toggles */
-	document.getElementById("toggle-day")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		setActiveView("day");
-		renderTracker();
-	});
-	document.getElementById("toggle-week")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		setActiveView("week");
-		renderWeekView();
-	});
-	document.getElementById("toggle-notes")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		setActiveView("notes");
-		renderNotesView();
-	});
-
-	/* Week navigation */
-	document.getElementById("prev-week")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		const mon = weekDates[0];
-		mon.setDate(mon.getDate() - 7);
-		weekDates = getWeekDates(mon);
-		currentDate = weekDates[0];
-		renderNotesView();
-	});
-	document.getElementById("next-week")?.addEventListener("click", () => {
-		closeDropdown();
-		closeWeekPopover();
-		closeOOOPopover();
-		const mon = weekDates[0];
-		mon.setDate(mon.getDate() + 7);
-		weekDates = getWeekDates(mon);
-		currentDate = weekDates[0];
-		renderNotesView();
-	});
-
-	document.querySelectorAll(".week-chip").forEach((chip) => {
-		chip.addEventListener("contextmenu", (e) => {
-			e.preventDefault();
-			closeDropdown();
-			closeWeekPopover();
-			closeOOOPopover();
-			showOOOPopover(chip.dataset.date, chip);
-		});
-	});
-}
 
 /**
  * showWeekPopover
@@ -2509,6 +2290,141 @@ async function showOOOPopover(dateStr, chipEl) {
 function closeOOOPopover() {
 	const existing = document.getElementById("ooo-popover");
 	if (existing) existing.remove();
+}
+
+/**
+ * showNotesPanel
+ * Opens the slide-out notes panel for the current week.
+ */
+async function showNotesPanel() {
+	/* Close if already open */
+	const existing = document.getElementById("notes-panel");
+	if (existing) {
+		closeNotesPanel();
+		return;
+	}
+
+	const weekKey = getISOWeekKey(currentDate);
+	const existingNotes = await getWeeklyNotes(weekKey);
+	const notes = existingNotes || {
+		wins: "",
+		losses: "",
+		issues: "",
+		customerMeetings: "",
+	};
+
+	const panel = document.createElement("div");
+	panel.className = "notes-panel";
+	panel.id = "notes-panel";
+
+	panel.innerHTML = `
+    <div class="notes-panel-header">
+      <div>
+        <div style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Weekly notes</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Week of ${formatDateDisplay(weekDates[0])}</div>
+      </div>
+      <button id="notes-close" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 0.5px solid var(--border-default); background: none; color: var(--text-muted); cursor: pointer; font-size: 16px;">
+        &times;
+      </button>
+    </div>
+
+    <div class="notes-banner">
+      These notes cover the entire week and will be included in your weekly export.
+    </div>
+
+    <div class="notes-save-status" id="notes-save-status"></div>
+
+    <div class="notes-panel-body">
+      <div style="margin-bottom: 16px;">
+        <div class="notes-field-label">Wins of the week</div>
+        <div class="notes-field-hint">Successful migrations, resolved tickets, shipped features.</div>
+        <textarea id="notes-wins" rows="3" placeholder="e.g., Successfully migrated Merchant X to new POS...">${notes.wins || ""}</textarea>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div class="notes-field-label">Losses of the week</div>
+        <div class="notes-field-hint">Blockers, delays, things that took longer than expected.</div>
+        <textarea id="notes-losses" rows="3" placeholder="e.g., CSV format issues delayed migration by 2 days...">${notes.losses || ""}</textarea>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div class="notes-field-label">Issues to flag to management</div>
+        <div class="notes-field-hint">Recurring problems, resource constraints, customer patterns.</div>
+        <textarea id="notes-issues" rows="3" placeholder="e.g., Recurring import errors for merchants on RICOs...">${notes.issues || ""}</textarea>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div class="notes-field-label">Customer meetings and engagements</div>
+        <div class="notes-field-hint">External meetings, outcomes, and follow-ups needed.</div>
+        <textarea id="notes-meetings" rows="3" placeholder="e.g., Met with qbedding2026 re: product import — follow-up Tuesday...">${notes.customerMeetings || ""}</textarea>
+      </div>
+    </div>
+  `;
+
+	document.body.appendChild(panel);
+
+	/* Trigger the slide animation on next frame */
+	requestAnimationFrame(() => {
+		panel.classList.add("open");
+	});
+
+	/* Auto-save on typing */
+	let saveTimeout;
+	const statusEl = panel.querySelector("#notes-save-status");
+
+	const autoSave = async () => {
+		const notesData = {
+			wins: panel.querySelector("#notes-wins")?.value || "",
+			losses: panel.querySelector("#notes-losses")?.value || "",
+			issues: panel.querySelector("#notes-issues")?.value || "",
+			customerMeetings: panel.querySelector("#notes-meetings")?.value || "",
+		};
+		await saveWeeklyNotes(weekKey, notesData);
+		if (statusEl) {
+			statusEl.textContent = "Saved";
+			statusEl.style.color = "var(--positive)";
+			setTimeout(() => {
+				if (statusEl) statusEl.textContent = "";
+			}, 2000);
+		}
+	};
+
+	panel.querySelectorAll("textarea").forEach((ta) => {
+		ta.addEventListener("input", () => {
+			if (statusEl) {
+				statusEl.textContent = "Saving...";
+				statusEl.style.color = "var(--text-muted)";
+			}
+			clearTimeout(saveTimeout);
+			saveTimeout = setTimeout(autoSave, 500);
+		});
+	});
+
+	/* Close button */
+	panel
+		.querySelector("#notes-close")
+		.addEventListener("click", closeNotesPanel);
+
+	/* Close on Escape */
+	const escHandler = (e) => {
+		if (e.key === "Escape") {
+			closeNotesPanel();
+			document.removeEventListener("keydown", escHandler);
+		}
+	};
+	document.addEventListener("keydown", escHandler);
+}
+
+/**
+ * closeNotesPanel
+ * Slides the notes panel closed and removes it.
+ */
+function closeNotesPanel() {
+	const panel = document.getElementById("notes-panel");
+	if (!panel) return;
+
+	panel.classList.remove("open");
+	setTimeout(() => panel.remove(), 250);
 }
 
 /* ============================================================================
