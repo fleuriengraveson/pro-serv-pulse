@@ -548,6 +548,71 @@ export function countOOODays(entries) {
 	return count;
 }
 
+/**
+ * countUrgentHours
+ * Sums the hours of all entries flagged as urgent.
+ * Excludes lunch and OOO.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {number} Total urgent hours
+ */
+export function countUrgentHours(entries) {
+	return (
+		entries.filter(
+			(e) =>
+				e.urgent &&
+				e.category &&
+				e.category !== "lunch" &&
+				e.category !== "ooo",
+		).length *
+		(TIME_DEFAULTS.blockMinutes / 60)
+	);
+}
+
+/**
+ * aggregateMerchantPOS
+ * Groups merchants by their most recent POS system and sums hours.
+ * Returns an array of { pos, merchants: [{ name, hours }], totalHours }.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {Array<Object>} Sorted by total hours descending
+ */
+export function aggregateMerchantPOS(entries) {
+	/* Build a map of merchant → { pos, hours } using most recent POS per merchant */
+	const merchantMap = {};
+
+	/* Sort entries by date descending so first seen POS is most recent */
+	const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+
+	sorted.forEach((e) => {
+		if (!e.merchant || !e.merchant.trim()) return;
+		const name = e.merchant.trim();
+		const hours = TIME_DEFAULTS.blockMinutes / 60;
+
+		if (!merchantMap[name]) {
+			merchantMap[name] = { pos: e.formerPOS?.trim() || "Unknown", hours: 0 };
+		}
+		merchantMap[name].hours += hours;
+	});
+
+	/* Group by POS */
+	const posMap = {};
+	for (const [name, data] of Object.entries(merchantMap)) {
+		const pos = data.pos;
+		if (!posMap[pos]) posMap[pos] = { pos, merchants: [], totalHours: 0 };
+		posMap[pos].merchants.push({ name, hours: data.hours });
+		posMap[pos].totalHours += data.hours;
+	}
+
+	/* Sort each POS group's merchants by hours descending */
+	for (const group of Object.values(posMap)) {
+		group.merchants.sort((a, b) => b.hours - a.hours);
+	}
+
+	/* Sort POS groups by total hours descending */
+	return Object.values(posMap).sort((a, b) => b.totalHours - a.totalHours);
+}
+
 /* ============================================================================
  * EXPORT / IMPORT FILE HELPERS
  * ========================================================================= */

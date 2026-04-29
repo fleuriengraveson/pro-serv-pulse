@@ -44,6 +44,8 @@ import {
 	detectOutlier,
 	getCategoryLabel,
 	getCategoryHex,
+	countUrgentHours,
+	aggregateMerchantPOS,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
 
@@ -440,6 +442,12 @@ async function renderStats() {
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
 	const byPOS = aggregateByPOS(entries);
+	const urgentHours = countUrgentHours(entries);
+	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
+	const merchantPOS =
+		appState.settings.enableMerchant && appState.settings.enableFormerPOS
+			? aggregateMerchantPOS(entries)
+			: [];
 	const expectedHours = await getExpectedHours(allEntries);
 
 	const currentStats = {
@@ -686,19 +694,61 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-      CHARTS ROW 1: Hours by area (full width)
+      ROW 2: Hours by area + Urgent / Merchant-POS correlation
       ================================================================ -->
-    <div class="mb-6">
+    <div class="grid grid-cols-2 gap-4 mb-6">
+
+      <!-- Hours by area donut (left) -->
       <div class="p-4 rounded-xl border border-stone-100 bg-white">
         <div class="text-sm font-medium mb-3">Hours by area</div>
-        <div class="chart-container" style="height: 240px;">
+        <div class="chart-container" style="height: 220px;">
           <canvas id="chart-category"></canvas>
         </div>
+      </div>
+
+      <!-- Urgent + Merchant-POS (right, stacked) -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Urgent flag frequency -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+          <div class="text-sm font-medium mb-3">Urgent work</div>
+          ${
+						urgentHours > 0
+							? `
+          <div style="display: flex; align-items: baseline; gap: 6px;">
+            <span style="font-size: 20px; font-weight: 500;">${urgentPct}%</span>
+            <span style="font-size: 12px; color: var(--text-muted);">${urgentHours} hrs flagged urgent</span>
+          </div>
+          <div style="height: 6px; border-radius: 3px; background: var(--progress-track); margin-top: 8px; overflow: hidden;">
+            <div style="height: 100%; width: ${urgentPct}%; border-radius: 3px; background: var(--danger); opacity: 0.7;"></div>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">${urgentPct > 20 ? "High reactive workload — consider proactive planning" : urgentPct > 10 ? "Moderate urgency level" : "Low urgency — mostly planned work"}</div>
+          `
+							: `
+          <div style="display: flex; align-items: baseline; gap: 6px;">
+            <span style="font-size: 20px; font-weight: 500; color: var(--text-muted);">0%</span>
+            <span style="font-size: 12px; color: var(--text-muted);">No urgent blocks this period</span>
+          </div>
+          `
+					}
+        </div>
+
+        ${
+					merchantPOS.length > 0
+						? `
+        <!-- Merchant-POS correlation -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
+          ${renderMerchantPOSCard(merchantPOS)}
+        </div>
+        `
+						: ""
+				}
+
       </div>
     </div>
 
     <!-- ================================================================
-      CHARTS ROW 2: Daily breakdown + data tables
+      ROW 3: Daily breakdown + Merchant / POS tables
       ================================================================ -->
     ${(() => {
 			const hasRightColumn =
@@ -720,8 +770,8 @@ async function renderStats() {
         ${
 					hasRightColumn
 						? `
-        <!-- Data tables stacked vertically -->
-        <div class="flex flex-col gap-4" style="min-height: 220px;">
+        <!-- Merchant + POS tables stacked -->
+        <div class="flex flex-col gap-4">
 
           ${
 						appState.settings.enableMerchant &&
@@ -753,44 +803,62 @@ async function renderStats() {
 		})()}
 
     <!-- ================================================================
-        TREND CHART (past completed weeks)
-	================================================================ -->
+      ROW 4: Weekly trend (monthly+ only, 3+ weeks)
+      ================================================================ -->
     ${
 			history.length >= 3 && currentPeriod !== "weekly"
 				? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
-        <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
-        <div class="chart-container" style="height: 200px;">
-            <canvas id="chart-trend"></canvas>
+      <div class="text-sm font-medium mb-3">Weekly trend — past ${history.length} weeks</div>
+      <div class="chart-container" style="height: 200px;">
+        <canvas id="chart-trend"></canvas>
+      </div>
+      <div class="flex gap-4 mt-2">
+        <div class="flex items-center gap-1.5 text-xs text-stone-400">
+          <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
         </div>
-        <div class="flex gap-4 mt-2">
-            <div class="flex items-center gap-1.5 text-xs text-stone-400">
-                <div class="w-4 h-0.5 rounded" style="background: var(--accent);"></div>Tracked hours
-            </div>
-            <div class="flex items-center gap-1.5 text-xs text-stone-400">
-                <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
-            </div>
+        <div class="flex items-center gap-1.5 text-xs text-stone-400">
+          <div class="w-4 h-0.5 rounded" style="background: var(--warning); border-top: 1px dashed var(--warning);"></div>Billable hours
         </div>
+      </div>
     </div>
     `
 				: currentPeriod !== "weekly"
 					? `
     <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
-        <div class="text-sm font-medium mb-3">Weekly trend</div>
-        <div class="flex items-center justify-center" style="height: 120px; color: var(--text-muted); font-size: 13px;">
-            Trends will appear once you have 3+ completed weeks of data.
-        </div>
+      <div class="text-sm font-medium mb-3">Weekly trend</div>
+      <div class="flex items-center justify-center" style="height: 120px; color: var(--text-muted); font-size: 13px;">
+        Trends will appear once you have 3+ completed weeks of data.
+      </div>
     </div>
     `
 					: ""
+		}
+
+    <!-- ================================================================
+      ROW 5: Category proportion trend (monthly+ only, 3+ weeks)
+      ================================================================ -->
+    ${
+			history.length >= 3 && currentPeriod !== "weekly"
+				? `
+    <div class="p-4 rounded-xl border border-stone-100 bg-white mb-6">
+      <div class="text-sm font-medium mb-3">Category trends — past ${history.length} weeks</div>
+      <div class="chart-container" style="height: 220px;">
+        <canvas id="chart-category-trend"></canvas>
+      </div>
+    </div>
+    `
+				: ""
 		}
 	`;
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
 	renderDailyChart(entries, range);
-	if (history.length >= 3 && currentPeriod !== "weekly")
+	if (history.length >= 3 && currentPeriod !== "weekly") {
 		renderTrendChart(history);
+		renderCategoryTrendChart(history);
+	}
 
 	/* Attach event listeners */
 	attachStatsListeners();
@@ -912,6 +980,52 @@ function renderPOSTable(byPOS, total) {
       </div>
     `;
 	}
+
+	html += "</div>";
+	return html;
+}
+
+/**
+ * renderMerchantPOSCard
+ * Shows merchants grouped by their POS system.
+ */
+function renderMerchantPOSCard(merchantPOS) {
+	const totalHours = merchantPOS.reduce((sum, g) => sum + g.totalHours, 0);
+
+	let html = '<div class="text-sm font-medium mb-3">Time by POS platform</div>';
+	html += '<div class="space-y-3">';
+
+	merchantPOS.forEach((group) => {
+		const pct =
+			totalHours > 0 ? Math.round((group.totalHours / totalHours) * 100) : 0;
+		const barWidth =
+			totalHours > 0
+				? Math.round((group.totalHours / merchantPOS[0].totalHours) * 100)
+				: 0;
+
+		html += `
+			<div>
+				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+					<span style="font-size: 12px; font-weight: 500;">${group.pos}</span>
+					<span style="font-size: 11px; color: var(--text-muted);">${group.totalHours} hrs (${pct}%) — ${group.merchants.length} merchant${group.merchants.length > 1 ? "s" : ""}</span>
+				</div>
+				<div style="height: 4px; border-radius: 2px; background: var(--progress-track); margin-bottom: 4px; overflow: hidden;">
+					<div style="height: 100%; width: ${barWidth}%; border-radius: 2px; background: var(--accent); opacity: 0.6;"></div>
+				</div>
+				<div style="display: flex; flex-wrap: wrap; gap: 4px;">
+					${group.merchants
+						.slice(0, 4)
+						.map(
+							(m) => `
+							<span style="font-size: 10px; color: var(--text-muted); background: var(--bg-surface); padding: 2px 6px; border-radius: 4px;">${m.name} (${m.hours}h)</span>
+							`,
+						)
+						.join("")}
+					${group.merchants.length > 4 ? `<span style="font-size: 10px; color: var(--text-placeholder);">+${group.merchants.length - 4} more</span>` : ""}
+				</div>
+			</div>
+			`;
+	});
 
 	html += "</div>";
 	return html;
@@ -1269,6 +1383,110 @@ function renderTrendChart(history) {
 					grid: { color: getChartColors().gridColor },
 					beginAtZero: true,
 				},
+			},
+		},
+	});
+}
+
+/**
+ * renderCategoryTrendChart
+ * Draws a stacked area chart showing how category proportions
+ * shift over weeks. Each band is a category as a percentage of total.
+ */
+function renderCategoryTrendChart(history) {
+	const canvas = document.getElementById("chart-category-trend");
+	if (!canvas) return;
+
+	const reversed = [...history].filter((w) => w.tracked > 0).reverse();
+	if (reversed.length < 3) return;
+
+	/* Get active categories across all weeks */
+	const activeCatIds = new Set();
+	reversed.forEach((w) => {
+		Object.keys(w.byCategory).forEach((id) => {
+			if (id !== "lunch" && id !== "ooo") activeCatIds.add(id);
+		});
+	});
+
+	/* Sort categories by total hours across all weeks */
+	const catTotals = {};
+	reversed.forEach((w) => {
+		for (const id of activeCatIds) {
+			catTotals[id] = (catTotals[id] || 0) + (w.byCategory[id] || 0);
+		}
+	});
+	const sortedCats = [...activeCatIds].sort(
+		(a, b) => (catTotals[b] || 0) - (catTotals[a] || 0),
+	);
+
+	const datasets = sortedCats.map((catId) => {
+		const cat = CATEGORIES.find((c) => c.id === catId);
+		return {
+			label: cat?.label || catId,
+			data: reversed.map((w) => {
+				const weekTotal = Object.entries(w.byCategory)
+					.filter(([id]) => id !== "lunch" && id !== "ooo")
+					.reduce((sum, [, hrs]) => sum + hrs, 0);
+				return weekTotal > 0
+					? Math.round(((w.byCategory[catId] || 0) / weekTotal) * 100)
+					: 0;
+			}),
+			backgroundColor: getChartColors().categories[catId] || "#94A3B8",
+			borderWidth: 0,
+			fill: true,
+		};
+	});
+
+	chartInstances.categoryTrend = new Chart(canvas, {
+		type: "line",
+		data: {
+			labels: reversed.map((w) => w.weekKey.replace(/^\d{4}-/, "")),
+			datasets,
+		},
+		options: {
+			responsive: true,
+			maintainAspectRatio: false,
+			plugins: {
+				legend: {
+					position: "right",
+					labels: {
+						boxWidth: 8,
+						boxHeight: 8,
+						padding: 8,
+						font: {
+							size: 11,
+							family: '"Plus Jakarta Sans", system-ui, sans-serif',
+						},
+						color: getChartColors().legendColor,
+						usePointStyle: true,
+					},
+				},
+				tooltip: {
+					callbacks: {
+						label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}%`,
+					},
+				},
+			},
+			scales: {
+				x: {
+					ticks: { font: { size: 11 }, color: getChartColors().tickColor },
+					grid: { display: false },
+				},
+				y: {
+					stacked: true,
+					min: 0,
+					max: 100,
+					ticks: {
+						font: { size: 10 },
+						color: getChartColors().tickColor,
+						callback: (v) => `${v}%`,
+					},
+					grid: { color: getChartColors().gridColor },
+				},
+			},
+			elements: {
+				line: { tension: 0.3 },
+				point: { radius: 0 },
 			},
 		},
 	});
