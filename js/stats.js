@@ -441,7 +441,6 @@ async function renderStats() {
 	const byMerchant = aggregateByMerchant(entries);
 	const byPOS = aggregateByPOS(entries);
 	const expectedHours = await getExpectedHours(allEntries);
-	const untracked = expectedHours - tracked;
 
 	const currentStats = {
 		tracked,
@@ -467,9 +466,6 @@ async function renderStats() {
 				? "progress-fill-bad"
 				: "progress-fill-warn";
 	}
-
-	/* Historical averages for comparison labels */
-	const tier1Hours = byTier[1] || 0;
 
 	/* Destroy old chart instances */
 	Object.values(chartInstances).forEach((c) => c.destroy());
@@ -516,17 +512,11 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-        TOP METRICS ROW
+		TOP METRICS ROW
     ================================================================ -->
     <div class="grid grid-cols-4 gap-3 mb-6">
-        <!-- Total hours -->
-        <div class="stat-card">
-			<div class="stat-card-label">Total hours</div>
-			<div class="stat-card-value">${total}</div>
-			<div class="stat-card-sub">${getDaysInPeriod()} days</div>
-        </div>
 
-		<!-- Tracked hours -->
+		<!-- Card 1: Tracked hours with pace -->
 		<div class="stat-card">
 			<div class="stat-card-label">Tracked hours</div>
 			<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
@@ -536,54 +526,164 @@ async function renderStats() {
 				${
 					expectedHours > 0
 						? `
-            <div class="progress-marker" style="left: ${TARGETS.compliancePercent}%;"></div>
-            <div class="progress-marker-label" style="left: ${TARGETS.compliancePercent}%;">${((expectedHours * TARGETS.compliancePercent) / 100).toFixed(1)}h min</div>
-          `
+					<div class="progress-marker" style="left: ${TARGETS.compliancePercent}%;"></div>
+					<div class="progress-marker-label" style="left: ${TARGETS.compliancePercent}%;">${((expectedHours * TARGETS.compliancePercent) / 100).toFixed(1)}h min</div>
+				`
 						: ""
 				}
+				</div>
+				${(() => {
+					const minTarget = (expectedHours * TARGETS.compliancePercent) / 100;
+					const isTimeAware =
+						currentPeriod === "daily" || currentPeriod === "weekly";
+
+					if (isTimeAware) {
+						if (tracked >= expectedHours) {
+							return `<div class="pace-text pace-ahead">Complete — ${(tracked - expectedHours).toFixed(1)} hrs over</div>`;
+						} else if (tracked >= minTarget) {
+							return `<div class="pace-text pace-ahead">On track — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
+						} else if (minTarget - tracked < 2) {
+							return `<div class="pace-text pace-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
+						} else {
+							return `<div class="pace-text pace-far-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
+						}
+					} else {
+						const pct =
+							expectedHours > 0
+								? Math.round((tracked / expectedHours) * 100)
+								: 0;
+						if (pct >= TARGETS.compliancePercent) {
+							return `<div class="pace-text pace-ahead">${pct}% tracked — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
+						} else {
+							return `<div class="pace-text pace-behind">${pct}% tracked — target ${TARGETS.compliancePercent}%</div>`;
+						}
+					}
+				})()}
 			</div>
+
+			<!-- Card 2: Tier split -->
 			${(() => {
-				const minTarget = (expectedHours * TARGETS.compliancePercent) / 100;
-				const isTimeAware =
-					currentPeriod === "daily" || currentPeriod === "weekly";
+				const tierTotal =
+					(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
+				const t1Pct =
+					tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
+				const t2Pct =
+					tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
+				const t3Pct = tierTotal > 0 ? 100 - t1Pct - t2Pct : 0;
 
-				if (isTimeAware) {
-					/* Daily/weekly: show pace relative to minimum target */
-					if (tracked >= expectedHours) {
-						return `<div class="pace-text pace-ahead">Complete — ${(tracked - expectedHours).toFixed(1)} hrs over</div>`;
-					} else if (tracked >= minTarget) {
-						return `<div class="pace-text pace-ahead">On track — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
-					} else if (minTarget - tracked < 2) {
-						return `<div class="pace-text pace-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
-					} else {
-						return `<div class="pace-text pace-far-behind">${(minTarget - tracked).toFixed(1)} hrs below minimum</div>`;
-					}
-				} else {
-					/* Monthly+: show simple progress against full period */
-					const pct =
-						expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
-					if (pct >= TARGETS.compliancePercent) {
-						return `<div class="pace-text pace-ahead">${pct}% tracked — ${(expectedHours - tracked).toFixed(1)} hrs remaining</div>`;
-					} else {
-						return `<div class="pace-text pace-behind">${pct}% tracked — target ${TARGETS.compliancePercent}%</div>`;
-					}
+				return `
+			<div class="stat-card">
+				<div class="stat-card-label">Time allocation</div>
+				${
+					tierTotal > 0
+						? `
+				<div style="display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin: 8px 0 10px;">
+					${t1Pct > 0 ? `<div style="width: ${t1Pct}%; background: var(${TIERS[1].hexVar}); opacity: 0.7; border-right: 1px solid var(--bg-card);"></div>` : ""}
+					${t2Pct > 0 ? `<div style="width: ${t2Pct}%; background: var(${TIERS[2].hexVar}); opacity: 0.7; border-right: 1px solid var(--bg-card);"></div>` : ""}
+					${t3Pct > 0 ? `<div style="width: ${t3Pct}%; background: var(${TIERS[3].hexVar}); opacity: 0.7;"></div>` : ""}
+				</div>
+				<div style="display: flex; flex-direction: column; gap: 3px;">
+					<div style="display: flex; justify-content: space-between; font-size: 11px;">
+						<span style="display: flex; align-items: center; gap: 4px;">
+							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[1].hexVar});"></span>
+							<span style="color: var(--text-muted);">Customer</span>
+						</span>
+						<span style="font-weight: 500;">${t1Pct}%</span>
+					</div>
+					<div style="display: flex; justify-content: space-between; font-size: 11px;">
+						<span style="display: flex; align-items: center; gap: 4px;">
+							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[2].hexVar});"></span>
+							<span style="color: var(--text-muted);">Internal</span>
+						</span>
+						<span style="font-weight: 500;">${t2Pct}%</span>
+					</div>
+					<div style="display: flex; justify-content: space-between; font-size: 11px;">
+						<span style="display: flex; align-items: center; gap: 4px;">
+							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[3].hexVar});"></span>
+							<span style="color: var(--text-muted);">Other</span>
+						</span>
+						<span style="font-weight: 500;">${t3Pct}%</span>
+					</div>
+				</div>
+        `
+						: `
+				<div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">No tiered time this period</div>
+        `
 				}
+			</div>`;
 			})()}
+
+      <!-- Card 3: Billable ratio -->
+      ${(() => {
+				const billablePct =
+					tracked > 0 ? Math.round((billable / tracked) * 100) : 0;
+
+				return `
+      <div class="stat-card">
+        <div class="stat-card-label">Billable ratio</div>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 6px;">
+          <div class="stat-card-value">${billablePct}%</div>
+          <span style="font-size: 12px; color: var(--text-muted);">${billable} of ${tracked} hrs</span>
         </div>
+        <div style="height: 6px; border-radius: 3px; background: var(--progress-track); margin-top: 8px; overflow: hidden;">
+          <div style="height: 100%; width: ${Math.max(billablePct, 2)}%; border-radius: 3px; background: ${billable > 0 ? "var(--positive)" : "var(--text-placeholder)"};"></div>
+        </div>
+        ${billable === 0 ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">No billable hours this period</div>` : ""}
+      </div>`;
+			})()}
 
-		<!-- Tier 1 (billable) -->
-		<div class="stat-card">
-			<div class="stat-card-label">Tier 1 (customer)</div>
-			<div class="stat-card-value">${tier1Hours}<span class="text-sm font-normal text-stone-400"> hrs</span></div>
-			</div>
+      <!-- Card 4: Top category -->
+      ${(() => {
+				/* Find the category with the most hours (excluding lunch, OOO) */
+				const catEntries = Object.entries(byCategory)
+					.filter(([id]) => id !== "lunch" && id !== "ooo")
+					.sort((a, b) => b[1] - a[1]);
 
-		<!-- Untracked -->
-		<div class="stat-card">
-			<div class="stat-card-label">Untracked hours</div>
-			<div class="stat-card-value">${Math.max(0, untracked).toFixed(1)}</div>
-			<div class="stat-card-sub"></div>
-		</div>
-	</div>
+				if (catEntries.length === 0) {
+					return `
+      <div class="stat-card">
+        <div class="stat-card-label">Top category</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">No data this period</div>
+      </div>`;
+				}
+
+				const [topId, topHours] = catEntries[0];
+				const topCat = CATEGORIES.find((c) => c.id === topId);
+				const catTotal = catEntries.reduce((sum, [, hrs]) => sum + hrs, 0);
+				const topPct =
+					catTotal > 0 ? Math.round((topHours / catTotal) * 100) : 0;
+
+				/* Check if there's a close second */
+				const hasSecond = catEntries.length > 1;
+				const [secondId, secondHours] = hasSecond ? catEntries[1] : ["", 0];
+				const secondCat = hasSecond
+					? CATEGORIES.find((c) => c.id === secondId)
+					: null;
+				const secondPct =
+					catTotal > 0 ? Math.round((secondHours / catTotal) * 100) : 0;
+
+				return `
+      <div class="stat-card">
+        <div class="stat-card-label">Top category</div>
+        <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px;">
+          <div style="width: 8px; height: 8px; border-radius: 2px; background: var(${topCat?.cssVar || "--cat-other-border"}); flex-shrink: 0;"></div>
+          <span style="font-size: 13px; font-weight: 500;">${topCat?.label || topId}</span>
+        </div>
+        <div style="font-size: 18px; font-weight: 500; margin-top: 4px;">${topPct}%<span style="font-size: 12px; font-weight: 400; color: var(--text-muted);"> (${topHours} hrs)</span></div>
+        ${
+					hasSecond
+						? `
+        <div style="display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border-default);">
+          <div style="width: 6px; height: 6px; border-radius: 2px; background: var(${secondCat?.cssVar || "--cat-other-border"}); flex-shrink: 0;"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">${secondCat?.label || secondId} — ${secondPct}% (${secondHours} hrs)</span>
+        </div>
+        `
+						: ""
+				}
+      </div>`;
+			})()}
+
+    </div>
 
     <!-- ================================================================
         CHARTS ROW 1: Hours by area + Tier breakdown
