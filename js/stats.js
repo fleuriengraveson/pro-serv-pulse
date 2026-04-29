@@ -996,19 +996,52 @@ async function renderStats() {
       ROW 3: Daily breakdown + Merchant / POS tables
       ================================================================ -->
     ${(() => {
-			/* Show merchant/POS tables if data exists — for team views, don't rely on manager's settings */
-			const showMerchant =
-				Object.keys(byMerchant).length > 0 &&
-				(selectedMember !== "self" || appState.settings.enableMerchant);
-			const showPOS =
-				Object.keys(byPOS).length > 0 &&
-				(selectedMember !== "self" || appState.settings.enableFormerPOS);
-			const hasRightColumn = showMerchant || showPOS;
+			const isAllTeam =
+				appState.settings.role === "manager" && selectedMember === "all";
 
-			return `
+			if (isAllTeam) {
+				/* Manager "All team" view — merchant and POS side by side, no daily breakdown */
+				const teamMerchantHtml = renderTeamMerchantTable(entries);
+				const teamPOSHtml = renderTeamPOSTable(entries);
+
+				if (!teamMerchantHtml && !teamPOSHtml) return "";
+
+				const hasBoth = teamMerchantHtml && teamPOSHtml;
+
+				return `
+      <div class="${hasBoth ? "grid grid-cols-2 gap-4" : ""} mb-6">
+        ${
+					teamMerchantHtml
+						? `
+        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+          ${teamMerchantHtml}
+        </div>
+        `
+						: ""
+				}
+        ${
+					teamPOSHtml
+						? `
+        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+          ${teamPOSHtml}
+        </div>
+        `
+						: ""
+				}
+      </div>`;
+			} else {
+				/* Individual view — daily breakdown + merchant/POS stacked */
+				const showMerchant =
+					Object.keys(byMerchant).length > 0 &&
+					(selectedMember !== "self" || appState.settings.enableMerchant);
+				const showPOS =
+					Object.keys(byPOS).length > 0 &&
+					(selectedMember !== "self" || appState.settings.enableFormerPOS);
+				const hasRightColumn = showMerchant || showPOS;
+
+				return `
       <div class="${hasRightColumn ? "grid grid-cols-2 gap-4" : ""} mb-6">
 
-        <!-- Daily breakdown -->
         <div class="p-4 rounded-xl border border-stone-100 bg-white">
           <div class="text-sm font-medium mb-3">Daily breakdown</div>
           <div class="chart-container" style="height: ${hasRightColumn ? "100%" : "220px"}; min-height: 220px;">
@@ -1019,9 +1052,7 @@ async function renderStats() {
         ${
 					hasRightColumn
 						? `
-        <!-- Merchant + POS tables stacked -->
         <div class="flex flex-col gap-4">
-
           ${
 						showMerchant
 							? `
@@ -1031,7 +1062,6 @@ async function renderStats() {
           `
 							: ""
 					}
-
           ${
 						showPOS
 							? `
@@ -1041,13 +1071,13 @@ async function renderStats() {
           `
 							: ""
 					}
-
         </div>
         `
 						: ""
 				}
 
       </div>`;
+			}
 		})()}
 
     <!-- ================================================================
@@ -1102,7 +1132,9 @@ async function renderStats() {
 
 	/* Render Chart.js charts after DOM is ready */
 	renderCategoryChart(byCategory);
-	renderDailyChart(entries, range);
+	const isAllTeam =
+		appState.settings.role === "manager" && selectedMember === "all";
+	if (!isAllTeam) renderDailyChart(entries, range);
 	if (history.length >= 3 && currentPeriod !== "weekly") {
 		renderTrendChart(history);
 		renderCategoryTrendChart(history);
@@ -1591,6 +1623,167 @@ function renderCategoryHeatmap(entries) {
   `;
 
 	html += "</tbody></table></div>";
+	return html;
+}
+
+/**
+ * renderTeamMerchantTable
+ * Shows merchant time aggregated across the team with member attribution.
+ * Only shown in "All team" view when merchant data exists.
+ */
+function renderTeamMerchantTable(entries) {
+	/* Aggregate merchant hours across team */
+	const merchantData = {};
+	entries.forEach((e) => {
+		if (!e.merchant || !e.merchant.trim()) return;
+		const name = e.merchant.trim();
+		if (!merchantData[name]) merchantData[name] = { hours: 0, members: {} };
+		merchantData[name].hours += 0.5;
+		if (e.memberName) {
+			if (!merchantData[name].members[e.memberName])
+				merchantData[name].members[e.memberName] = 0;
+			merchantData[name].members[e.memberName] += 0.5;
+		}
+	});
+
+	const sorted = Object.entries(merchantData).sort(
+		(a, b) => b[1].hours - a[1].hours,
+	);
+	if (sorted.length === 0) return "";
+
+	const merchantTotal = sorted.reduce((sum, [, data]) => sum + data.hours, 0);
+	const maxHours = sorted[0][1].hours;
+
+	let html = '<div class="text-sm font-medium mb-3">Merchant time — team</div>';
+	html += '<div class="space-y-2">';
+
+	sorted.slice(0, 10).forEach(([name, data]) => {
+		const pct =
+			merchantTotal > 0 ? Math.round((data.hours / merchantTotal) * 100) : 0;
+		const barWidth = Math.round((data.hours / maxHours) * 100);
+		const memberList = Object.entries(data.members).sort((a, b) => b[1] - a[1]);
+
+		html += `
+      <div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
+          <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
+          </div>
+          <span class="font-medium w-12 text-right">${data.hours} hrs</span>
+          <span class="text-stone-400 w-8 text-right">${pct}%</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; padding-left: 120px;">
+          ${memberList
+						.map(([member, hrs]) => {
+							const initials = member
+								.split(" ")
+								.map((n) => n[0])
+								.join("")
+								.toUpperCase()
+								.slice(0, 2);
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${initials} ${hrs}h</span>`;
+						})
+						.join("")}
+        </div>
+      </div>
+    `;
+	});
+
+	if (sorted.length > 10) {
+		const remainingHours = sorted
+			.slice(10)
+			.reduce((s, [, d]) => s + d.hours, 0);
+		html += `
+      <div class="text-xs text-stone-400 pt-1">
+        + ${sorted.length - 10} more merchants (${remainingHours} hrs)
+      </div>
+    `;
+	}
+
+	html += "</div>";
+	return html;
+}
+
+/**
+ * renderTeamPOSTable
+ * Shows POS time aggregated across the team with member attribution.
+ * Only shown in "All team" view when POS data exists.
+ */
+function renderTeamPOSTable(entries) {
+	/* Aggregate POS hours across team */
+	const posData = {};
+	entries.forEach((e) => {
+		if (!e.formerPOS || !e.formerPOS.trim()) return;
+		const name = e.formerPOS.trim();
+		if (!posData[name])
+			posData[name] = { hours: 0, members: {}, merchants: new Set() };
+		posData[name].hours += 0.5;
+		if (e.memberName) {
+			if (!posData[name].members[e.memberName])
+				posData[name].members[e.memberName] = 0;
+			posData[name].members[e.memberName] += 0.5;
+		}
+		if (e.merchant && e.merchant.trim()) {
+			posData[name].merchants.add(e.merchant.trim());
+		}
+	});
+
+	const sorted = Object.entries(posData).sort(
+		(a, b) => b[1].hours - a[1].hours,
+	);
+	if (sorted.length === 0) return "";
+
+	const posTotal = sorted.reduce((sum, [, data]) => sum + data.hours, 0);
+	const maxHours = sorted[0][1].hours;
+
+	let html = '<div class="text-sm font-medium mb-3">POS platforms — team</div>';
+	html += '<div class="space-y-2">';
+
+	sorted.slice(0, 8).forEach(([name, data]) => {
+		const pct = posTotal > 0 ? Math.round((data.hours / posTotal) * 100) : 0;
+		const barWidth = Math.round((data.hours / maxHours) * 100);
+		const memberList = Object.entries(data.members).sort((a, b) => b[1] - a[1]);
+		const merchantCount = data.merchants.size;
+
+		html += `
+      <div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
+          <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
+          </div>
+          <span class="font-medium w-12 text-right">${data.hours} hrs</span>
+          <span class="text-stone-400 w-8 text-right">${pct}%</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 3px; padding-left: 120px;">
+          <span style="font-size: 9px; color: var(--text-placeholder);">${merchantCount} merchant${merchantCount > 1 ? "s" : ""}</span>
+          ${memberList
+						.map(([member, hrs]) => {
+							const initials = member
+								.split(" ")
+								.map((n) => n[0])
+								.join("")
+								.toUpperCase()
+								.slice(0, 2);
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${initials} ${hrs}h</span>`;
+						})
+						.join("")}
+        </div>
+      </div>
+    `;
+	});
+
+	if (sorted.length > 8) {
+		const remainingHours = sorted.slice(8).reduce((s, [, d]) => s + d.hours, 0);
+		html += `
+      <div class="text-xs text-stone-400 pt-1">
+        + ${sorted.length - 8} more systems (${remainingHours} hrs)
+      </div>
+    `;
+	}
+
+	html += "</div>";
 	return html;
 }
 
