@@ -45,7 +45,7 @@ import {
 	getCategoryLabel,
 	getCategoryHex,
 	countUrgentHours,
-	aggregateMerchantPOS,
+	detectDisproportionate,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
 
@@ -444,10 +444,12 @@ async function renderStats() {
 	const byPOS = aggregateByPOS(entries);
 	const urgentHours = countUrgentHours(entries);
 	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
-	const merchantPOS =
-		appState.settings.enableMerchant && appState.settings.enableFormerPOS
-			? aggregateMerchantPOS(entries)
-			: [];
+	const flaggedMerchants = appState.settings.enableMerchant
+		? detectDisproportionate(byMerchant)
+		: [];
+	const flaggedPOS = appState.settings.enableFormerPOS
+		? detectDisproportionate(byPOS)
+		: [];
 	const expectedHours = await getExpectedHours(allEntries);
 
 	const currentStats = {
@@ -694,23 +696,28 @@ async function renderStats() {
     </div>
 
     <!-- ================================================================
-      ROW 2: Hours by area + Urgent / Merchant-POS correlation
+      ROW 2: Hours by area + Urgent / Disproportionate flags
       ================================================================ -->
+    ${(() => {
+			const hasFlags = flaggedMerchants.length > 0 || flaggedPOS.length > 0;
+			const hasRightContent = true; /* Urgent card always shows */
+
+			return `
     <div class="grid grid-cols-2 gap-4 mb-6">
 
       <!-- Hours by area donut (left) -->
-      <div class="p-4 rounded-xl border border-stone-100 bg-white">
+      <div class="p-4 rounded-xl border border-stone-100 bg-white" style="display: flex; flex-direction: column;">
         <div class="text-sm font-medium mb-3">Hours by area</div>
-        <div class="chart-container" style="height: 220px;">
+        <div class="chart-container" style="flex: 1; min-height: 220px;">
           <canvas id="chart-category"></canvas>
         </div>
       </div>
 
-      <!-- Urgent + Merchant-POS (right, stacked) -->
+      <!-- Urgent + flags (right, stacked) -->
       <div class="flex flex-col gap-4">
 
         <!-- Urgent flag frequency -->
-        <div class="p-4 rounded-xl border border-stone-100 bg-white">
+        <div class="p-4 rounded-xl border border-stone-100 bg-white" ${!hasFlags ? 'style="flex: 1;"' : ""}>
           <div class="text-sm font-medium mb-3">Urgent work</div>
           ${
 						urgentHours > 0
@@ -734,18 +741,52 @@ async function renderStats() {
         </div>
 
         ${
-					merchantPOS.length > 0
+					flaggedMerchants.length > 0
 						? `
-        <!-- Merchant-POS correlation -->
-        <div class="p-4 rounded-xl border border-stone-100 bg-white" style="flex: 1;">
-          ${renderMerchantPOSCard(merchantPOS)}
+        <!-- Flagged merchants -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white" style="border-left: 3px solid var(--warning);">
+          <div style="font-size: 11px; font-weight: 500; color: var(--warning); margin-bottom: 6px;">Merchant concentration</div>
+          ${flaggedMerchants
+						.map(
+							(m) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 0;">
+              <span style="font-size: 13px; font-weight: 500;">${m.name}</span>
+              <span style="font-size: 12px; color: var(--text-muted);">${m.hours} hrs (${m.percentage}%)</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">${m.reason}</div>
+          `,
+						)
+						.join("")}
+        </div>
+        `
+						: ""
+				}
+
+        ${
+					flaggedPOS.length > 0
+						? `
+        <!-- Flagged POS -->
+        <div class="p-4 rounded-xl border border-stone-100 bg-white" style="border-left: 3px solid var(--warning);">
+          <div style="font-size: 11px; font-weight: 500; color: var(--warning); margin-bottom: 6px;">POS concentration</div>
+          ${flaggedPOS
+						.map(
+							(p) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 0;">
+              <span style="font-size: 13px; font-weight: 500;">${p.name}</span>
+              <span style="font-size: 12px; color: var(--text-muted);">${p.hours} hrs (${p.percentage}%)</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">${p.reason}</div>
+          `,
+						)
+						.join("")}
         </div>
         `
 						: ""
 				}
 
       </div>
-    </div>
+    </div>`;
+		})()}
 
     <!-- ================================================================
       ROW 3: Daily breakdown + Merchant / POS tables
@@ -980,52 +1021,6 @@ function renderPOSTable(byPOS, total) {
       </div>
     `;
 	}
-
-	html += "</div>";
-	return html;
-}
-
-/**
- * renderMerchantPOSCard
- * Shows merchants grouped by their POS system.
- */
-function renderMerchantPOSCard(merchantPOS) {
-	const totalHours = merchantPOS.reduce((sum, g) => sum + g.totalHours, 0);
-
-	let html = '<div class="text-sm font-medium mb-3">Time by POS platform</div>';
-	html += '<div class="space-y-3">';
-
-	merchantPOS.forEach((group) => {
-		const pct =
-			totalHours > 0 ? Math.round((group.totalHours / totalHours) * 100) : 0;
-		const barWidth =
-			totalHours > 0
-				? Math.round((group.totalHours / merchantPOS[0].totalHours) * 100)
-				: 0;
-
-		html += `
-			<div>
-				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-					<span style="font-size: 12px; font-weight: 500;">${group.pos}</span>
-					<span style="font-size: 11px; color: var(--text-muted);">${group.totalHours} hrs (${pct}%) — ${group.merchants.length} merchant${group.merchants.length > 1 ? "s" : ""}</span>
-				</div>
-				<div style="height: 4px; border-radius: 2px; background: var(--progress-track); margin-bottom: 4px; overflow: hidden;">
-					<div style="height: 100%; width: ${barWidth}%; border-radius: 2px; background: var(--accent); opacity: 0.6;"></div>
-				</div>
-				<div style="display: flex; flex-wrap: wrap; gap: 4px;">
-					${group.merchants
-						.slice(0, 4)
-						.map(
-							(m) => `
-							<span style="font-size: 10px; color: var(--text-muted); background: var(--bg-surface); padding: 2px 6px; border-radius: 4px;">${m.name} (${m.hours}h)</span>
-							`,
-						)
-						.join("")}
-					${group.merchants.length > 4 ? `<span style="font-size: 10px; color: var(--text-placeholder);">+${group.merchants.length - 4} more</span>` : ""}
-				</div>
-			</div>
-			`;
-	});
 
 	html += "</div>";
 	return html;

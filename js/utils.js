@@ -570,47 +570,60 @@ export function countUrgentHours(entries) {
 }
 
 /**
- * aggregateMerchantPOS
- * Groups merchants by their most recent POS system and sums hours.
- * Returns an array of { pos, merchants: [{ name, hours }], totalHours }.
+ * detectDisproportionate
+ * Identifies items that take up a disproportionate share of total time.
+ * Uses a hybrid approach:
+ *   - Fewer than 4 items: flags any item exceeding 40% of total
+ *   - 4+ items: flags any item more than 1.5 std devs above the mean
  *
- * @param {Array<Object>} entries - Array of time entry objects
- * @returns {Array<Object>} Sorted by total hours descending
+ * @param {Object} byItem - Map of item name → hours
+ * @returns {Array<Object>} Array of { name, hours, percentage, reason } for flagged items
  */
-export function aggregateMerchantPOS(entries) {
-	/* Build a map of merchant → { pos, hours } using most recent POS per merchant */
-	const merchantMap = {};
+export function detectDisproportionate(byItem) {
+	const entries = Object.entries(byItem);
+	if (entries.length < 2) return [];
 
-	/* Sort entries by date descending so first seen POS is most recent */
-	const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
+	const total = entries.reduce((sum, [, hrs]) => sum + hrs, 0);
+	if (total === 0) return [];
 
-	sorted.forEach((e) => {
-		if (!e.merchant || !e.merchant.trim()) return;
-		const name = e.merchant.trim();
-		const hours = TIME_DEFAULTS.blockMinutes / 60;
+	const flagged = [];
 
-		if (!merchantMap[name]) {
-			merchantMap[name] = { pos: e.formerPOS?.trim() || "Unknown", hours: 0 };
-		}
-		merchantMap[name].hours += hours;
-	});
+	if (entries.length < 4) {
+		/* Small sample: simple threshold at 40% */
+		entries.forEach(([name, hours]) => {
+			const pct = Math.round((hours / total) * 100);
+			if (pct >= 40) {
+				flagged.push({
+					name,
+					hours,
+					percentage: pct,
+					reason: `accounts for ${pct}% of total time`,
+				});
+			}
+		});
+	} else {
+		/* Larger sample: use standard deviation */
+		const values = entries.map(([, hrs]) => hrs);
+		const mean = calculateMean(values);
+		const stdDev = calculateStdDev(values);
 
-	/* Group by POS */
-	const posMap = {};
-	for (const [name, data] of Object.entries(merchantMap)) {
-		const pos = data.pos;
-		if (!posMap[pos]) posMap[pos] = { pos, merchants: [], totalHours: 0 };
-		posMap[pos].merchants.push({ name, hours: data.hours });
-		posMap[pos].totalHours += data.hours;
+		if (stdDev === 0) return [];
+
+		entries.forEach(([name, hours]) => {
+			const deviation = (hours - mean) / stdDev;
+			if (deviation >= 1.5) {
+				const pct = Math.round((hours / total) * 100);
+				flagged.push({
+					name,
+					hours,
+					percentage: pct,
+					reason: `accounts for ${pct}% of total time — significantly above average of ${mean.toFixed(1)} hrs`,
+				});
+			}
+		});
 	}
 
-	/* Sort each POS group's merchants by hours descending */
-	for (const group of Object.values(posMap)) {
-		group.merchants.sort((a, b) => b.hours - a.hours);
-	}
-
-	/* Sort POS groups by total hours descending */
-	return Object.values(posMap).sort((a, b) => b.totalHours - a.totalHours);
+	return flagged.sort((a, b) => b.hours - a.hours);
 }
 
 /* ============================================================================
