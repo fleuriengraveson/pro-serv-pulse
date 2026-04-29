@@ -165,7 +165,13 @@ document.addEventListener("keydown", (e) => {
 			closeDropdown();
 			closeWeekPopover();
 			closeOOOPopover();
-			showNotesPanel();
+			/* If stats page notes button exists, use it (passes correct state) */
+			const statsNotesBtn = document.getElementById("stats-notes-btn");
+			if (statsNotesBtn) {
+				statsNotesBtn.click();
+			} else {
+				showNotesPanel();
+			}
 		}
 		if (e.key === "t" || e.key === "T") {
 			closeDropdown();
@@ -2307,6 +2313,12 @@ export async function showNotesPanel(externalState = null) {
 		appState = externalState;
 	}
 	if (!appState) return;
+
+	/* Initialize date/week data if tracker hasn't been opened yet */
+	if (!currentDate) currentDate = new Date();
+	if (!weekDates || weekDates.length === 0) {
+		weekDates = getWeekDates(currentDate);
+	}
 	/* Close if already open */
 	const existing = document.getElementById("notes-panel");
 	if (existing) {
