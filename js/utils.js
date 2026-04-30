@@ -572,14 +572,19 @@ export function countUrgentHours(entries) {
 /**
  * detectDisproportionate
  * Identifies items that take up a disproportionate share of total time.
- * Uses a hybrid approach:
- *   - Fewer than 4 items: flags any item exceeding 40% of total
- *   - 4+ items: flags any item more than 1.5 std devs above the mean
+ * Uses a percentage-of-total approach with a minimum hours floor
+ * to avoid false positives from small samples.
  *
  * @param {Object} byItem - Map of item name → hours
+ * @param {number} pctThreshold - Percentage of total to flag (default 15)
+ * @param {number} minHours - Minimum hours before an item can flag (default 4)
  * @returns {Array<Object>} Array of { name, hours, percentage, reason } for flagged items
  */
-export function detectDisproportionate(byItem) {
+export function detectDisproportionate(
+	byItem,
+	pctThreshold = 15,
+	minHours = 4,
+) {
 	const entries = Object.entries(byItem);
 	if (entries.length < 2) return [];
 
@@ -588,40 +593,18 @@ export function detectDisproportionate(byItem) {
 
 	const flagged = [];
 
-	if (entries.length < 4) {
-		/* Small sample: simple threshold at 40% */
-		entries.forEach(([name, hours]) => {
-			const pct = Math.round((hours / total) * 100);
-			if (pct >= 40) {
-				flagged.push({
-					name,
-					hours,
-					percentage: pct,
-					reason: `accounts for ${pct}% of total time`,
-				});
-			}
-		});
-	} else {
-		/* Larger sample: use standard deviation */
-		const values = entries.map(([, hrs]) => hrs);
-		const mean = calculateMean(values);
-		const stdDev = calculateStdDev(values);
-
-		if (stdDev === 0) return [];
-
-		entries.forEach(([name, hours]) => {
-			const deviation = (hours - mean) / stdDev;
-			if (deviation >= 1.5) {
-				const pct = Math.round((hours / total) * 100);
-				flagged.push({
-					name,
-					hours,
-					percentage: pct,
-					reason: `accounts for ${pct}% of total time — significantly above average of ${mean.toFixed(1)} hrs`,
-				});
-			}
-		});
-	}
+	entries.forEach(([name, hours]) => {
+		if (hours < minHours) return;
+		const pct = Math.round((hours / total) * 100);
+		if (pct >= pctThreshold) {
+			flagged.push({
+				name,
+				hours,
+				percentage: pct,
+				reason: `accounts for ${pct}% of total time (${hours} hrs)`,
+			});
+		}
+	});
 
 	return flagged.sort((a, b) => b.hours - a.hours);
 }

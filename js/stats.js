@@ -2656,11 +2656,15 @@ export async function getStatsContext() {
 	const expectedHours = await getExpectedHours(allEntries, allEntries);
 
 	const flaggedMerchants =
-		Object.keys(byMerchant).length > 0
-			? detectDisproportionate(byMerchant)
+		Object.keys(byMerchant).length > 0 &&
+		(selectedMember !== "self" || appState.settings.enableMerchant)
+			? detectDisproportionate(byMerchant, 15, 4)
 			: [];
 	const flaggedPOS =
-		Object.keys(byPOS).length > 0 ? detectDisproportionate(byPOS) : [];
+		Object.keys(byPOS).length > 0 &&
+		(selectedMember !== "self" || appState.settings.enableFormerPOS)
+			? detectDisproportionate(byPOS, 25, 4)
+			: [];
 
 	/* Build byMember for team reports */
 	const byMember = {};
