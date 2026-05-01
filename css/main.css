@@ -373,6 +373,10 @@ body {
 	filter: brightness(1.1);
 }
 
+.time-row:has(.time-block-filled:hover) {
+	z-index: 20;
+}
+
 /* ----------------------------------------------------------------------------
  * TIME BLOCK TOOLTIP
  * --------------------------------------------------------------------------
@@ -386,7 +390,8 @@ body {
 	bottom: calc(100% + 6px);
 	left: 50%;
 	transform: translateX(-50%);
-	background: var(--bg-dropdown);
+	background: #ffffff;
+	background: var(--bg-dropdown, #ffffff);
 	border: 1px solid var(--border-default);
 	border-radius: 8px;
 	padding: 8px 10px;
@@ -395,9 +400,11 @@ body {
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 	pointer-events: none;
 	white-space: nowrap;
+	isolation: isolate;
 }
 [data-theme="dark"] .block-tooltip {
-	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+	background: #1c1917;
+	background: var(--bg-dropdown, #1c1917);
 }
 .week-block .block-tooltip {
 	left: 0;
@@ -457,6 +464,7 @@ body {
 .block-tooltip.tooltip-below {
 	bottom: auto;
 	top: calc(100% + 6px);
+	z-index: 9000;
 }
 .block-tooltip.tooltip-below::after {
 	top: auto;
@@ -609,6 +617,8 @@ body {
 	border: 1px solid var(--border-default);
 	border-radius: 6px;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+	top: 100%;
+	left: 0;
 	margin-top: 2px;
 	padding: 4px;
 }

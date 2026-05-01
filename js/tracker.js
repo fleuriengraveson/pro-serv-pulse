@@ -1224,6 +1224,15 @@ async function showEditDropdown(
 		};
 
 		await saveEntry(newEntry);
+
+		/* Auto-export to sync folder if connected */
+		try {
+			const { autoExportWeek } = await import("./sync.js");
+			await autoExportWeek(appState, new Date(newEntry.date));
+		} catch (e) {
+			/* sync not available, ignore */
+		}
+
 		closeDropdown();
 		if (onSaveCallback) {
 			await onSaveCallback();
@@ -1237,6 +1246,14 @@ async function showEditDropdown(
 	if (clearBtn) {
 		clearBtn.addEventListener("click", async () => {
 			await deleteEntry(date || formatDateISO(currentDate), slot);
+
+			/* Auto-export to sync folder if connected */
+			try {
+				const { autoExportWeek } = await import("./sync.js");
+				await autoExportWeek(appState);
+			} catch (e) {
+				/* sync not available, ignore */
+			}
 			closeDropdown();
 			if (onSaveCallback) {
 				await onSaveCallback();
@@ -1636,6 +1653,14 @@ async function pasteBlock(date, slot) {
 		timeSlot: slot,
 		...clipboard,
 	});
+
+	/* Auto-export to sync folder if connected */
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState, new Date(date));
+	} catch (e) {
+		/* sync not available, ignore */
+	}
 }
 
 /**
@@ -2271,6 +2296,14 @@ async function showOOOPopover(dateStr, chipEl) {
 				notes: "",
 			});
 		}
+		/* Auto-export to sync folder if connected */
+		try {
+			const { autoExportWeek } = await import("./sync.js");
+			await autoExportWeek(appState);
+		} catch (e) {
+			/* sync not available, ignore */
+		}
+
 		closeOOOPopover();
 		await renderTracker();
 	});
@@ -2481,6 +2514,15 @@ async function renderOwnNotes(weekKey) {
 				customerMeetings: panel.querySelector("#notes-meetings")?.value || "",
 			};
 			await saveWeeklyNotes(weekKey, notesData);
+
+			/* Auto-export to sync folder if connected */
+			try {
+				const { autoExportWeek } = await import("./sync.js");
+				const { default: appStateRef } = { default: appState };
+				await autoExportWeek(appState);
+			} catch (e) {
+				/* sync not available, ignore */
+			}
 			if (statusEl) {
 				statusEl.textContent = "Saved";
 				statusEl.style.color = "var(--positive)";
@@ -2704,6 +2746,14 @@ async function fillLunch() {
 	}
 
 	/* Re-render to show the filled lunch blocks */
+	/* Auto-export to sync folder if connected */
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState);
+	} catch (e) {
+		/* sync not available, ignore */
+	}
+
 	await renderTracker();
 }
 
@@ -2743,6 +2793,14 @@ async function fillLunchWeek() {
 				});
 			}
 		}
+	}
+
+	/* Auto-export to sync folder if connected */
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState);
+	} catch (e) {
+		/* sync not available, ignore */
 	}
 
 	await renderWeekView();

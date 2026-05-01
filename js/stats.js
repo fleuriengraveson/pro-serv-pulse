@@ -91,6 +91,22 @@ export async function initStats(state) {
 
 	/* Load team members if manager */
 	if (appState.settings.role === "manager") {
+		/* Auto-import from sync folder if connected */
+		try {
+			const { autoImportTeamData, getSyncStatus } = await import("./sync.js");
+			const importStatus = await getSyncStatus("import");
+			if (importStatus.connected && importStatus.hasPermission) {
+				const result = await autoImportTeamData();
+				if (result.imported > 0 || result.updated > 0) {
+					console.log(
+						`Auto-imported: ${result.imported} new, ${result.updated} updated`,
+					);
+				}
+			}
+		} catch (e) {
+			console.warn("Auto-import not available:", e.message);
+		}
+
 		teamMembers = await getTeamMemberList();
 		/* Default to 'all' for managers, 'self' for contributors */
 		if (

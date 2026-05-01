@@ -283,6 +283,73 @@ async function renderSettings() {
 					: ""
 			}
 
+			<!-- ================================================================
+        SYNC FOLDER CONNECTION
+        ================================================================ -->
+      <div class="mb-8">
+        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Sync</h3>
+        <div class="bg-white rounded-xl border border-stone-200 p-5">
+
+          <!-- Export folder (everyone) -->
+          <div style="margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+              Auto-export folder
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+              Weekly exports are automatically saved to this folder when you track time.
+            </div>
+            <div id="sync-export-status" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button id="sync-export-connect" style="
+                font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 8px;
+                background: var(--accent); color: white; border: none; cursor: pointer; font-family: inherit;
+              ">Connect folder</button>
+              <button id="sync-export-disconnect" class="hidden" style="
+                font-size: 12px; padding: 6px 14px; border-radius: 8px;
+                background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
+              ">Disconnect</button>
+            </div>
+          </div>
+
+          ${
+						isManager
+							? `
+          <!-- Import folder (manager only) -->
+          <div style="border-top: 0.5px solid var(--border-default); padding-top: 16px;">
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px;">
+              Auto-import folder
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+              Team exports are automatically imported from this folder when you open Stats.
+            </div>
+            <div id="sync-import-status" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button id="sync-import-connect" style="
+                font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 8px;
+                background: var(--accent); color: white; border: none; cursor: pointer; font-family: inherit;
+              ">Connect folder</button>
+              <button id="sync-import-disconnect" class="hidden" style="
+                font-size: 12px; padding: 6px 14px; border-radius: 8px;
+                background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
+              ">Disconnect</button>
+            </div>
+          </div>
+          `
+							: ""
+					}
+
+          <!-- Unsupported browser warning -->
+          <div id="sync-unsupported" class="hidden" style="
+            font-size: 12px; color: var(--warning-text); background: var(--warning-bg);
+            padding: 8px 12px; border-radius: 8px; margin-top: 12px;
+          ">
+            Auto-sync requires Chrome or Edge. You can still export and import files manually.
+          </div>
+        </div>
+      </div>
+
       <!-- ================================================================
         DATA MANAGEMENT
         ================================================================ -->
@@ -350,7 +417,7 @@ function generateHourOptions(selectedHour) {
  * Auto-saves settings whenever any field changes.
  * ========================================================================= */
 
-function attachSettingsListeners() {
+async function attachSettingsListeners() {
 	const container = document.getElementById("view-settings");
 
 	/* --- Auto-save on any input change --- */
@@ -684,4 +751,119 @@ function attachSettingsListeners() {
 
 		listEl.innerHTML = html;
 	}
+
+	/* --- Sync folder connections --- */
+	const {
+		isSyncSupported,
+		connectSyncFolder,
+		disconnectSyncFolder,
+		getSyncStatus,
+	} = await import("./sync.js");
+
+	/* Show unsupported warning if needed */
+	if (!isSyncSupported()) {
+		document.getElementById("sync-unsupported")?.classList.remove("hidden");
+		document.getElementById("sync-export-connect")?.classList.add("hidden");
+		if (document.getElementById("sync-import-connect")) {
+			document.getElementById("sync-import-connect").classList.add("hidden");
+		}
+	}
+
+	/* Render current sync status */
+	async function updateSyncStatusUI() {
+		const exportStatus = await getSyncStatus("export");
+		const exportStatusEl = document.getElementById("sync-export-status");
+		const exportConnectBtn = document.getElementById("sync-export-connect");
+		const exportDisconnectBtn = document.getElementById(
+			"sync-export-disconnect",
+		);
+
+		if (exportStatusEl) {
+			if (exportStatus.connected) {
+				exportStatusEl.innerHTML = `
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${exportStatus.hasPermission ? "var(--positive)" : "var(--warning)"};"></div>
+          <span style="font-size: 12px; color: var(--text-primary); font-weight: 500;">${exportStatus.name}</span>
+          <span style="font-size: 11px; color: var(--text-muted);">${exportStatus.hasPermission ? "Connected" : "Needs permission"}</span>
+        `;
+				exportConnectBtn?.classList.add("hidden");
+				exportDisconnectBtn?.classList.remove("hidden");
+			} else {
+				exportStatusEl.innerHTML = `
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-placeholder);"></div>
+          <span style="font-size: 12px; color: var(--text-muted);">Not connected</span>
+        `;
+				exportConnectBtn?.classList.remove("hidden");
+				exportDisconnectBtn?.classList.add("hidden");
+			}
+		}
+
+		/* Import status (manager only) */
+		const importStatusEl = document.getElementById("sync-import-status");
+		const importConnectBtn = document.getElementById("sync-import-connect");
+		const importDisconnectBtn = document.getElementById(
+			"sync-import-disconnect",
+		);
+
+		if (importStatusEl) {
+			const importStatus = await getSyncStatus("import");
+			if (importStatus.connected) {
+				importStatusEl.innerHTML = `
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${importStatus.hasPermission ? "var(--positive)" : "var(--warning)"};"></div>
+          <span style="font-size: 12px; color: var(--text-primary); font-weight: 500;">${importStatus.name}</span>
+          <span style="font-size: 11px; color: var(--text-muted);">${importStatus.hasPermission ? "Connected" : "Needs permission"}</span>
+        `;
+				importConnectBtn?.classList.add("hidden");
+				importDisconnectBtn?.classList.remove("hidden");
+			} else {
+				importStatusEl.innerHTML = `
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-placeholder);"></div>
+          <span style="font-size: 12px; color: var(--text-muted);">Not connected</span>
+        `;
+				importConnectBtn?.classList.remove("hidden");
+				importDisconnectBtn?.classList.add("hidden");
+			}
+		}
+	}
+
+	await updateSyncStatusUI();
+
+	/* Connect export folder */
+	document
+		.getElementById("sync-export-connect")
+		?.addEventListener("click", async () => {
+			const result = await connectSyncFolder("export");
+			if (result.success) {
+				await updateSyncStatusUI();
+			} else if (result.error) {
+				console.warn("Export folder connection failed:", result.error);
+			}
+		});
+
+	/* Disconnect export folder */
+	document
+		.getElementById("sync-export-disconnect")
+		?.addEventListener("click", async () => {
+			await disconnectSyncFolder("export");
+			await updateSyncStatusUI();
+		});
+
+	/* Connect import folder */
+	document
+		.getElementById("sync-import-connect")
+		?.addEventListener("click", async () => {
+			const result = await connectSyncFolder("import");
+			if (result.success) {
+				await updateSyncStatusUI();
+			} else if (result.error) {
+				console.warn("Import folder connection failed:", result.error);
+			}
+		});
+
+	/* Disconnect import folder */
+	document
+		.getElementById("sync-import-disconnect")
+		?.addEventListener("click", async () => {
+			await disconnectSyncFolder("import");
+			await updateSyncStatusUI();
+		});
 }
