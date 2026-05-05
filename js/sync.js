@@ -323,6 +323,99 @@ export async function autoExportWeek(state, refDate = new Date()) {
 	}
 }
 
+/**
+ * autoExportAllWeeks
+ * Writes all tracked weeks to the sync folder.
+ * Called on first folder connection to backfill historical data.
+ *
+ * @param {Object} state - The app state (settings, tierMap)
+ * @returns {Promise<number>} Number of weeks exported
+ */
+export async function autoExportAllWeeks(state) {
+	try {
+		const handle = await loadHandle("export");
+		if (!handle) return 0;
+
+		const hasPermission = await verifyPermission(handle, true);
+		if (!hasPermission) return 0;
+
+		const { getFirstTrackedDate } = await import("./db.js");
+		const firstDate = await getFirstTrackedDate();
+		if (!firstDate) return 0;
+
+		const now = new Date();
+		const d = new Date(firstDate);
+
+		/* Rewind to Monday of the first week */
+		const dayOfWeek = d.getDay();
+		const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+		d.setDate(d.getDate() + mondayOffset);
+
+		let count = 0;
+
+		while (d <= now) {
+			const weekKey = getISOWeekKey(d);
+			const { startDate, endDate } = getWeekDateRange(d);
+			const entries = await getEntriesForDateRange(startDate, endDate);
+
+			/* Only export weeks that have data */
+			if (entries.length > 0) {
+				const notes = await getWeeklyNotes(weekKey);
+
+				const exportData = {
+					exportDate: new Date().toISOString(),
+					appVersion: "1.0.0",
+					weekKey,
+					startDate,
+					endDate,
+					contributor: {
+						name: state.settings.name || "Unnamed",
+						role: state.settings.role,
+					},
+					entries: entries.map((e) => ({
+						date: e.date,
+						timeSlot: e.timeSlot,
+						category: e.category,
+						subCategory: e.subCategory || "",
+						billable: e.billable || false,
+						merchant: e.merchant || "",
+						urgent: e.urgent || false,
+						ticketLink: e.ticketLink || "",
+						formerPOS: e.formerPOS || "",
+						notes: e.notes || "",
+					})),
+					weeklyNotes: notes
+						? {
+								wins: notes.wins || "",
+								losses: notes.losses || "",
+								issues: notes.issues || "",
+								customerMeetings: notes.customerMeetings || "",
+							}
+						: null,
+					tierMap: state.tierMap,
+				};
+
+				const filename = generateExportFilename(state.settings.name, weekKey);
+				const fileHandle = await handle.getFileHandle(filename, {
+					create: true,
+				});
+				const writable = await fileHandle.createWritable();
+				await writable.write(JSON.stringify(exportData, null, 2));
+				await writable.close();
+				count++;
+			}
+
+			d.setDate(d.getDate() + 7);
+		}
+
+		console.log(`Backfill complete: ${count} weeks exported to sync folder`);
+		return count;
+	} catch (err) {
+		console.warn("Backfill export failed:", err.message);
+		return 0;
+	}
+}
+
 /* ============================================================================
  * AUTO-IMPORT (MANAGERS)
  * --------------------------------------------------------------------------

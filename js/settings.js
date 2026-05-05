@@ -833,6 +833,12 @@ async function attachSettingsListeners() {
 		?.addEventListener("click", async () => {
 			const result = await connectSyncFolder("export");
 			if (result.success) {
+				/* Backfill all historical weeks on first connection */
+				const { autoExportAllWeeks } = await import("./sync.js");
+				const count = await autoExportAllWeeks(appState);
+				if (count > 0) {
+					console.log(`Backfilled ${count} weeks to sync folder`);
+				}
 				await updateSyncStatusUI();
 			} else if (result.error) {
 				console.warn("Export folder connection failed:", result.error);
