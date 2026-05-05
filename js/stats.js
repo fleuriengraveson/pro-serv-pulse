@@ -23,6 +23,8 @@ import {
 	getTeamMemberData,
 	getAllTeamEntriesForPeriod,
 	getTeamMemberNotes,
+	getAllTeamTicketStats,
+	getTeamMemberTicketStats,
 } from "./db.js";
 import {
 	formatDateISO,
@@ -539,6 +541,20 @@ async function renderStats() {
 		entries = filterEntriesUpToNow(allEntries);
 	}
 
+	/* Load ticket stats for the period */
+	let ticketStats = [];
+	if (appState.settings.role === "manager") {
+		if (selectedMember === "all") {
+			ticketStats = await getAllTeamTicketStats(range.startDate, range.endDate);
+		} else if (selectedMember !== "self") {
+			ticketStats = await getTeamMemberTicketStats(
+				selectedMember,
+				range.startDate,
+				range.endDate,
+			);
+		}
+	}
+
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
 
@@ -672,7 +688,16 @@ async function renderStats() {
     <!-- ================================================================
 		TOP METRICS ROW
     ================================================================ -->
-    <div class="grid ${appState.settings.role === "manager" ? "grid-cols-4" : "grid-cols-3"} gap-3 mb-6">
+    <div class="grid ${(() => {
+			const hasTickets =
+				ticketStats.length > 0 &&
+				selectedMember !== "all" &&
+				selectedMember !== "self";
+			if (appState.settings.role === "manager" && hasTickets)
+				return "grid-cols-5";
+			if (appState.settings.role === "manager") return "grid-cols-4";
+			return "grid-cols-3";
+		})()} gap-3 mb-6">
 
       ${
 				appState.settings.role === "manager"
@@ -844,7 +869,51 @@ async function renderStats() {
         `
 						: ""
 				}
+				
       </div>`;
+			})()}
+
+      ${(() => {
+				if (
+					ticketStats.length === 0 ||
+					selectedMember === "all" ||
+					selectedMember === "self"
+				)
+					return "";
+
+				const sorted = ticketStats.sort((a, b) => a.date.localeCompare(b.date));
+				const last = sorted[sorted.length - 1];
+				const totalNew = ticketStats.reduce(
+					(sum, s) => sum + (s.newTickets || 0),
+					0,
+				);
+				const totalClosed = ticketStats.reduce(
+					(sum, s) => sum + (s.closedTickets || 0),
+					0,
+				);
+				const currentQueue =
+					last.queueSize + last.newTickets - last.closedTickets;
+				const net = totalNew - totalClosed;
+				const netColor =
+					net > 0
+						? "var(--danger)"
+						: net < 0
+							? "var(--positive)"
+							: "var(--text-muted)";
+				const netPrefix = net > 0 ? "+" : "";
+
+				return `
+        <div class="stat-card">
+          <div class="stat-card-label">Ticket queue</div>
+          <div style="font-size: 22px; font-weight: 600; color: var(--text-primary); margin-top: 4px;">${currentQueue}</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">open tickets</div>
+          <div style="display: flex; gap: 10px; margin-top: 8px; font-size: 11px;">
+            <span style="color: var(--text-secondary);">${totalNew} new</span>
+            <span style="color: var(--text-secondary);">${totalClosed} closed</span>
+            <span style="font-weight: 500; color: ${netColor};">${netPrefix}${net} net</span>
+          </div>
+        </div>
+        `;
 			})()}
 
     </div>
@@ -904,6 +973,20 @@ async function renderStats() {
 				: "";
 		})()}
 
+	<!-- ================================================================
+      TICKET QUEUE
+      ================================================================ -->
+    ${(() => {
+			const ticketHtml = renderTicketOverview(ticketStats);
+			return ticketHtml
+				? `
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${ticketHtml}
+    </div>
+      `
+				: "";
+		})()}
+
     <!-- ================================================================
       CATEGORY HEATMAP
       ================================================================ -->
@@ -920,6 +1003,8 @@ async function renderStats() {
     `
 			: ""
 	}
+
+	
 
     <!-- ================================================================
       ROW 2: Hours by area + Urgent / Disproportionate flags
@@ -1676,6 +1761,168 @@ function renderCategoryHeatmap(entries) {
 
 	html += "</tbody></table></div>";
 	return html;
+}
+
+/**
+ * renderTicketOverview
+ * Shows ticket queue data for the team or individual member.
+ * Displays current queue, new tickets, closed tickets, and net change.
+ */
+function renderTicketOverview(ticketStats) {
+	if (!ticketStats || ticketStats.length === 0) return "";
+
+	const isAllTeam =
+		appState.settings.role === "manager" && selectedMember === "all";
+
+	if (isAllTeam) {
+		/* Group by member */
+		const byMember = {};
+		ticketStats.forEach((s) => {
+			if (!byMember[s.memberName]) byMember[s.memberName] = [];
+			byMember[s.memberName].push(s);
+		});
+
+		const rows = Object.entries(byMember)
+			.map(([name, stats]) => {
+				/* Sort by date to find first and last */
+				const sorted = stats.sort((a, b) => a.date.localeCompare(b.date));
+				const first = sorted[0];
+				const last = sorted[sorted.length - 1];
+
+				/* Starting queue = first day's base queue size */
+				const startQueue = first.queueSize;
+				/* Total new and closed across all days */
+				const totalNew = stats.reduce((sum, s) => sum + (s.newTickets || 0), 0);
+				const totalClosed = stats.reduce(
+					(sum, s) => sum + (s.closedTickets || 0),
+					0,
+				);
+				/* Current queue = last day's computed queue */
+				const currentQueue =
+					last.queueSize + last.newTickets - last.closedTickets;
+				const net = totalNew - totalClosed;
+
+				return { name, startQueue, currentQueue, totalNew, totalClosed, net };
+			})
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		/* Team totals */
+		const teamNew = rows.reduce((s, r) => s + r.totalNew, 0);
+		const teamClosed = rows.reduce((s, r) => s + r.totalClosed, 0);
+		const teamQueue = rows.reduce((s, r) => s + r.currentQueue, 0);
+		const teamNet = teamNew - teamClosed;
+
+		let html = `
+      <div class="text-sm font-medium mb-3">Ticket queue</div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Name</th>
+            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Queue</th>
+            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">New</th>
+            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Closed</th>
+            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+		rows.forEach((r) => {
+			const netColor =
+				r.net > 0
+					? "var(--danger)"
+					: r.net < 0
+						? "var(--positive)"
+						: "var(--text-muted)";
+			const netPrefix = r.net > 0 ? "+" : "";
+			const initials = r.name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2);
+
+			html += `
+        <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${r.name}">
+          <td style="padding: 6px 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text);">${initials}</div>
+              <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
+            </div>
+          </td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${r.currentQueue}</td>
+          <td style="text-align: right; padding: 6px 8px;">${r.totalNew}</td>
+          <td style="text-align: right; padding: 6px 8px;">${r.totalClosed}</td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 500; color: ${netColor};">${netPrefix}${r.net}</td>
+        </tr>
+      `;
+		});
+
+		/* Team totals row */
+		const teamNetColor =
+			teamNet > 0
+				? "var(--danger)"
+				: teamNet < 0
+					? "var(--positive)"
+					: "var(--text-muted)";
+		const teamNetPrefix = teamNet > 0 ? "+" : "";
+
+		html += `
+        <tr style="border-top: 1px solid var(--border-default);">
+          <td style="padding: 6px 8px; font-weight: 500; color: var(--text-muted);">Team total</td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 600;">${teamQueue}</td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${teamNew}</td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${teamClosed}</td>
+          <td style="text-align: right; padding: 6px 8px; font-weight: 600; color: ${teamNetColor};">${teamNetPrefix}${teamNet}</td>
+        </tr>
+      </tbody></table>
+    `;
+
+		return html;
+	} else {
+		/* Individual member view — summary card */
+		const sorted = ticketStats.sort((a, b) => a.date.localeCompare(b.date));
+		const last = sorted[sorted.length - 1];
+		const totalNew = ticketStats.reduce(
+			(sum, s) => sum + (s.newTickets || 0),
+			0,
+		);
+		const totalClosed = ticketStats.reduce(
+			(sum, s) => sum + (s.closedTickets || 0),
+			0,
+		);
+		const currentQueue = last.queueSize + last.newTickets - last.closedTickets;
+		const net = totalNew - totalClosed;
+		const netColor =
+			net > 0
+				? "var(--danger)"
+				: net < 0
+					? "var(--positive)"
+					: "var(--text-muted)";
+		const netPrefix = net > 0 ? "+" : "";
+
+		return `
+      <div class="text-sm font-medium mb-3">Ticket queue</div>
+      <div style="display: flex; gap: 16px;">
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted);">Current queue</div>
+          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${currentQueue}</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted);">New</div>
+          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalNew}</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted);">Closed</div>
+          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalClosed}</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted);">Net</div>
+          <div style="font-size: 20px; font-weight: 600; color: ${netColor};">${netPrefix}${net}</div>
+        </div>
+      </div>
+    `;
+	}
 }
 
 /**

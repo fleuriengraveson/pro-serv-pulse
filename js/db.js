@@ -521,6 +521,55 @@ export async function getAllTeamNotesForWeek(weekKey) {
 		}));
 }
 
+/**
+ * getTeamMemberTicketStats
+ * Retrieves ticket stats from an imported team member's data for a date range.
+ *
+ * @param {string} name - Team member name
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>} Array of daily ticket stat records
+ */
+export async function getTeamMemberTicketStats(name, startDate, endDate) {
+	const records = await db.teamData.where("name").equals(name).toArray();
+
+	const stats = [];
+	records.forEach((r) => {
+		if (!r.data?.ticketStats) return;
+		r.data.ticketStats.forEach((s) => {
+			if (s.date >= startDate && s.date <= endDate) {
+				stats.push({ ...s, memberName: name });
+			}
+		});
+	});
+
+	return stats;
+}
+
+/**
+ * getAllTeamTicketStats
+ * Retrieves ticket stats for all team members in a date range.
+ *
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getAllTeamTicketStats(startDate, endDate) {
+	const records = await db.teamData.toArray();
+	const stats = [];
+
+	records.forEach((r) => {
+		if (!r.data?.ticketStats) return;
+		r.data.ticketStats.forEach((s) => {
+			if (s.date >= startDate && s.date <= endDate) {
+				stats.push({ ...s, memberName: r.name });
+			}
+		});
+	});
+
+	return stats;
+}
+
 /* ============================================================================
  * BULK IMPORT / RESTORE
  * ========================================================================= */
