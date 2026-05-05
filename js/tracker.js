@@ -668,7 +668,9 @@ function renderSidebar(stats) {
       <button id="btn-today" class="sidebar-btn">Today</button>
       <button id="btn-notes" class="sidebar-btn sidebar-btn-notes">Notes (N)</button>
     </div>
-
+	${
+		appState.settings.role === "manager"
+			? `
     <!-- Daily tracked hours -->
     <div class="stat-card">
       <div class="stat-card-label">Tracked today</div>
@@ -710,6 +712,9 @@ function renderSidebar(stats) {
       </div>
       <div class="pace-text ${weeklyPaceInfo.cls}">${weeklyPaceInfo.text}</div>
     </div>
+	`
+			: ""
+	}
 
     <!-- Tier breakdown for today -->
     <div class="stat-card">

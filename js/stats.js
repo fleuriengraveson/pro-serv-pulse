@@ -672,11 +672,14 @@ async function renderStats() {
     <!-- ================================================================
 		TOP METRICS ROW
     ================================================================ -->
-    <div class="grid grid-cols-4 gap-3 mb-6">
+    <div class="grid ${appState.settings.role === "manager" ? "grid-cols-4" : "grid-cols-3"} gap-3 mb-6">
 
-		<!-- Card 1: Tracked hours with pace -->
-		<div class="stat-card">
-			<div class="stat-card-label">Tracked hours</div>
+      ${
+				appState.settings.role === "manager"
+					? `
+      <!-- Card 1: Tracked hours with pace (manager only) -->
+      <div class="stat-card">
+        <div class="stat-card-label">Tracked hours</div>
 			<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
 			<div class="progress-with-marker">
 				<div class="progress-fill progress-fill-good"
@@ -717,9 +720,12 @@ async function renderStats() {
 						}
 					}
 				})()}
-			</div>
+      </div>
+      `
+					: ""
+			}
 
-			<!-- Card 2: Tier split -->
+      <!-- Card 2: Tier split -->
 			${(() => {
 				const tierTotal =
 					(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
