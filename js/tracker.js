@@ -1,5 +1,5 @@
 /* ============================================================================
- * tracker.js — Daily Time Tracker View
+ * tracker.js — Daily Weekly Tracker View
  * ============================================================================
  * Renders the main daily tracking interface:
  *   - Day navigation with week bar
