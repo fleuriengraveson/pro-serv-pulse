@@ -25,6 +25,9 @@ import {
 	getLastEntryForMerchant,
 	getAllTeamNotesForWeek,
 	getTeamMemberNotes,
+	getTicketStats,
+	saveTicketStats,
+	getMostRecentTicketStats,
 } from "./db.js";
 import {
 	generateTimeSlots,
@@ -398,6 +401,7 @@ async function renderTracker() {
 
 	/* Attach event listeners after rendering */
 	attachEventListeners();
+	await loadTicketTracker();
 
 	/* Re-show clipboard indicator if clipboard is active */
 	if (clipboard) updateClipboardIndicator();
@@ -668,6 +672,14 @@ function renderSidebar(stats) {
       <button id="btn-today" class="sidebar-btn">Today</button>
       <button id="btn-notes" class="sidebar-btn sidebar-btn-notes">Notes (N)</button>
     </div>
+
+    <!-- Ticket queue tracker -->
+    <div class="stat-card" id="ticket-tracker">
+      <div class="stat-card-label">Ticket queue</div>
+      <div id="ticket-counters" style="margin-top: 8px;">
+        <!-- Populated by loadTicketTracker -->
+      </div>
+    </div>
 	${
 		appState.settings.role === "manager"
 			? `
@@ -744,6 +756,188 @@ function renderSidebar(stats) {
       </div>
     </div>
   `;
+}
+
+/**
+ * loadTicketTracker
+ * Loads ticket stats for the current date and renders the counters.
+ * If no stats exist for today, carries forward the previous day's queue.
+ */
+async function loadTicketTracker() {
+	const container = document.getElementById("ticket-counters");
+	if (!container) return;
+
+	const dateStr = formatDateISO(currentDate);
+	let stats = await getTicketStats(dateStr);
+
+	if (!stats) {
+		/* No stats for today — carry forward the most recent queue size */
+		const prev = await getMostRecentTicketStats();
+		stats = {
+			date: dateStr,
+			queueSize: prev
+				? prev.queueSize + prev.newTickets - prev.closedTickets
+				: 0,
+			newTickets: 0,
+			closedTickets: 0,
+		};
+		/* Only auto-save if we have a previous record to carry forward */
+		if (prev) {
+			await saveTicketStats(dateStr, stats);
+		}
+	}
+
+	renderTicketCounters(container, stats);
+}
+
+/**
+ * renderTicketCounters
+ * Renders the three ticket counter rows with +/- buttons.
+ *
+ * @param {HTMLElement} container - The container element
+ * @param {Object} stats - { queueSize, newTickets, closedTickets }
+ */
+function renderTicketCounters(container, stats) {
+	const dateStr = formatDateISO(currentDate);
+	const currentQueue = stats.queueSize + stats.newTickets - stats.closedTickets;
+
+	const rows = [
+		{ id: "queue", label: "In queue", value: currentQueue, editable: true },
+		{ id: "new", label: "New today", value: stats.newTickets, editable: true },
+		{
+			id: "closed",
+			label: "Closed today",
+			value: stats.closedTickets,
+			editable: true,
+		},
+	];
+
+	container.innerHTML = rows
+		.map(
+			(row) => `
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
+      <span style="font-size: 11px; color: var(--text-secondary); width: 72px;">${row.label}</span>
+      <div style="display: flex; align-items: center; gap: 4px;">
+        <button class="ticket-btn" data-action="decrement" data-field="${row.id}" style="
+          width: 22px; height: 22px; border-radius: 6px; border: 0.5px solid var(--border-default);
+          background: none; color: var(--text-muted); cursor: pointer; font-size: 13px;
+          display: flex; align-items: center; justify-content: center; font-family: inherit;
+          transition: all 0.1s;
+        ">−</button>
+        <input type="number" id="ticket-${row.id}" value="${row.value}"
+          data-field="${row.id}"
+          style="
+            width: 40px; text-align: center; font-size: 13px; font-weight: 500;
+            color: var(--text-primary); background: var(--bg-surface);
+            border: 0.5px solid var(--border-default); border-radius: 6px;
+            padding: 2px 0; font-family: inherit;
+            -moz-appearance: textfield;
+          " />
+        <button class="ticket-btn" data-action="increment" data-field="${row.id}" style="
+          width: 22px; height: 22px; border-radius: 6px; border: 0.5px solid var(--border-default);
+          background: none; color: var(--text-muted); cursor: pointer; font-size: 13px;
+          display: flex; align-items: center; justify-content: center; font-family: inherit;
+          transition: all 0.1s;
+        ">+</button>
+      </div>
+    </div>
+  `,
+		)
+		.join("");
+
+	/* Hide number input spinners */
+	container.querySelectorAll('input[type="number"]').forEach((input) => {
+		input.style.webkitAppearance = "none";
+		input.style.margin = "0";
+	});
+
+	/* Attach +/- button listeners */
+	container.querySelectorAll(".ticket-btn").forEach((btn) => {
+		btn.addEventListener("click", async () => {
+			const field = btn.dataset.field;
+			const action = btn.dataset.action;
+			const delta = action === "increment" ? 1 : -1;
+
+			/* Reload current stats from DB to avoid stale data */
+			let current = await getTicketStats(dateStr);
+			if (!current) {
+				const prev = await getMostRecentTicketStats();
+				current = {
+					date: dateStr,
+					queueSize: prev
+						? prev.queueSize + prev.newTickets - prev.closedTickets
+						: 0,
+					newTickets: 0,
+					closedTickets: 0,
+				};
+			}
+
+			if (field === "queue") {
+				/* Direct queue adjustment — recalculate the base queueSize */
+				const currentQueue =
+					current.queueSize + current.newTickets - current.closedTickets;
+				const newQueue = Math.max(0, currentQueue + delta);
+				current.queueSize =
+					newQueue - current.newTickets + current.closedTickets;
+			} else if (field === "new") {
+				current.newTickets = Math.max(0, current.newTickets + delta);
+			} else if (field === "closed") {
+				current.closedTickets = Math.max(0, current.closedTickets + delta);
+			}
+
+			await saveTicketStats(dateStr, current);
+			renderTicketCounters(container, current);
+
+			/* Auto-export to sync folder if connected */
+			try {
+				const { autoExportWeek } = await import("./sync.js");
+				await autoExportWeek(appState);
+			} catch (e) {
+				/* sync not available, ignore */
+			}
+		});
+	});
+
+	/* Attach direct input listeners */
+	container.querySelectorAll("input").forEach((input) => {
+		input.addEventListener("change", async () => {
+			const field = input.dataset.field;
+			const val = Math.max(0, parseInt(input.value) || 0);
+
+			let current = await getTicketStats(dateStr);
+			if (!current) {
+				const prev = await getMostRecentTicketStats();
+				current = {
+					date: dateStr,
+					queueSize: prev
+						? prev.queueSize + prev.newTickets - prev.closedTickets
+						: 0,
+					newTickets: 0,
+					closedTickets: 0,
+				};
+			}
+
+			if (field === "queue") {
+				/* Direct queue edit — user is correcting the total */
+				current.queueSize = val - current.newTickets + current.closedTickets;
+			} else if (field === "new") {
+				current.newTickets = val;
+			} else if (field === "closed") {
+				current.closedTickets = val;
+			}
+
+			await saveTicketStats(dateStr, current);
+			renderTicketCounters(container, current);
+
+			/* Auto-export to sync folder if connected */
+			try {
+				const { autoExportWeek } = await import("./sync.js");
+				await autoExportWeek(appState);
+			} catch (e) {
+				/* sync not available, ignore */
+			}
+		});
+	});
 }
 
 /* ============================================================================
@@ -1954,6 +2148,7 @@ async function renderWeekView() {
 
 	/* Attach week view event listeners */
 	attachWeekEventListeners();
+	await loadTicketTracker();
 
 	const newGrid = document.querySelector(".tracker-grid");
 	if (newGrid) newGrid.scrollTop = savedScroll;

@@ -46,6 +46,9 @@ db.version(1).stores({
 	 * Indexed by name and week for efficient dashboard queries */
 	teamData: "++id, [name+weekKey], name, weekKey",
 });
+db.version(2).stores({
+	ticketStats: "date",
+});
 
 /* ============================================================================
  * SETTINGS OPERATIONS
@@ -590,6 +593,59 @@ export async function exportAllData() {
 		weeklyNotes,
 		teamData,
 	};
+}
+
+/**
+ * getTicketStats
+ * Returns the ticket stats for a given date.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @returns {Promise<Object|null>} { date, queueSize, newTickets, closedTickets }
+ */
+export async function getTicketStats(date) {
+	return (await db.ticketStats.get(date)) || null;
+}
+
+/**
+ * saveTicketStats
+ * Saves or updates ticket stats for a given date.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @param {Object} stats - { queueSize, newTickets, closedTickets }
+ */
+export async function saveTicketStats(date, stats) {
+	await db.ticketStats.put({
+		date,
+		queueSize: stats.queueSize,
+		newTickets: stats.newTickets,
+		closedTickets: stats.closedTickets,
+	});
+}
+
+/**
+ * getTicketStatsForRange
+ * Returns all ticket stats records within a date range.
+ *
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>}
+ */
+export async function getTicketStatsForRange(startDate, endDate) {
+	return await db.ticketStats
+		.where("date")
+		.between(startDate, endDate, true, true)
+		.toArray();
+}
+
+/**
+ * getMostRecentTicketStats
+ * Returns the most recent ticket stats record (for carrying forward queue size).
+ *
+ * @returns {Promise<Object|null>}
+ */
+export async function getMostRecentTicketStats() {
+	const all = await db.ticketStats.orderBy("date").reverse().limit(1).toArray();
+	return all.length > 0 ? all[0] : null;
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 	getEntriesForDateRange,
 	getWeeklyNotes,
 	migrateZendeskToAdmin,
+	getTicketStatsForRange,
 } from "./db.js";
 import { initTracker } from "./tracker.js";
 import { initSettings } from "./settings.js";
@@ -543,6 +544,7 @@ async function exportCurrentWeek() {
 					customerMeetings: notes.customerMeetings || "",
 				}
 			: null,
+		ticketStats: await getTicketStatsForExport(startDate, endDate),
 		tierMap: state.tierMap,
 	};
 
@@ -1079,6 +1081,21 @@ async function exportTeamReport() {
 	const reportWindow = window.open("", "_blank");
 	reportWindow.document.write(html);
 	reportWindow.document.close();
+}
+
+/**
+ * getTicketStatsForExport
+ * Returns ticket stats for the date range, formatted for export.
+ */
+async function getTicketStatsForExport(startDate, endDate) {
+	const { getTicketStatsForRange } = await import("./db.js");
+	const stats = await getTicketStatsForRange(startDate, endDate);
+	return stats.map((s) => ({
+		date: s.date,
+		queueSize: s.queueSize,
+		newTickets: s.newTickets,
+		closedTickets: s.closedTickets,
+	}));
 }
 
 /* ============================================================================

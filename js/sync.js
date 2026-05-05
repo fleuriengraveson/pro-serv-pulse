@@ -23,6 +23,7 @@ import {
 	getWeeklyNotes,
 	importTeamMemberData,
 	getTeamMemberList,
+	getTicketStatsForRange,
 } from "./db.js";
 
 /* ============================================================================
@@ -297,6 +298,14 @@ export async function autoExportWeek(state, refDate = new Date()) {
 				formerPOS: e.formerPOS || "",
 				notes: e.notes || "",
 			})),
+			ticketStats: (await getTicketStatsForRange(startDate, endDate)).map(
+				(s) => ({
+					date: s.date,
+					queueSize: s.queueSize,
+					newTickets: s.newTickets,
+					closedTickets: s.closedTickets,
+				}),
+			),
 			weeklyNotes: notes
 				? {
 						wins: notes.wins || "",
@@ -384,6 +393,15 @@ export async function autoExportAllWeeks(state) {
 						formerPOS: e.formerPOS || "",
 						notes: e.notes || "",
 					})),
+					ticketStats: await (async () => {
+						const stats = await getTicketStatsForRange(startDate, endDate);
+						return stats.map((s) => ({
+							date: s.date,
+							queueSize: s.queueSize,
+							newTickets: s.newTickets,
+							closedTickets: s.closedTickets,
+						}));
+					})(),
 					weeklyNotes: notes
 						? {
 								wins: notes.wins || "",
