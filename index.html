@@ -141,6 +141,32 @@
 						</svg>
 					</button>
 
+					<button
+						id="sync-indicator"
+						class="hidden"
+						title="Sync status"
+						style="
+							display: inline-flex;
+							align-items: center;
+							gap: 5px;
+							font-size: 11px;
+							font-family: inherit;
+							padding: 4px 10px;
+							border-radius: 8px;
+							border: 0.5px solid var(--border-default);
+							background: none;
+							cursor: pointer;
+							color: var(--text-muted);
+							transition: all 0.15s;
+						"
+					>
+						<span
+							id="sync-dot"
+							style="width: 7px; height: 7px; border-radius: 50%"
+						></span>
+						<span id="sync-label" style="white-space: nowrap"></span>
+					</button>
+
 					<!-- Export button -->
 					<div style="position: relative; display: inline-flex">
 						<button

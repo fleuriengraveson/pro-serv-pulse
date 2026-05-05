@@ -97,6 +97,8 @@ async function init() {
 	/* Initialize and render the default view (tracker) */
 	const savedView = localStorage.getItem("chronos-app-view") || VIEWS.TRACKER;
 	await switchView(savedView);
+
+	await updateSyncIndicator();
 }
 
 /* ============================================================================
@@ -200,6 +202,8 @@ async function switchView(viewId) {
 
 	/* Check if export reminders are needed */
 	await updateExportReminder();
+
+	await updateSyncIndicator();
 }
 
 /**
@@ -268,6 +272,88 @@ function updateExportReportVisibility() {
 	const reportBtn = document.getElementById("btn-export-report");
 	if (reportBtn) {
 		reportBtn.classList.toggle("hidden", state.settings.role !== "manager");
+	}
+}
+
+/**
+ * updateSyncIndicator
+ * Shows a small sync status icon in the header.
+ * Green = syncing, amber = needs permission, hidden = not connected.
+ */
+async function updateSyncIndicator() {
+	const indicator = document.getElementById("sync-indicator");
+	const dot = document.getElementById("sync-dot");
+	const label = document.getElementById("sync-label");
+	if (!indicator || !dot || !label) return;
+
+	try {
+		const { isSyncSupported, getSyncStatus } = await import("./sync.js");
+		if (!isSyncSupported()) {
+			indicator.classList.add("hidden");
+			return;
+		}
+
+		/* Check export folder status (relevant for everyone) */
+		const exportStatus = await getSyncStatus("export");
+
+		/* Also check import folder for managers */
+		const isManager = state.settings.role === "manager";
+		const importStatus = isManager ? await getSyncStatus("import") : null;
+
+		if (!exportStatus.connected && (!importStatus || !importStatus.connected)) {
+			/* Nothing connected — show grey "not connected" */
+			indicator.classList.remove("hidden");
+			dot.style.background = "var(--text-placeholder)";
+			label.textContent = "Sync off";
+			indicator.title = "Click to connect a sync folder in Settings";
+			indicator.onclick = () => {
+				document.querySelector('.nav-btn[data-view="settings"]')?.click() ||
+					document.getElementById("nav-settings")?.click();
+			};
+			return;
+		}
+
+		/* Something is connected — check permissions */
+		const exportOk = exportStatus.connected && exportStatus.hasPermission;
+		const importOk =
+			!isManager || !importStatus?.connected || importStatus?.hasPermission;
+
+		if (exportOk && importOk) {
+			/* All good — green dot */
+			indicator.classList.remove("hidden");
+			dot.style.background = "var(--positive)";
+			label.textContent = "Syncing";
+			indicator.title = `Auto-syncing to ${exportStatus.name}`;
+			indicator.onclick = null;
+			indicator.style.cursor = "default";
+		} else {
+			/* Connected but needs permission — amber dot, click to grant */
+			indicator.classList.remove("hidden");
+			dot.style.background = "var(--warning)";
+			label.textContent = "Sync paused";
+			indicator.title = "Click to grant file access";
+			indicator.style.cursor = "pointer";
+			indicator.onclick = async () => {
+				try {
+					const { connectSyncFolder, getSyncStatus: refresh } =
+						await import("./sync.js");
+					/* Re-request permission by verifying the stored handle */
+					if (exportStatus.connected && !exportStatus.hasPermission) {
+						await connectSyncFolder("export");
+					}
+					if (importStatus?.connected && !importStatus?.hasPermission) {
+						await connectSyncFolder("import");
+					}
+					/* Refresh the indicator */
+					await updateSyncIndicator();
+				} catch (e) {
+					console.warn("Permission request failed:", e.message);
+				}
+			};
+		}
+	} catch (e) {
+		/* sync.js not available */
+		indicator.classList.add("hidden");
 	}
 }
 
@@ -466,6 +552,8 @@ async function exportCurrentWeek() {
 	/* Mark this week as exported and update the reminder banner */
 	markWeekExported(weekKey);
 	updateExportReminder();
+
+	await updateSyncIndicator();
 }
 
 /**
