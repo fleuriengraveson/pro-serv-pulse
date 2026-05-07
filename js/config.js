@@ -1,5 +1,5 @@
 /* ============================================================================
- * config.js — Weekly Tracker Application Configuration
+ * config.js — Pulse Application Configuration
  * ============================================================================
  * Central source of truth for all app constants, work categories, tier
  * mappings, and default settings. Tier mappings can be modified by managers

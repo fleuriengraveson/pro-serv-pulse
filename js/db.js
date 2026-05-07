@@ -1,5 +1,5 @@
 /* ============================================================================
- * db.js — Weekly Tracker Database Layer (Dexie.js / IndexedDB)
+ * db.js — Pulse Database Layer (Dexie.js / IndexedDB)
  * ============================================================================
  * Handles all persistent data storage using IndexedDB via the Dexie.js
  * wrapper library. Provides clean async methods for CRUD operations on
@@ -14,7 +14,7 @@ import { DEFAULT_USER_SETTINGS, DEFAULT_TIER_MAP } from "./config.js";
 /* ----------------------------------------------------------------------------
  * DATABASE INITIALIZATION
  * --------------------------------------------------------------------------
- * Creates (or opens) the Weekly Tracker IndexedDB database with the required
+ * Creates (or opens) the Pulse IndexedDB database with the required
  * object stores (tables) and their indexed fields.
  *
  * Dexie uses a versioning system — if you need to change the schema later,

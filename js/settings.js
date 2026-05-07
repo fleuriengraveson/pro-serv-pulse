@@ -177,7 +177,7 @@ async function renderSettings() {
         ================================================================ -->
       <div class="mb-8">
         <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Visible categories</h3>
-        <p class="text-xs text-stone-400 mb-3">Choose which categories appear in your tracker dropdown. Hidden categories won't be lost from existing data.</p>
+        <p class="text-xs text-stone-400 mb-3">Choose which categories appear in your dropdown. Hidden categories won't be lost from existing data.</p>
         <div class="bg-white rounded-xl border border-stone-200 p-5 space-y-2">
           ${CATEGORIES.filter(
 						(c) => c.id !== "lunch" && c.id !== "ooo" && c.id !== "other",

@@ -1,5 +1,5 @@
 /* ============================================================================
- * utils.js — Weekly Tracker Shared Utility Functions
+ * utils.js — Pulse Shared Utility Functions
  * ============================================================================
  * Common helpers used across multiple modules: date formatting, time slot
  * generation, statistical calculations for outlier detection, and
