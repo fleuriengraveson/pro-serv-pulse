@@ -1526,8 +1526,7 @@ function renderOutsourcingCandidates(entries) {
 
 	const memberCount = Object.keys(byMember).length;
 
-	let html =
-		'<div class="text-sm font-medium mb-3">Potential Outsourcing Candidates</div>';
+	let html = '<div class="text-sm font-medium mb-3">Full-Time Candidates</div>';
 	html += '<div style="display: flex; gap: 12px;">';
 
 	sorted.forEach(([catId, hours]) => {
