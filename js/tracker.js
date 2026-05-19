@@ -675,7 +675,7 @@ function renderSidebar(stats) {
 
     <!-- Ticket queue tracker -->
     <div class="stat-card" id="ticket-tracker">
-      <div class="stat-card-label">Ticket queue</div>
+      <div class="stat-card-label">Ticket queue <span class="info-bubble" data-help="<strong>In queue:</strong> Your current open ticket count. Updates automatically when you add new or closed tickets.<br><br><strong>New today:</strong> Tickets received today. Tap + when a new one comes in.<br><br><strong>Closed today:</strong> Tickets resolved today. Tap + when you close one.<br><br>If the queue number doesn't match Zendesk, just edit in-queue directly.">i</span></div>
       <div id="ticket-counters" style="margin-top: 8px;">
         <!-- Populated by loadTicketTracker -->
       </div>
@@ -683,7 +683,7 @@ function renderSidebar(stats) {
 
     <!-- Daily tracked hours -->
     <div class="stat-card">
-      <div class="stat-card-label">Tracked today</div>
+	  <div class="stat-card-label">Tracked today <span class="info-bubble" data-help="Total tracked hours excluding OOO. Future blocks are not included. 60% is the minimum target.">i</span></div>
       <div class="stat-card-value">
         ${stats.dailyTracked}
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.dailyTrackableHours} hrs</span>
@@ -704,7 +704,7 @@ function renderSidebar(stats) {
 
     <!-- Weekly tracked hours -->
     <div class="stat-card">
-      <div class="stat-card-label">Tracked this week</div>
+      <div class="stat-card-label">Tracked this week <span class="info-bubble" data-help="Total tracked hours excluding OOO. Future blocks are not included. 60% is the minimum target.">i</span></div>
       <div class="stat-card-value">
         ${stats.weeklyTracked}
         <span class="text-sm font-normal text-stone-400">/ ${TARGETS.weeklyTrackableHours} hrs</span>
@@ -723,28 +723,9 @@ function renderSidebar(stats) {
       <div class="pace-text ${weeklyPaceInfo.cls}">${weeklyPaceInfo.text}</div>
     </div>
 
-    <!-- Tier breakdown for today -->
-    <div class="stat-card">
-      <div class="stat-card-label">Tier breakdown today</div>
-      <div class="mt-2 space-y-1">
-        <div class="flex justify-between text-xs">
-          <span class="text-stone-400">Tier 1 (customer)</span>
-          <span class="font-medium">${stats.dailyTiers[1]} hrs</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-stone-400">Tier 2 (internal)</span>
-          <span class="font-medium">${stats.dailyTiers[2]} hrs</span>
-        </div>
-        <div class="flex justify-between text-xs">
-          <span class="text-stone-400">Tier 3 (other)</span>
-          <span class="font-medium">${stats.dailyTiers[3]} hrs</span>
-        </div>
-      </div>
-    </div>
-
     <!-- Billable today -->
     <div class="stat-card">
-      <div class="stat-card-label">Billable today</div>
+      <div class="stat-card-label">Billable today <span class="info-bubble" data-help="Hours marked as <strong>billable</strong> today. Billable work is above-and-beyond the standard service — things like custom data formatting, migration projects, or custom integrations that could be invoiced separately.">i</span></div>
       <div class="stat-card-value text-emerald-600">
         ${stats.dailyBillable}
         <span class="text-sm font-normal text-stone-400">hrs</span>
@@ -1118,6 +1099,9 @@ async function showEditDropdown(
 
       <!-- LEFT: Category list -->
       <div class="dropdown-categories">
+        <div style="padding: 4px 8px 6px; font-size: 10px; color: var(--text-placeholder);">
+          Category <span class="info-bubble" data-help="• <strong>Admin — Internal:</strong> Email and Slack that is not customer-related<br>• <strong>Admin — Merchant:</strong> Queue work, short ticket handling, replying to customers<br>• <strong>Data Migration/Cleaning:</strong> Transforming merchant data, cleaning CSV files, imports<br>• <strong>Hardware:</strong> Troubleshooting or training on hardware<br>• <strong>Troubleshooting:</strong> Diagnosing and fixing issues not covered by other categories<br>• <strong>API / Technical Scoping:</strong> Consulting or troubleshooting Lightspeed's API<br>• <strong>Analytics:</strong> Troubleshooting or building custom Analytics reports<br>• <strong>Meetings:</strong> Internal (team) or Merchant (customer)<br>• <strong>Research / Product Sync:</strong> In-depth research not related to troubleshooting, Jira creation<br>• <strong>Internal Tools:</strong> Building team tools">i</span>
+        </div>
         ${CATEGORIES.filter((cat) => {
 					const hidden = appState.settings.hiddenCategories || [];
 					if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other")
@@ -1205,13 +1189,13 @@ async function showEditDropdown(
             <input type="checkbox" id="edit-billable"
                    ${entry.billable ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
-            <span class="text-xs" style="color: var(--text-secondary);">Billable</span>
+            <span class="text-xs" style="color: var(--text-secondary);">Billable <span class="info-bubble" data-help="Mark as billable if this work is <strong>above the standard service</strong> — custom data formatting, migration projects, custom integrations, or other work that could be invoiced separately. Routine support, troubleshooting, and meetings are generally not billable.">i</span></span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="edit-urgent"
                    ${entry.urgent ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
-            <span class="text-xs" style="color: var(--text-secondary);">Urgent</span>
+            <span class="text-xs" style="color: var(--text-secondary);">Urgent <span class="info-bubble" data-help="Mark as urgent if this was <strong>unplanned reactive work</strong> that needed to be actioned immediately. Helps management track how much time is spent on emergencies vs planned work.">i</span></span>
           </label>
         </div>
 

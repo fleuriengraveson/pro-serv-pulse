@@ -96,7 +96,7 @@ async function renderSettings() {
         WORK HOURS SECTION
         ================================================================ -->
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Work hours</h3>
+        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Work hours <span class="info-bubble" data-help="Set your typical work day start and end times. Setting your typical lunch time allows you to click the Fill Lunch button to enter lunches automatically.">i</span></h3>
         <div class="space-y-4 bg-white rounded-xl border border-stone-200 p-5">
 
           <!-- Start / End hours -->
@@ -144,7 +144,7 @@ async function renderSettings() {
         OPTIONAL FIELDS SECTION
         ================================================================ -->
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Optional fields</h3>
+        <h3 class="...">Optional fields <span class="info-bubble" data-help="Toggle which fields appear in the time block editor. <strong>Merchant</strong> tracks which customer you're working on. <strong>Former POS</strong> tracks the merchant's previous point-of-sale system (only needed if you are doing migrations).">i</span></h3>
         <div class="space-y-3 bg-white rounded-xl border border-stone-200 p-5">
 
           <!-- Merchant toggle -->
@@ -176,7 +176,7 @@ async function renderSettings() {
         VISIBLE CATEGORIES
         ================================================================ -->
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Visible categories</h3>
+        <h3 class="...">Visible categories <span class="info-bubble" data-help="Hide categories you never use to simplify the dropdown. Hidden categories won't appear when you click a time block, but any existing entries with those categories are preserved.">i</span></h3>
         <p class="text-xs text-stone-400 mb-3">Choose which categories appear in your dropdown. Hidden categories won't be lost from existing data.</p>
         <div class="bg-white rounded-xl border border-stone-200 p-5 space-y-2">
           ${CATEGORIES.filter(
@@ -209,7 +209,7 @@ async function renderSettings() {
 				isManager
 					? `
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Tier mappings</h3>
+        <h3 class="...">Tier mappings <span class="info-bubble" data-help="Assign each category to a tier for reporting.<br><br><strong>Tier 1:</strong> Customer-facing work<br><strong>Tier 2:</strong> Internal work<br><strong>Tier 3:</strong> Other<br><strong>Null:</strong> Excluded from tier calculations (lunch, OOO)">i</span></h3>
         <p class="text-xs text-stone-400 mb-3">Assign each work category to a tier. This affects all team reporting.</p>
         <div class="bg-white rounded-xl border border-stone-200 p-5 space-y-2">
           ${CATEGORIES.map(
@@ -256,7 +256,7 @@ async function renderSettings() {
 				isManager
 					? `
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Team data</h3>
+        <h3 class="...">Team data <span class="info-bubble" data-help="Import your team's weekly export files here. Drag and drop JSON files to import. Re-importing the same person's week <strong>updates</strong> rather than duplicates.">i</span></h3>
         <div class="bg-white rounded-xl border border-stone-200 p-5">
 
           <!-- Import zone -->
@@ -287,7 +287,7 @@ async function renderSettings() {
         SYNC FOLDER CONNECTION
         ================================================================ -->
       <div class="mb-8">
-        <h3 class="text-xs font-medium text-stone-400 uppercase tracking-wider mb-3">Sync</h3>
+        <h3 class="...">Sync <span class="info-bubble" data-help="Connect a shared Google Drive folder for automatic sync. <strong>Auto-export</strong> writes your weekly data to the folder on every save. <strong>Auto-import</strong> (managers) reads team files when you open Stats.<br><br>Requires Google Drive for Desktop and Chrome. Permission is re-granted once per browser session.">i</span></h3>
         <div class="bg-white rounded-xl border border-stone-200 p-5">
 
           <!-- Export folder (everyone) -->

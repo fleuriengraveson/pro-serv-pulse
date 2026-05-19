@@ -20,11 +20,13 @@ export const CATEGORIES = [
 	{
 		id: "admin_internal",
 		label: "Admin — Internal",
+		hex: "#F09088",
 		cssVar: "--cat-admin-internal-border",
 	},
 	{
 		id: "admin_merchant",
 		label: "Admin — Merchant",
+		hex: "#E07068",
 		cssVar: "--cat-admin-merchant-border",
 	},
 	{
@@ -86,6 +88,7 @@ export const CATEGORIES = [
 	{
 		id: "troubleshooting",
 		label: "Troubleshooting",
+		hex: "#F5C040",
 		cssVar: "--cat-troubleshooting-border",
 	},
 	{

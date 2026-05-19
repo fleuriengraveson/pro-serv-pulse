@@ -102,6 +102,8 @@ async function init() {
 	await switchView(savedView);
 
 	await updateSyncIndicator();
+
+	initInfoBubbles();
 }
 
 /* ============================================================================
@@ -1171,6 +1173,69 @@ async function exportTeamReport() {
 	const reportWindow = window.open("", "_blank");
 	reportWindow.document.write(html);
 	reportWindow.document.close();
+}
+
+/**
+ * initInfoBubbles
+ * Sets up global hover handlers for info bubble tooltips.
+ */
+function initInfoBubbles() {
+	let activePopover = null;
+	let activeBubble = null;
+
+	document.addEventListener("mouseover", (e) => {
+		const bubble = e.target.closest(".info-bubble");
+		if (!bubble || bubble === activeBubble) return;
+
+		/* Close any existing popover */
+		if (activePopover) {
+			activePopover.remove();
+			activePopover = null;
+			activeBubble = null;
+		}
+
+		const text = bubble.dataset.help;
+		if (!text) return;
+
+		const popover = document.createElement("div");
+		popover.className = "info-popover";
+		popover.innerHTML = text;
+		document.body.appendChild(popover);
+
+		/* Position below the bubble */
+		const rect = bubble.getBoundingClientRect();
+		const popRect = popover.getBoundingClientRect();
+		let left = rect.left + rect.width / 2 - popRect.width / 2;
+		let top = rect.bottom + 6;
+
+		/* Keep within viewport */
+		if (left < 8) left = 8;
+		if (left + popRect.width > window.innerWidth - 8) {
+			left = window.innerWidth - popRect.width - 8;
+		}
+		if (top + popRect.height > window.innerHeight - 8) {
+			top = rect.top - popRect.height - 6;
+		}
+
+		popover.style.left = `${left}px`;
+		popover.style.top = `${top}px`;
+		activePopover = popover;
+		activeBubble = bubble;
+	});
+
+	document.addEventListener("mouseout", (e) => {
+		const bubble = e.target.closest(".info-bubble");
+		if (bubble && bubble === activeBubble) {
+			/* Small delay so the popover doesn't flicker */
+			setTimeout(() => {
+				if (activePopover) {
+					activePopover.remove();
+					activePopover = null;
+					activeBubble = null;
+				}
+			}, 150);
+		}
+	});
 }
 
 /**

@@ -718,7 +718,7 @@ async function renderStats() {
 
       <!-- Card 1: Tracked hours with pace -->
       <div class="stat-card">
-        <div class="stat-card-label">Tracked hours</div>
+        <div class="stat-card-label">Tracked hours <span class="info-bubble" data-help="Total tracked hours excluding OOO. Future blocks are not included. 60% is the minimum target.">i</span></div>
 			<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
 			<div class="progress-with-marker">
 				<div class="progress-fill progress-fill-good"
@@ -773,7 +773,7 @@ async function renderStats() {
 
 				return `
 			<div class="stat-card">
-				<div class="stat-card-label">Time allocation</div>
+				<div class="stat-card-label">Time allocation <span class="info-bubble" data-help="How time splits across tiers.<br><br><strong>Tier 1 (purple):</strong> Customer-facing work like migrations, hardware, API work, merchant meetings<br><strong>Tier 2 (green):</strong> Internal work like admin, internal meetings, research, tools<br><strong>Tier 3 (grey):</strong> Other">i</span></div>
 				${
 					tierTotal > 0
 						? `
@@ -820,7 +820,7 @@ async function renderStats() {
 
 				return `
       <div class="stat-card">
-        <div class="stat-card-label">Billable ratio</div>
+        <div class="stat-card-label">Billable ratio <span class="info-bubble" data-help="Percentage of tracked hours marked as billable. Billable work is <strong>above standard service</strong> — custom projects, data formatting, migrations — not routine support or troubleshooting.">i</span></div>
         <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 6px;">
           <div class="stat-card-value">${billablePct}%</div>
           <span style="font-size: 12px; color: var(--text-muted);">${billable} of ${tracked} hrs</span>
@@ -842,7 +842,7 @@ async function renderStats() {
 				if (catEntries.length === 0) {
 					return `
       <div class="stat-card">
-        <div class="stat-card-label">Top category</div>
+        <div class="stat-card-label">Top category <span class="info-bubble" data-help="The category consuming the most time this period, with the runner-up shown below.">i</span></div>
         <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">No data this period</div>
       </div>`;
 				}
@@ -864,7 +864,7 @@ async function renderStats() {
 
 				return `
       <div class="stat-card">
-        <div class="stat-card-label">Top category</div>
+        <div class="stat-card-label">Top category <span class="info-bubble" data-help="The category consuming the most time this period, with the runner-up shown below.">i</span></div>
         <div style="display: flex; align-items: center; gap: 6px; margin-top: 6px;">
           <div style="width: 8px; height: 8px; border-radius: 2px; background: var(${topCat?.cssVar || "--cat-other-border"}); flex-shrink: 0;"></div>
           <span style="font-size: 13px; font-weight: 500;">${topCat?.label || topId}</span>
@@ -942,7 +942,7 @@ async function renderStats() {
 					return '<div style="font-size: 12px; color: var(--text-muted);">No alerts — team is on track.</div>';
 				}
 				return `
-          <div class="text-sm font-medium mb-3">Team alerts</div>
+          <div class="text-sm font-medium mb-3">Team alerts <span class="info-bubble" data-help="Auto-generated alerts based on team data.<br><br><strong>Below target:</strong> Member tracking below 60% of expected hours<br><strong>Category concentration:</strong> Over 30% of time in one category<br><strong>Outliers:</strong> Members significantly above or below team average<br><strong>Lunch compliance:</strong> Members skipping lunch 2+ days">i</span></div>
           ${alerts
 						.map(
 							(a) => `
@@ -1029,7 +1029,7 @@ async function renderStats() {
 
       <!-- Hours by area donut (left) -->
       <div class="p-4 rounded-xl border border-stone-100 bg-white" style="display: flex; flex-direction: column;">
-        <div class="text-sm font-medium mb-3">Hours by area</div>
+        <div class="text-sm font-medium mb-3">Hours by area <span class="info-bubble" data-help="Breakdown of time across work categories, excluding lunch and OOO. Hover a segment for exact hours and percentage.">i</span></div>
         <div class="chart-container" style="flex: 1; min-height: 220px;">
           <canvas id="chart-category"></canvas>
         </div>
@@ -1040,7 +1040,7 @@ async function renderStats() {
 
         <!-- Urgent flag frequency -->
         <div class="p-4 rounded-xl border border-stone-100 bg-white" ${!hasFlags ? 'style="flex: 1;"' : ""}>
-          <div class="text-sm font-medium mb-3">Urgent work</div>
+          <div class="text-sm font-medium mb-3">Urgent work <span class="info-bubble" data-help="Percentage of tracked hours marked as urgent i.e. unplanned reactive work that interrupted planned tasks. <strong>Above 20%</strong> suggests too much time on emergencies.">i</span></div>
           ${
 						urgentHours > 0
 							? `
@@ -1327,7 +1327,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 	rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
 	let html = `
-    <div class="text-sm font-medium mb-3">Team compliance</div>
+    <div class="text-sm font-medium mb-3">Team compliance <span class="info-bubble" data-help="<strong>Tracked:</strong> Total hours logged<br><strong>Compliance:</strong> Tracked vs expected (green ≥60%, red <42%)<br><strong>Billable:</strong> Hours above standard service<br><strong>Tier 1:</strong> Customer-facing work percentage<br><strong>Lunch:</strong> Days with lunch logged vs total tracked days">i</span></div>
     <div style="overflow-x: auto;">
     <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
       <thead>
@@ -1677,7 +1677,7 @@ function renderCategoryHeatmap(entries) {
 	}
 
 	let html = `
-    <div class="text-sm font-medium mb-3">Category heatmap</div>
+    <div class="text-sm font-medium mb-3">Category heatmap <span class="info-bubble" data-help="Hours per category per team member. Darker cells = more time spent. Click a row to drill into that person's stats. Bottom row shows team totals.">i</span></div>
     <div style="overflow-x: auto;">
     <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
       <thead>
@@ -1824,7 +1824,7 @@ function renderTicketOverview(ticketStats) {
 		const teamNet = teamNew - teamClosed;
 
 		let html = `
-      <div class="text-sm font-medium mb-3">Ticket queue</div>
+      <div class="text-sm font-medium mb-3">Ticket queue <span class="info-bubble" data-help="Each member's open ticket count, new tickets received, tickets closed, and net change. <strong>Red net</strong> = queue growing. <strong>Green net</strong> = queue shrinking.">i</span></div>
       <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
         <thead>
           <tr>
@@ -1964,7 +1964,8 @@ function renderTeamMerchantTable(entries) {
 	const merchantTotal = sorted.reduce((sum, [, data]) => sum + data.hours, 0);
 	const maxHours = sorted[0][1].hours;
 
-	let html = '<div class="text-sm font-medium mb-3">Merchant time — team</div>';
+	let html =
+		'<div class="text-sm font-medium mb-3">Merchant time - team <span class="info-bubble" data-help="Total hours spent per merchant across the team. Badges show which members contributed and their hours. Merchants consuming over <strong>15% of total time</strong> with 4+ hours are flagged.">i</span></div>';
 	html += '<div class="space-y-2">';
 
 	sorted.slice(0, 10).forEach(([name, data]) => {
@@ -2047,7 +2048,8 @@ function renderTeamPOSTable(entries) {
 	const posTotal = sorted.reduce((sum, [, data]) => sum + data.hours, 0);
 	const maxHours = sorted[0][1].hours;
 
-	let html = '<div class="text-sm font-medium mb-3">POS platforms — team</div>';
+	let html =
+		'<div class="text-sm font-medium mb-3">POS platforms — team <span class="info-bubble" data-help="Total hours spent per POS platform across the team. Shows how many merchants use each platform. Platforms consuming over <strong>25% of total time</strong> with 4+ hours are flagged.">i</span></div>';
 	html += '<div class="space-y-2">';
 
 	sorted.slice(0, 8).forEach(([name, data]) => {
@@ -2143,7 +2145,8 @@ function renderMerchantTable(byMerchant, total) {
 	const remainingHours = remaining.reduce((s, [, h]) => s + h, 0);
 	const maxHours = topMerchants.length > 0 ? topMerchants[0][1] : 1;
 
-	let html = '<div class="text-sm font-medium mb-3">Merchant time</div>';
+	let html =
+		'<div class="text-sm font-medium mb-3">Merchant time <span class="info-bubble" data-help="Hours spent per merchant this period. Merchants consuming over <strong>15% of total merchant time</strong> with 4+ hours are flagged as disproportionate.">i</span></div>';
 	html += '<div class="space-y-1.5">';
 
 	topMerchants.forEach(([name, hours]) => {
@@ -2188,7 +2191,8 @@ function renderPOSTable(byPOS, total) {
 	const remainingHours = remaining.reduce((s, [, h]) => s + h, 0);
 	const maxHours = topItems.length > 0 ? topItems[0][1] : 1;
 
-	let html = '<div class="text-sm font-medium mb-3">Time by former POS</div>';
+	let html =
+		'<div class="text-sm font-medium mb-3">Time by former POS <span class="info-bubble" data-help="Hours spent per POS platform this period. Platforms consuming over <strong>25% of total POS time</strong> with 4+ hours are flagged.">i</span></div>';
 	html += '<div class="space-y-1.5">';
 
 	topItems.forEach(([name, hours]) => {
