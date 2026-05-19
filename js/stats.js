@@ -693,16 +693,11 @@ async function renderStats() {
 				ticketStats.length > 0 &&
 				selectedMember !== "all" &&
 				selectedMember !== "self";
-			if (appState.settings.role === "manager" && hasTickets)
-				return "grid-cols-5";
-			if (appState.settings.role === "manager") return "grid-cols-4";
-			return "grid-cols-3";
+			if (hasTickets) return "grid-cols-5";
+			return "grid-cols-4";
 		})()} gap-3 mb-6">
 
-      ${
-				appState.settings.role === "manager"
-					? `
-      <!-- Card 1: Tracked hours with pace (manager only) -->
+      <!-- Card 1: Tracked hours with pace -->
       <div class="stat-card">
         <div class="stat-card-label">Tracked hours</div>
 			<div class="stat-card-value">${tracked}<span class="text-sm font-normal text-stone-400"> / ${expectedHours} hrs</span></div>
@@ -746,9 +741,6 @@ async function renderStats() {
 					}
 				})()}
       </div>
-      `
-					: ""
-			}
 
       <!-- Card 2: Tier split -->
 			${(() => {
