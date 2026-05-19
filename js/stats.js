@@ -576,7 +576,26 @@ async function renderStats() {
 		(selectedMember !== "self" || appState.settings.enableFormerPOS)
 			? detectDisproportionate(byPOS)
 			: [];
-	const expectedHours = await getExpectedHours(allEntries, allEntries);
+	let expectedHours = await getExpectedHours(allEntries, allEntries);
+
+	/* For "All team" view, calculate expected hours per member and sum them */
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		const memberNames = [
+			...new Set(allEntries.map((e) => e.memberName).filter(Boolean)),
+		];
+		if (memberNames.length > 0) {
+			let totalExpected = 0;
+			for (const name of memberNames) {
+				const memberEntries = allEntries.filter((e) => e.memberName === name);
+				const memberExpected = await getExpectedHours(
+					memberEntries,
+					memberEntries,
+				);
+				totalExpected += memberExpected;
+			}
+			expectedHours = totalExpected;
+		}
+	}
 
 	const currentStats = {
 		tracked,
@@ -2914,7 +2933,26 @@ export async function getStatsContext() {
 	const byPOS = aggregateByPOS(entries);
 	const urgentHours = countUrgentHours(entries);
 	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
-	const expectedHours = await getExpectedHours(allEntries, allEntries);
+	let expectedHours = await getExpectedHours(allEntries, allEntries);
+
+	/* For "All team" view, calculate expected hours per member and sum them */
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		const memberNames = [
+			...new Set(allEntries.map((e) => e.memberName).filter(Boolean)),
+		];
+		if (memberNames.length > 0) {
+			let totalExpected = 0;
+			for (const name of memberNames) {
+				const memberEntries = allEntries.filter((e) => e.memberName === name);
+				const memberExpected = await getExpectedHours(
+					memberEntries,
+					memberEntries,
+				);
+				totalExpected += memberExpected;
+			}
+			expectedHours = totalExpected;
+		}
+	}
 
 	const flaggedMerchants =
 		Object.keys(byMerchant).length > 0 &&
