@@ -1650,7 +1650,8 @@ function renderCategoryHeatmap(entries) {
 	/* Short category labels for column headers */
 	function shortLabel(label) {
 		const map = {
-			"Admin (Email/Slack)": "Admin",
+			"Admin — Internal": "Admin int",
+			"Admin — Merchant": "Admin merch",
 			"Analytics Support": "Analytics",
 			"API / Technical Scoping": "API",
 			"Data Migration / Cleaning": "Migration",

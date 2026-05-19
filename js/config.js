@@ -18,11 +18,14 @@
  * ------------------------------------------------------------------------- */
 export const CATEGORIES = [
 	{
-		id: "admin",
-		label: "Admin (Email/Slack)",
-		color: "peach",
-		hex: "#F0B878",
-		cssVar: "--cat-admin-border",
+		id: "admin_internal",
+		label: "Admin — Internal",
+		cssVar: "--cat-admin-internal-border",
+	},
+	{
+		id: "admin_merchant",
+		label: "Admin — Merchant",
+		cssVar: "--cat-admin-merchant-border",
 	},
 	{
 		id: "analytics",
@@ -81,6 +84,11 @@ export const CATEGORIES = [
 		cssVar: "--cat-research-border",
 	},
 	{
+		id: "troubleshooting",
+		label: "Troubleshooting",
+		cssVar: "--cat-troubleshooting-border",
+	},
+	{
 		id: "lunch",
 		label: "Lunch",
 		color: "gray",
@@ -117,9 +125,11 @@ export const DEFAULT_TIER_MAP = {
 	meeting_internal: 2,
 	meeting_merchant: 1,
 	data_migration: 1,
-	admin: 2,
+	admin_internal: 2,
+	admin_merchant: 1,
 	analytics: 1,
 	research_sync: 2,
+	troubleshooting: 1,
 	internal_tools: 2,
 	api_scoping: 1,
 	hardware: 1,

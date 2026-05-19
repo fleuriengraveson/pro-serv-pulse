@@ -720,5 +720,38 @@ export async function migrateZendeskToAdmin() {
 	}
 }
 
+/**
+ * migrateAdminSplit
+ * Converts old 'admin' entries to 'admin_internal' after the category split.
+ */
+export async function migrateAdminSplit() {
+	const migrated = localStorage.getItem("chronos-admin-split-migrated");
+	if (migrated) return;
+
+	const allEntries = await db.entries.toArray();
+	const adminEntries = allEntries.filter((e) => e.category === "admin");
+
+	console.log(
+		"Admin migration: found",
+		adminEntries.length,
+		"entries to update",
+	);
+
+	for (const entry of adminEntries) {
+		entry.category = "admin_internal";
+		await db.entries.put(entry);
+	}
+
+	if (adminEntries.length > 0) {
+		console.log(
+			"Admin migration: updated",
+			adminEntries.length,
+			"entries to admin_internal",
+		);
+	}
+
+	localStorage.setItem("chronos-admin-split-migrated", "true");
+}
+
 /* Export the raw db instance for advanced operations if needed */
 export { db };

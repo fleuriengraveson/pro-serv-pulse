@@ -68,15 +68,21 @@
 	--cat-migration-border: #9898d8;
 	--cat-migration-bg: rgba(152, 152, 216, 0.18);
 	--cat-migration-text: #3a3a8b;
-	--cat-admin-border: #f0b878;
-	--cat-admin-bg: rgba(240, 184, 120, 0.18);
-	--cat-admin-text: #7b4a1b;
+	--cat-admin-internal-bg: rgba(240, 128, 128, 0.12);
+	--cat-admin-internal-border: rgba(240, 128, 128, 0.55);
+	--cat-admin-internal-text: #c0392b;
+	--cat-admin-merchant-bg: rgba(233, 105, 96, 0.12);
+	--cat-admin-merchant-border: rgba(233, 105, 96, 0.55);
+	--cat-admin-merchant-text: #a93226;
 	--cat-analytics-border: #e0a8d8;
 	--cat-analytics-bg: rgba(224, 168, 216, 0.18);
 	--cat-analytics-text: #7b3a70;
 	--cat-research-border: #c8e088;
 	--cat-research-bg: rgba(200, 224, 136, 0.18);
 	--cat-research-text: #4a5a1b;
+	--cat-troubleshooting-bg: rgba(251, 191, 36, 0.12);
+	--cat-troubleshooting-border: rgba(251, 191, 36, 0.55);
+	--cat-troubleshooting-text: #b7791f;
 	--cat-tools-border: #88d8a8;
 	--cat-tools-bg: rgba(136, 216, 168, 0.18);
 	--cat-tools-text: #1b6b3a;
@@ -159,15 +165,21 @@
 	--cat-migration-border: #b794f4;
 	--cat-migration-bg: rgba(183, 148, 244, 0.1);
 	--cat-migration-text: #d6bcfa;
-	--cat-admin-border: #f6ad55;
-	--cat-admin-bg: rgba(246, 173, 85, 0.08);
-	--cat-admin-text: #fbd38d;
+	--cat-admin-internal-bg: rgba(240, 128, 128, 0.15);
+	--cat-admin-internal-border: rgba(240, 128, 128, 0.45);
+	--cat-admin-internal-text: #f5a9a3;
+	--cat-admin-merchant-bg: rgba(233, 105, 96, 0.15);
+	--cat-admin-merchant-border: rgba(233, 105, 96, 0.45);
+	--cat-admin-merchant-text: #e8837a;
 	--cat-analytics-border: #f472b6;
 	--cat-analytics-bg: rgba(244, 114, 182, 0.08);
 	--cat-analytics-text: #fbb6ce;
 	--cat-research-border: #9ae6b4;
 	--cat-research-bg: rgba(154, 230, 180, 0.08);
 	--cat-research-text: #c6f6d5;
+	--cat-troubleshooting-bg: rgba(251, 191, 36, 0.15);
+	--cat-troubleshooting-border: rgba(251, 191, 36, 0.45);
+	--cat-troubleshooting-text: #fbd38d;
 	--cat-tools-border: #48dbb4;
 	--cat-tools-bg: rgba(72, 219, 180, 0.08);
 	--cat-tools-text: #81e6d9;
@@ -300,10 +312,13 @@ body {
 	background-color: var(--cat-migration-bg);
 	color: var(--cat-migration-text);
 }
-.cat-admin {
-	border-left-color: var(--cat-admin-border);
-	background-color: var(--cat-admin-bg);
-	color: var(--cat-admin-text);
+.cat-admin_internal {
+	background: var(--cat-admin-internal-bg);
+	border-left: 3px solid var(--cat-admin-internal-border);
+}
+.cat-admin_merchant {
+	background: var(--cat-admin-merchant-bg);
+	border-left: 3px solid var(--cat-admin-merchant-border);
 }
 .cat-analytics {
 	border-left-color: var(--cat-analytics-border);
@@ -314,6 +329,10 @@ body {
 	border-left-color: var(--cat-research-border);
 	background-color: var(--cat-research-bg);
 	color: var(--cat-research-text);
+}
+.cat-troubleshooting {
+	background: var(--cat-troubleshooting-bg);
+	border-left: 3px solid var(--cat-troubleshooting-border);
 }
 .cat-internal_tools {
 	border-left-color: var(--cat-tools-border);
@@ -1408,4 +1427,5 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 input[type="number"] {
 	-moz-appearance: textfield;
+	appearance: textfield;
 }

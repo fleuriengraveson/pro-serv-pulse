@@ -17,6 +17,7 @@ import {
 	getEntriesForDateRange,
 	getWeeklyNotes,
 	migrateZendeskToAdmin,
+	migrateAdminSplit,
 	getTicketStatsForRange,
 } from "./db.js";
 import { initTracker } from "./tracker.js";
@@ -83,6 +84,7 @@ async function init() {
 
 	/* One-time migration: convert zendesk_admin entries to admin */
 	await migrateZendeskToAdmin();
+	await migrateAdminSplit();
 
 	/* Check if this is a first-time user (no name set) */
 	if (!state.settings.name) {
