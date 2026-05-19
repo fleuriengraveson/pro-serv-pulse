@@ -1267,6 +1267,8 @@ async function renderStats() {
  * Shows every team member's tracking compliance, tier split, and hours.
  */
 function renderTeamComplianceTable(teamEntries, expectedHours) {
+	const range = getPeriodRange();
+
 	/* Group entries by member */
 	const byMember = {};
 	teamEntries.forEach((e) => {
@@ -1287,12 +1289,23 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 			tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
 		const t2Pct =
 			tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
-		/* Calculate per-member expected hours accounting for their OOO days */
+		/* Calculate per-member expected hours independently */
 		const memberOOO = getOOODatesFromEntries(memberEntries);
-		const memberExpected =
-			expectedHours > 0
-				? expectedHours - memberOOO.size * TARGETS.dailyTrackableHours
-				: 0;
+		const startHour = appState.settings.dayStartHour || 8;
+		const memberFirstDate =
+			memberEntries
+				.map((e) => e.date)
+				.filter(Boolean)
+				.sort()[0] || range.startDate;
+		const effectiveStart =
+			memberFirstDate > range.startDate ? memberFirstDate : range.startDate;
+		const memberExpected = countExpectedHoursUpToNow(
+			effectiveStart,
+			range.endDate,
+			TARGETS.dailyTrackableHours,
+			memberOOO,
+			startHour,
+		);
 		const compliancePct =
 			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
 
@@ -1412,18 +1425,37 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 	const belowTarget = [];
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		const tracked = countTrackedHours(memberEntries);
-		const pct =
-			expectedHours > 0 ? Math.round((tracked / expectedHours) * 100) : 0;
-		if (pct < TARGETS.compliancePercent) {
-			belowTarget.push({ name, pct });
+		const memberOOO = getOOODatesFromEntries(memberEntries);
+		const startHour = appState.settings.dayStartHour || 8;
+		const range = getPeriodRange();
+		const memberFirstDate =
+			memberEntries
+				.map((e) => e.date)
+				.filter(Boolean)
+				.sort()[0] || range.startDate;
+		const effectiveStart =
+			memberFirstDate > range.startDate ? memberFirstDate : range.startDate;
+		const memberExpected = countExpectedHoursUpToNow(
+			effectiveStart,
+			range.endDate,
+			TARGETS.dailyTrackableHours,
+			memberOOO,
+			startHour,
+		);
+		const compliancePct =
+			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
+		if (compliancePct < TARGETS.compliancePercent) {
+			belowTarget.push({ name, compliancePct });
 		}
 	}
 
 	if (belowTarget.length > 0) {
-		const names = belowTarget.map((m) => `${m.name} (${m.pct}%)`).join(", ");
+		const names = belowTarget
+			.map((m) => `${m.name} (${m.compliancePct}%)`)
+			.join(", ");
 		alerts.push({
 			type: "flag",
-			message: `<strong>${belowTarget.length} member${belowTarget.length > 1 ? "s" : ""} below tracking target</strong> — ${names}`,
+			message: `<strong>Below target:</strong> ${names}`,
 		});
 	}
 
