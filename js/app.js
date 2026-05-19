@@ -203,8 +203,7 @@ async function switchView(viewId) {
 	state.currentView = viewId;
 	localStorage.setItem("chronos-app-view", viewId);
 
-	/* Check if export reminders are needed */
-	await updateExportReminder();
+	await updateNotesReminder();
 
 	await updateSyncIndicator();
 }
@@ -361,141 +360,228 @@ async function updateSyncIndicator() {
 }
 
 /**
- * updateExportReminder
- * Shows or hides the export reminder banner based on unexported weeks.
+ * updateNotesReminder
+ * Shows a sticky banner reminding users to fill out weekly notes.
+ * Appears on Friday or later (including Monday if they missed it).
+ * Can be snoozed for a configurable number of hours.
  */
-async function updateExportReminder() {
+async function updateNotesReminder() {
 	/* Remove existing banner */
-	const existing = document.getElementById("export-reminder");
+	const existing = document.getElementById("notes-reminder");
 	if (existing) existing.remove();
 
-	const { getFirstTrackedDate } = await import("./db.js");
-	const firstDate = await getFirstTrackedDate();
-	const unexported = getUnexportedWeeks(firstDate);
+	/* Check if snoozed */
+	const snoozedUntil = localStorage.getItem("chronos-notes-snoozed-until");
+	if (snoozedUntil && Date.now() < parseInt(snoozedUntil)) return;
 
-	if (unexported.length === 0) return;
+	/* Only show on Friday or if last week's notes are empty */
+	const now = new Date();
+	const today = now.getDay(); /* 0=Sun, 1=Mon ... 5=Fri, 6=Sat */
+
+	const { getWeeklyNotes } = await import("./db.js");
+	const { getISOWeekKey, getWeekDates } = await import("./utils.js");
+
+	/* Check current week's notes */
+	const currentWeekKey = getISOWeekKey(now);
+	const currentNotes = await getWeeklyNotes(currentWeekKey);
+	const currentHasNotes =
+		currentNotes &&
+		(currentNotes.wins?.trim() ||
+			currentNotes.losses?.trim() ||
+			currentNotes.issues?.trim() ||
+			currentNotes.customerMeetings?.trim());
+
+	/* Check previous week's notes (for Monday reminder) */
+	const lastWeek = new Date(now);
+	lastWeek.setDate(lastWeek.getDate() - 7);
+	const lastWeekKey = getISOWeekKey(lastWeek);
+	const lastNotes = await getWeeklyNotes(lastWeekKey);
+	const lastHasNotes =
+		lastNotes &&
+		(lastNotes.wins?.trim() ||
+			lastNotes.losses?.trim() ||
+			lastNotes.issues?.trim() ||
+			lastNotes.customerMeetings?.trim());
+
+	/* Determine if we should show the banner */
+	let showBanner = false;
+	let bannerMessage = "";
+
+	if (today >= 5 && !currentHasNotes) {
+		/* Friday or weekend — current week notes empty */
+		showBanner = true;
+		bannerMessage =
+			"It's end of week — don't forget to fill out your weekly notes before you go.";
+	} else if (today >= 1 && today <= 3 && !lastHasNotes) {
+		/* Mon-Wed — last week's notes still empty */
+		const skippedWeeks = JSON.parse(
+			localStorage.getItem("chronos-notes-skipped-weeks") || "[]",
+		);
+		if (!skippedWeeks.includes(lastWeekKey)) {
+			showBanner = true;
+			bannerMessage = `Last week's notes (${lastWeekKey}) are still empty. Take a moment to fill them in.`;
+		}
+	}
+
+	if (!showBanner) return;
 
 	const banner = document.createElement("div");
-	banner.id = "export-reminder";
+	banner.id = "notes-reminder";
 	banner.style.cssText = `
     position: sticky;
     top: 0;
-    z-index: 100;
-    background: linear-gradient(135deg, rgba(192,132,252,0.1), rgba(103,232,249,0.1));
+    z-index: 200;
+    background: var(--bg-card);
     border: 0.5px solid var(--accent-border);
     border-radius: 10px;
     padding: 10px 16px;
-    margin-bottom: 12px;
+    margin: 0 0 12px 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   `;
-
-	const weekLabels =
-		unexported.length === 1
-			? unexported[0]
-			: `${unexported.length} weeks (${unexported[0]} — ${unexported[unexported.length - 1]})`;
 
 	banner.innerHTML = `
     <div style="display: flex; align-items: center; gap: 10px;">
-      <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; font-weight: 500; flex-shrink: 0;">!</div>
+      <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+        <span style="font-size: 12px; color: white; font-weight: 500;">N</span>
+      </div>
       <div>
-        <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">Don't forget to export your time</div>
-        <div style="font-size: 11px; color: var(--text-muted);">
-          ${
-						unexported.length === 1
-							? `${unexported[0]} hasn't been exported yet. Fill out your notes and export before the weekend.`
-							: `${weekLabels} haven't been exported. Please export your missing weeks.`
-					}
-        </div>
+        <div style="font-size: 13px; font-weight: 500; color: var(--text-primary);">Weekly notes</div>
+        <div style="font-size: 11px; color: var(--text-muted);">${bannerMessage}</div>
       </div>
     </div>
     <div style="display: flex; gap: 6px; flex-shrink: 0;">
-      <button id="reminder-export" style="
-        font-size: 12px; font-weight: 500; padding: 5px 14px; border-radius: 8px;
-        background: var(--accent); color: white; border: none; cursor: pointer; font-family: inherit;
-      ">${unexported.length === 1 ? "Export week" : "Export all"}</button>
-      <button id="reminder-dismiss" style="
-        font-size: 12px; padding: 5px 10px; border-radius: 8px;
-        background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
-      ">Later</button>
+      <div style="display: flex; gap: 6px; flex-shrink: 0;">
+		<button id="reminder-open-notes" style="
+			font-size: 12px; font-weight: 500; padding: 5px 14px; border-radius: 8px;
+			background: var(--accent); color: white; border: none; cursor: pointer; font-family: inherit;
+		">Open notes</button>
+		${
+			!currentHasNotes && lastHasNotes
+				? ""
+				: !lastHasNotes && today >= 1 && today <= 3
+					? `
+		<button id="reminder-skip-week" style="
+			font-size: 12px; padding: 5px 10px; border-radius: 8px;
+			background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
+		">Skip this week</button>
+		`
+					: ""
+		}
+		<button id="reminder-snooze" style="
+			font-size: 12px; padding: 5px 10px; border-radius: 8px;
+			background: none; color: var(--text-muted); border: 0.5px solid var(--border-default); cursor: pointer; font-family: inherit;
+			position: relative;
+		">Snooze ▾</button>
+		<button id="reminder-dismiss" style="
+			font-size: 14px; padding: 2px 8px; border-radius: 8px;
+			background: none; color: var(--text-placeholder); border: none; cursor: pointer; font-family: inherit;
+		">×</button>
     </div>
   `;
 
-	/* Insert at the top of the app container, after the header */
+	/* Insert after the header */
 	const header = document.getElementById("app-header");
-	header.parentNode.insertBefore(banner, header.nextSibling);
+	if (header && header.parentNode) {
+		header.parentNode.insertBefore(banner, header.nextSibling);
+	}
 
-	/* Export button — exports the missing week(s) */
-	banner
-		.querySelector("#reminder-export")
-		.addEventListener("click", async () => {
-			if (unexported.length === 1) {
-				/* Single week — export just that one */
-				const weekKey = unexported[0];
-				const refDate = parseDate(
-					weekKey.replace(/W/, "") + "-1",
-				); /* Approximate — we'll use getWeekDates */
+	/* Open notes button */
+	banner.querySelector("#reminder-open-notes").addEventListener("click", () => {
+		banner.remove();
+		/* Press N to open notes panel */
+		const notesBtn =
+			document.getElementById("btn-notes") ||
+			document.getElementById("stats-notes-btn");
+		if (notesBtn) notesBtn.click();
+	});
 
-				/* Parse week key to get a date in that week */
-				const [yearStr, weekStr] = weekKey.split("-W");
-				const year = parseInt(yearStr);
-				const week = parseInt(weekStr);
-				const jan4 = new Date(year, 0, 4);
-				const dayOfYear = (week - 1) * 7 + 1 - jan4.getDay() + 1;
-				const weekDate = new Date(year, 0, dayOfYear);
+	/* Snooze dropdown */
+	banner.querySelector("#reminder-snooze").addEventListener("click", (e) => {
+		e.stopPropagation();
+		/* Remove existing snooze menu */
+		const existingMenu = document.getElementById("snooze-menu");
+		if (existingMenu) {
+			existingMenu.remove();
+			return;
+		}
 
-				const { startDate, endDate } = getWeekDateRange(weekDate);
-				const entries = await getEntriesForDateRange(startDate, endDate);
-				const notes = await getWeeklyNotes(weekKey);
+		const menu = document.createElement("div");
+		menu.id = "snooze-menu";
+		menu.style.cssText = `
+      position: absolute; top: calc(100% + 4px); right: 0;
+      background: var(--bg-dropdown); border: 0.5px solid var(--border-default);
+      border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 4px; z-index: 300; min-width: 140px;
+    `;
 
-				const exportData = {
-					exportDate: new Date().toISOString(),
-					appVersion: "1.0.0",
-					weekKey,
-					startDate,
-					endDate,
-					contributor: {
-						name: state.settings.name || "Unnamed",
-						role: state.settings.role,
-					},
-					entries: entries.map((e) => ({
-						date: e.date,
-						timeSlot: e.timeSlot,
-						category: e.category,
-						subCategory: e.subCategory || "",
-						billable: e.billable || false,
-						merchant: e.merchant || "",
-						urgent: e.urgent || false,
-						ticketLink: e.ticketLink || "",
-						formerPOS: e.formerPOS || "",
-						notes: e.notes || "",
-					})),
-					weeklyNotes: notes
-						? {
-								wins: notes.wins || "",
-								losses: notes.losses || "",
-								issues: notes.issues || "",
-								customerMeetings: notes.customerMeetings || "",
-							}
-						: null,
-					tierMap: state.tierMap,
-				};
+		const options = [
+			{ label: "1 hour", hours: 1 },
+			{ label: "4 hours", hours: 4 },
+			{ label: "Until tomorrow", hours: 24 },
+			{ label: "Until Friday", hours: null },
+		];
 
-				const filename = generateExportFilename(state.settings.name, weekKey);
-				downloadJSON(exportData, filename);
-				markWeekExported(weekKey);
-			} else {
-				/* Multiple weeks — use export all */
-				await exportAllWeeks();
-				unexported.forEach((wk) => markWeekExported(wk));
-			}
-			updateExportReminder();
+		options.forEach((opt) => {
+			const btn = document.createElement("button");
+			btn.style.cssText = `
+        display: block; width: 100%; text-align: left; padding: 6px 10px;
+        font-size: 12px; border: none; background: none; cursor: pointer;
+        font-family: inherit; color: var(--text-primary); border-radius: 6px;
+      `;
+			btn.textContent = opt.label;
+			btn.onmouseover = () => (btn.style.background = "var(--bg-surface)");
+			btn.onmouseout = () => (btn.style.background = "none");
+			btn.addEventListener("click", () => {
+				let snoozeMs;
+				if (opt.hours) {
+					snoozeMs = opt.hours * 60 * 60 * 1000;
+				} else {
+					/* Until Friday — calculate ms until next Friday 9am */
+					const fri = new Date();
+					const daysUntilFri = (5 - fri.getDay() + 7) % 7 || 7;
+					fri.setDate(fri.getDate() + daysUntilFri);
+					fri.setHours(9, 0, 0, 0);
+					snoozeMs = fri.getTime() - Date.now();
+				}
+				localStorage.setItem(
+					"chronos-notes-snoozed-until",
+					String(Date.now() + snoozeMs),
+				);
+				banner.remove();
+			});
+			menu.appendChild(btn);
 		});
 
-	/* Dismiss — hide for this session only */
+		banner.querySelector("#reminder-snooze").style.position = "relative";
+		banner.querySelector("#reminder-snooze").appendChild(menu);
+
+		/* Close menu on outside click */
+		const closeMenu = () => {
+			menu.remove();
+			document.removeEventListener("click", closeMenu);
+		};
+		setTimeout(() => document.addEventListener("click", closeMenu), 0);
+	});
+
+	/* Dismiss — just removes for this page load */
 	banner.querySelector("#reminder-dismiss").addEventListener("click", () => {
+		banner.remove();
+	});
+
+	/* Skip week — permanently dismiss the reminder for a specific week */
+	banner.querySelector("#reminder-skip-week")?.addEventListener("click", () => {
+		const skipped = JSON.parse(
+			localStorage.getItem("chronos-notes-skipped-weeks") || "[]",
+		);
+		skipped.push(lastWeekKey);
+		localStorage.setItem(
+			"chronos-notes-skipped-weeks",
+			JSON.stringify(skipped),
+		);
 		banner.remove();
 	});
 }
@@ -555,7 +641,8 @@ async function exportCurrentWeek() {
 
 	/* Mark this week as exported and update the reminder banner */
 	markWeekExported(weekKey);
-	updateExportReminder();
+
+	await updateNotesReminder();
 
 	await updateSyncIndicator();
 }
@@ -643,7 +730,8 @@ async function exportAllWeeks() {
 
 	/* Mark all exported weeks */
 	weeks.forEach((w) => markWeekExported(w.weekKey));
-	updateExportReminder();
+
+	await updateNotesReminder();
 }
 
 /**
