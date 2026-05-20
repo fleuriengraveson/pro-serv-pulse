@@ -267,3 +267,8 @@ export const OUTLIER_CONFIG = {
 	stdDevThreshold: 1.5, // Flag if > 1.5 std deviations from mean
 	minWeeksForTrend: 4, // Need at least 4 weeks of data for trend analysis
 };
+
+/* Manager access control */
+export const MANAGER_NAMES = ["reid", "onnela", "fleurien"];
+export const MANAGER_HASH =
+	"ca0f791514c0bea1d3b835e9b40c1d4f8c85df8562684e36ddbd68eb8d7384a4";

@@ -79,6 +79,24 @@ const state = {
 async function init() {
 	/* Load user settings and tier mappings from IndexedDB */
 	state.settings = await getUserSettings();
+
+	/* Verify manager role is still authenticated */
+	if (state.settings.role === "manager") {
+		const { MANAGER_NAMES } = await import("./config.js");
+		const isManagerName = MANAGER_NAMES.includes(
+			(state.settings.name || "").toLowerCase(),
+		);
+		const hasAuth = localStorage.getItem("chronos-manager-auth") === "true";
+
+		if (!isManagerName || !hasAuth) {
+			/* Revoke manager access if name changed or auth cleared */
+			state.settings.role = "contributor";
+			const { saveUserSettings } = await import("./db.js");
+			await saveUserSettings(state.settings);
+			localStorage.removeItem("chronos-manager-auth");
+		}
+	}
+
 	state.tierMap = await getTierMap();
 	updateExportReportVisibility();
 
@@ -120,17 +138,41 @@ function showOnboarding() {
 
 	banner.classList.remove("hidden");
 
-	/* Save name when button is clicked */
 	saveBtn.addEventListener("click", async () => {
-		const name = input.value.trim();
+		const { capitalizeName, hashString } = await import("./utils.js");
+		const { MANAGER_NAMES, MANAGER_HASH } = await import("./config.js");
+
+		const name = capitalizeName(input.value.trim());
 		if (!name) {
 			input.focus();
 			return;
 		}
+		input.value = name;
 
-		/* Persist the name to settings */
+		/* Check if this is a manager name */
+		const isManagerName = MANAGER_NAMES.includes(name.toLowerCase());
+		let role = "contributor";
+
+		if (isManagerName) {
+			const passcode = prompt(
+				"This name requires manager access. Enter the passcode:",
+			);
+			if (passcode) {
+				const hash = await hashString(passcode);
+				if (hash === MANAGER_HASH) {
+					role = "manager";
+					localStorage.setItem("chronos-manager-auth", "true");
+				} else {
+					alert("Incorrect passcode. You will be set up as a contributor.");
+				}
+			}
+		}
+
+		/* Persist the name and role to settings */
 		state.settings.name = name;
+		state.settings.role = role;
 		await saveUserSettings(state.settings);
+		updateExportReportVisibility();
 
 		/* Hide the banner with a smooth transition */
 		banner.style.opacity = "0";

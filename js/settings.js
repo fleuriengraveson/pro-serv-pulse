@@ -78,15 +78,12 @@ async function renderSettings() {
                    class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300 focus:border-chronos-300" />
           </div>
 
-          <!-- Role -->
+         <!-- Role (auto-detected from name) -->
           <div>
-            <label for="setting-role" class="block text-sm font-medium text-stone-600 mb-1">Role</label>
-            <p class="text-xs text-stone-400 mb-1.5">Managers can edit tier mappings and access the team dashboard.</p>
-            <select id="setting-role"
-                    class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50 focus:ring-2 focus:ring-chronos-300">
-              <option value="contributor" ${settings.role === "contributor" ? "selected" : ""}>Individual contributor</option>
-              <option value="manager" ${settings.role === "manager" ? "selected" : ""}>Manager</option>
-            </select>
+            <label class="block text-sm font-medium text-stone-600 mb-1">Role</label>
+            <div style="font-size: 13px; color: var(--text-secondary); padding: 6px 0;">
+              ${isManager ? "Manager" : "Individual contributor"}
+            </div>
           </div>
 
         </div>
@@ -425,10 +422,12 @@ async function attachSettingsListeners() {
 		const settings = { ...appState.settings };
 
 		/* Read all field values */
-		settings.name =
-			container.querySelector("#setting-name")?.value.trim() || "";
-		settings.role =
-			container.querySelector("#setting-role")?.value || "contributor";
+		const { capitalizeName } = await import("./utils.js");
+		settings.name = capitalizeName(
+			container.querySelector("#setting-name")?.value.trim() || "",
+		);
+		/* Role is not editable — keep the current value */
+		settings.role = appState.settings.role;
 		settings.dayStartHour =
 			parseInt(container.querySelector("#setting-start-hour")?.value) ||
 			TIME_DEFAULTS.dayStartHour;
@@ -468,13 +467,46 @@ async function attachSettingsListeners() {
 		el.addEventListener("change", debouncedSave);
 	});
 
-	/* --- Role change: re-render to show/hide tier mappings --- */
+	/* --- Manager name detection on name field blur --- */
 	container
-		.querySelector("#setting-role")
-		?.addEventListener("change", async () => {
-			await saveFields();
-			/* Small delay to let state propagate before re-render */
-			setTimeout(() => renderSettings(), 100);
+		.querySelector("#setting-name")
+		?.addEventListener("blur", async () => {
+			const { capitalizeName, hashString } = await import("./utils.js");
+			const { MANAGER_NAMES, MANAGER_HASH } = await import("./config.js");
+
+			const nameEl = container.querySelector("#setting-name");
+			const name = capitalizeName(nameEl?.value.trim() || "");
+			nameEl.value = name;
+
+			const isManagerName = MANAGER_NAMES.includes(name.toLowerCase());
+
+			if (isManagerName && appState.settings.role !== "manager") {
+				const passcode = prompt(
+					"This name requires manager access. Enter the passcode:",
+				);
+				if (passcode) {
+					const hash = await hashString(passcode);
+					if (hash === MANAGER_HASH) {
+						appState.settings.role = "manager";
+						appState.settings.name = name;
+						await saveUserSettings(appState.settings);
+						localStorage.setItem("chronos-manager-auth", "true");
+						if (onChangeCallback) onChangeCallback(appState.settings);
+						await renderSettings();
+						return;
+					} else {
+						alert("Incorrect passcode.");
+					}
+				}
+			} else if (!isManagerName && appState.settings.role === "manager") {
+				appState.settings.role = "contributor";
+				appState.settings.name = name;
+				await saveUserSettings(appState.settings);
+				localStorage.removeItem("chronos-manager-auth");
+				if (onChangeCallback) onChangeCallback(appState.settings);
+				await renderSettings();
+				return;
+			}
 		});
 
 	/* --- Tier mapping changes (manager only) --- */

@@ -780,3 +780,35 @@ export function getCategoryHex(id) {
 	const cat = getCategoryById(id);
 	return cat ? cat.hex : "var(--cat-other-border)";
 }
+
+/**
+ * capitalizeName
+ * Converts a name to proper case (first letter uppercase).
+ *
+ * @param {string} name - Raw name input
+ * @returns {string} Properly capitalized name
+ */
+export function capitalizeName(name) {
+	if (!name) return "";
+	return name
+		.trim()
+		.split(/\s+/)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.join(" ");
+}
+
+/**
+ * hashString
+ * Returns the SHA-256 hash of a string.
+ *
+ * @param {string} str - String to hash
+ * @returns {Promise<string>} Hex-encoded hash
+ */
+export async function hashString(str) {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(str);
+	const hash = await crypto.subtle.digest("SHA-256", data);
+	return Array.from(new Uint8Array(hash))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+}
