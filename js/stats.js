@@ -2019,13 +2019,7 @@ function renderTeamMerchantTable(entries) {
         <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; padding-left: 120px;">
           ${memberList
 						.map(([member, hrs]) => {
-							const initials = member
-								.split(" ")
-								.map((n) => n[0])
-								.join("")
-								.toUpperCase()
-								.slice(0, 2);
-							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${initials} ${hrs}h</span>`;
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${member} ${hrs}h</span>`;
 						})
 						.join("")}
         </div>
@@ -2104,13 +2098,7 @@ function renderTeamPOSTable(entries) {
           <span style="font-size: 9px; color: var(--text-placeholder);">${merchantCount} merchant${merchantCount > 1 ? "s" : ""}</span>
           ${memberList
 						.map(([member, hrs]) => {
-							const initials = member
-								.split(" ")
-								.map((n) => n[0])
-								.join("")
-								.toUpperCase()
-								.slice(0, 2);
-							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${initials} ${hrs}h</span>`;
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${member} ${hrs}h</span>`;
 						})
 						.join("")}
         </div>
