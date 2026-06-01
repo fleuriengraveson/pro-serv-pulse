@@ -590,7 +590,14 @@ export async function getAllTeamTicketStats(startDate, endDate) {
 export async function restoreFromBackup(backupData) {
 	await db.transaction(
 		"rw",
-		[db.entries, db.settings, db.tierMap, db.weeklyNotes, db.teamData],
+		[
+			db.entries,
+			db.settings,
+			db.tierMap,
+			db.weeklyNotes,
+			db.teamData,
+			db.ticketStats,
+		],
 		async () => {
 			/* Clear all existing data */
 			await db.entries.clear();
@@ -598,6 +605,7 @@ export async function restoreFromBackup(backupData) {
 			await db.tierMap.clear();
 			await db.weeklyNotes.clear();
 			await db.teamData.clear();
+			await db.ticketStats.clear();
 
 			/* Restore each table */
 			if (backupData.entries?.length) {
@@ -614,6 +622,9 @@ export async function restoreFromBackup(backupData) {
 			}
 			if (backupData.teamData?.length) {
 				await db.teamData.bulkAdd(backupData.teamData);
+			}
+			if (backupData.ticketStats?.length) {
+				await db.ticketStats.bulkAdd(backupData.ticketStats);
 			}
 		},
 	);
@@ -632,6 +643,7 @@ export async function exportAllData() {
 	const entries = await getAllEntries();
 	const weeklyNotes = await db.weeklyNotes.toArray();
 	const teamData = await getAllTeamData();
+	const ticketStats = await db.ticketStats.toArray();
 
 	return {
 		exportDate: new Date().toISOString(),
@@ -641,6 +653,7 @@ export async function exportAllData() {
 		entries,
 		weeklyNotes,
 		teamData,
+		ticketStats,
 	};
 }
 
@@ -819,6 +832,14 @@ export async function restoreFromPersonalBackup(backupData) {
 				});
 				notesCount++;
 			}
+			console.log(
+				"RESTORE: week",
+				week.weekKey,
+				"ticketStats:",
+				week.ticketStats?.length,
+				"entries:",
+				week.entries?.length,
+			);
 			if (week.ticketStats) {
 				for (const stat of week.ticketStats) {
 					await db.ticketStats.put(stat);
