@@ -48,6 +48,7 @@ import {
 	countOOOHours,
 	countOOODays,
 } from "./utils.js";
+import { markHasData } from "./app.js";
 
 /* ============================================================================
  * MODULE STATE
@@ -1402,6 +1403,7 @@ async function showEditDropdown(
 		};
 
 		await saveEntry(newEntry);
+		markHasData();
 
 		/* Auto-export to sync folder if connected */
 		try {
@@ -1831,6 +1833,7 @@ async function pasteBlock(date, slot) {
 		timeSlot: slot,
 		...clipboard,
 	});
+	markHasData();
 
 	/* Auto-export to sync folder if connected */
 	try {
@@ -2922,6 +2925,7 @@ async function fillLunch() {
 			formerPOS: "",
 			notes: "",
 		});
+		markHasData();
 	}
 
 	/* Re-render to show the filled lunch blocks */
@@ -2970,6 +2974,7 @@ async function fillLunchWeek() {
 					formerPOS: "",
 					notes: "",
 				});
+				markHasData();
 			}
 		}
 	}

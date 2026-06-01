@@ -104,6 +104,97 @@ async function init() {
 	await migrateZendeskToAdmin();
 	await migrateAdminSplit();
 
+	/* ================================================================
+	 * EMPTY DATABASE DETECTION & AUTO-RESTORE
+	 * Check if the database was wiped (cache clear, etc.)
+	 * and attempt to restore from the sync folder backup.
+	 * This MUST run before any exports can trigger.
+	 * ================================================================ */
+	const { hasAnyData } = await import("./db.js");
+	const hasData = await hasAnyData();
+	const hadDataBefore = localStorage.getItem("chronos-has-data") === "true";
+
+	if (!hasData && hadDataBefore && state.settings.name) {
+		/* Database was wiped but user had data before — attempt restore */
+		console.log(
+			"RESTORE: Database empty but had data before. Starting restore...",
+		);
+		const overlay = document.getElementById("restore-overlay");
+		overlay?.classList.remove("hidden");
+
+		/* Safety timeout — always hide overlay after 15 seconds */
+		const safetyTimeout = setTimeout(() => {
+			overlay?.classList.add("hidden");
+			console.warn("RESTORE: Safety timeout — hiding overlay");
+		}, 15000);
+
+		try {
+			const { autoRestoreFromBackup, getSyncStatus } =
+				await import("./sync.js");
+			console.log("RESTORE: Loaded sync module");
+
+			const syncStatus = await getSyncStatus("export");
+			console.log("RESTORE: Sync status:", syncStatus);
+
+			if (syncStatus.connected) {
+				console.log("RESTORE: Sync folder connected, attempting restore...");
+
+				const restoreMsg = document.getElementById("restore-message");
+				const restoreSub = document.getElementById("restore-sub");
+
+				if (!syncStatus.hasPermission) {
+					if (restoreMsg)
+						restoreMsg.textContent = "Grant file access to restore";
+					if (restoreSub) restoreSub.textContent = "Click Allow when prompted";
+				}
+
+				console.log("RESTORE: Calling autoRestoreFromBackup...");
+				const result = await autoRestoreFromBackup(state.settings.name);
+				console.log("RESTORE: Result:", result);
+
+				if (result.success) {
+					if (restoreMsg) restoreMsg.textContent = "Data restored!";
+					if (restoreSub)
+						restoreSub.textContent = `Recovered ${result.entries} entries`;
+
+					/* Reload settings after restore */
+					state.settings = await getUserSettings();
+					state.tierMap = await getTierMap();
+
+					await new Promise((r) => setTimeout(r, 1500));
+				} else {
+					console.log("RESTORE: Failed —", result.error);
+					if (restoreMsg)
+						restoreMsg.textContent = "Could not restore automatically";
+					if (restoreSub)
+						restoreSub.textContent =
+							result.error || "Try restoring from backup in Settings";
+					await new Promise((r) => setTimeout(r, 2500));
+				}
+			} else {
+				console.log("RESTORE: No sync folder connected");
+				const restoreMsg = document.getElementById("restore-message");
+				const restoreSub = document.getElementById("restore-sub");
+				if (restoreMsg) restoreMsg.textContent = "Data may be recoverable";
+				if (restoreSub)
+					restoreSub.textContent =
+						"Connect your sync folder in Settings to restore";
+				await new Promise((r) => setTimeout(r, 2500));
+			}
+		} catch (e) {
+			console.error("RESTORE: Error:", e);
+		}
+
+		console.log("RESTORE: Done — hiding overlay");
+		clearTimeout(safetyTimeout);
+		overlay?.classList.add("hidden");
+	}
+
+	/* Set the has-data flag for future detection */
+	if (hasData || hadDataBefore) {
+		localStorage.setItem("chronos-has-data", "true");
+	}
+
 	/* Check if this is a first-time user (no name set) */
 	if (!state.settings.name) {
 		showOnboarding();
@@ -367,9 +458,30 @@ async function updateSyncIndicator() {
 		if (exportOk && importOk) {
 			/* All good — green dot */
 			indicator.classList.remove("hidden");
-			dot.style.background = "var(--positive)";
-			label.textContent = "Syncing";
-			indicator.title = `Auto-syncing to ${exportStatus.name}`;
+
+			/* Check backup freshness */
+			const { getBackupAge } = await import("./sync.js");
+			const backupAge = getBackupAge();
+			const staleThreshold = 24 * 60 * 60 * 1000; /* 24 hours */
+
+			if (backupAge !== null && backupAge > staleThreshold) {
+				dot.style.background = "var(--warning)";
+				label.textContent = "Backup stale";
+				const hoursAgo = Math.round(backupAge / (60 * 60 * 1000));
+				indicator.title = `Last backup: ${hoursAgo}h ago. Make an edit to trigger a fresh backup.`;
+				indicator.style.cursor = "default";
+				indicator.onclick = null;
+			} else {
+				dot.style.background = "var(--positive)";
+				label.textContent = "Syncing";
+				const lastBackup =
+					backupAge !== null
+						? `Last backup: ${Math.round(backupAge / 60000)} min ago`
+						: "No backup yet";
+				indicator.title = `Auto-syncing to ${exportStatus.name}. ${lastBackup}`;
+				indicator.style.cursor = "default";
+				indicator.onclick = null;
+			}
 			indicator.onclick = null;
 			indicator.style.cursor = "default";
 		} else {
@@ -1308,6 +1420,10 @@ export function getAppState() {
 
 export function refreshView() {
 	switchView(state.currentView);
+}
+
+export function markHasData() {
+	localStorage.setItem("chronos-has-data", "true");
 }
 
 /* ============================================================================

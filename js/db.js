@@ -753,5 +753,101 @@ export async function migrateAdminSplit() {
 	localStorage.setItem("chronos-admin-split-migrated", "true");
 }
 
+/**
+ * hasAnyData
+ * Quick check if the user has any tracked entries.
+ * Used for empty database detection on startup.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function hasAnyData() {
+	const count = await db.entries.count();
+	return count > 0;
+}
+
+/**
+ * getEntryCount
+ * Returns the total number of entries in the database.
+ * Used for overwrite protection in backup.
+ *
+ * @returns {Promise<number>}
+ */
+export async function getEntryCount() {
+	return await db.entries.count();
+}
+
+/**
+ * restoreFromPersonalBackup
+ * Imports data from a personal backup file into the user's own tables.
+ * This is NOT the team import — it writes to entries, weeklyNotes,
+ * ticketStats, and settings directly.
+ *
+ * @param {Object} backupData - The parsed backup JSON
+ * @returns {Promise<{ entries: number, notes: number, tickets: number }>}
+ */
+export async function restoreFromPersonalBackup(backupData) {
+	let entryCount = 0;
+	let notesCount = 0;
+	let ticketCount = 0;
+
+	/* Restore settings if present */
+	if (backupData.settings) {
+		await db.settings.put({ key: "user", ...backupData.settings });
+	}
+
+	/* Restore tier map if present */
+	if (backupData.tierMap) {
+		for (const [catId, tier] of Object.entries(backupData.tierMap)) {
+			await db.tierMap.put({ categoryId: catId, tier });
+		}
+	}
+
+	/* Restore entries — from weekly files or full backup format */
+	if (backupData.weeks) {
+		/* Multi-week format */
+		for (const week of backupData.weeks) {
+			if (week.entries) {
+				for (const entry of week.entries) {
+					await db.entries.put(entry);
+					entryCount++;
+				}
+			}
+			if (week.weeklyNotes) {
+				await db.weeklyNotes.put({
+					weekKey: week.weekKey,
+					...week.weeklyNotes,
+				});
+				notesCount++;
+			}
+			if (week.ticketStats) {
+				for (const stat of week.ticketStats) {
+					await db.ticketStats.put(stat);
+					ticketCount++;
+				}
+			}
+		}
+	} else if (backupData.allEntries) {
+		/* Full backup format */
+		for (const entry of backupData.allEntries) {
+			await db.entries.put(entry);
+			entryCount++;
+		}
+		if (backupData.allNotes) {
+			for (const note of backupData.allNotes) {
+				await db.weeklyNotes.put(note);
+				notesCount++;
+			}
+		}
+		if (backupData.allTicketStats) {
+			for (const stat of backupData.allTicketStats) {
+				await db.ticketStats.put(stat);
+				ticketCount++;
+			}
+		}
+	}
+
+	return { entries: entryCount, notes: notesCount, tickets: ticketCount };
+}
+
 /* Export the raw db instance for advanced operations if needed */
 export { db };

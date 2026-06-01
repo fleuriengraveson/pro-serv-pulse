@@ -24,6 +24,9 @@ import {
 	importTeamMemberData,
 	getTeamMemberList,
 	getTicketStatsForRange,
+	getEntryCount,
+	hasAnyData,
+	restoreFromPersonalBackup,
 } from "./db.js";
 
 /* ============================================================================
@@ -325,11 +328,267 @@ export async function autoExportWeek(state, refDate = new Date()) {
 		await writable.close();
 
 		console.log(`Auto-exported ${filename} to sync folder`);
+
+		/* Also update the full backup */
+		await autoExportFullBackup(state);
+
 		return true;
 	} catch (err) {
 		console.warn("Auto-export failed:", err.message);
 		return false;
 	}
+}
+
+/**
+ * autoExportFullBackup
+ * Writes a complete backup of all user data to the sync folder.
+ * Uses safe-write: writes to a temp file first, then renames.
+ * Includes overwrite protection — won't replace a larger backup
+ * with significantly less data.
+ *
+ * @param {Object} state - The app state
+ * @returns {Promise<boolean>} true if backup succeeded
+ */
+export async function autoExportFullBackup(state) {
+	try {
+		const handle = await loadHandle("export");
+		if (!handle) return false;
+
+		const hasPermission = await verifyPermission(handle, true);
+		if (!hasPermission) return false;
+
+		/* Gather all data */
+		const allEntries = await getEntriesForDateRange("2000-01-01", "2099-12-31");
+
+		/* Safety: don't write an empty backup */
+		if (allEntries.length === 0) {
+			console.warn("Skipping full backup: no local entries");
+			return false;
+		}
+
+		/* Gather notes for all weeks */
+		const weekKeys = [
+			...new Set(
+				allEntries.map((e) => {
+					const d = new Date(e.date);
+					return getISOWeekKey(d);
+				}),
+			),
+		];
+
+		const allNotes = [];
+		for (const weekKey of weekKeys) {
+			const notes = await getWeeklyNotes(weekKey);
+			if (notes) {
+				allNotes.push({ weekKey, ...notes });
+			}
+		}
+
+		/* Gather all ticket stats */
+		const allTicketStats = await getTicketStatsForRange(
+			"2000-01-01",
+			"2099-12-31",
+		);
+
+		const backupData = {
+			exportDate: new Date().toISOString(),
+			appVersion: "1.0.0",
+			format: "full-backup",
+			entryCount: allEntries.length,
+			contributor: {
+				name: state.settings.name || "Unnamed",
+				role: state.settings.role,
+			},
+			settings: { ...state.settings },
+			tierMap: state.tierMap,
+			allEntries,
+			allNotes,
+			allTicketStats: allTicketStats.map((s) => ({
+				date: s.date,
+				queueSize: s.queueSize,
+				newTickets: s.newTickets,
+				closedTickets: s.closedTickets,
+			})),
+		};
+
+		const safeName = (state.settings.name || "unnamed")
+			.toLowerCase()
+			.replace(/\s+/g, "_")
+			.replace(/[^a-z0-9_]/g, "");
+		const backupFilename = `${safeName}_backup.json`;
+		const tempFilename = `${safeName}_backup_new.json`;
+
+		/* Overwrite protection: check existing backup size */
+		try {
+			const existingHandle = await handle.getFileHandle(backupFilename, {
+				create: false,
+			});
+			const existingFile = await existingHandle.getFile();
+			const existingText = await existingFile.text();
+			const existingData = JSON.parse(existingText);
+
+			if (
+				existingData.entryCount &&
+				allEntries.length < existingData.entryCount * 0.5
+			) {
+				console.warn(
+					`Backup protection: new backup has ${allEntries.length} entries vs existing ${existingData.entryCount}. Skipping.`,
+				);
+				return false;
+			}
+		} catch (e) {
+			/* No existing backup — safe to write */
+		}
+
+		/* Safe write: write to temp file first */
+		const tempHandle = await handle.getFileHandle(tempFilename, {
+			create: true,
+		});
+		const tempWritable = await tempHandle.createWritable();
+		await tempWritable.write(JSON.stringify(backupData, null, 2));
+		await tempWritable.close();
+
+		/* Remove old backup and rename temp */
+		try {
+			await handle.removeEntry(backupFilename);
+		} catch (e) {
+			/* Old backup didn't exist — that's fine */
+		}
+
+		/* Since File System Access API doesn't have rename, we copy and delete */
+		const finalHandle = await handle.getFileHandle(backupFilename, {
+			create: true,
+		});
+		const finalWritable = await finalHandle.createWritable();
+		const tempFile = await tempHandle.getFile();
+		await finalWritable.write(await tempFile.text());
+		await finalWritable.close();
+
+		/* Clean up temp file */
+		try {
+			await handle.removeEntry(tempFilename);
+		} catch (e) {
+			/* ignore */
+		}
+
+		/* Store backup timestamp */
+		localStorage.setItem("chronos-last-backup", Date.now().toString());
+
+		console.log(
+			`Full backup saved: ${allEntries.length} entries, ${allNotes.length} notes`,
+		);
+		return true;
+	} catch (err) {
+		console.warn("Full backup failed:", err.message);
+		return false;
+	}
+}
+
+/**
+ * autoRestoreFromBackup
+ * Reads the user's backup file from the sync folder and restores
+ * it into the local database. Called when empty database is detected.
+ *
+ * @param {string} userName - The user's name (to find their backup file)
+ * @returns {Promise<{ success: boolean, entries: number, error: string }>}
+ */
+export async function autoRestoreFromBackup(userName) {
+	try {
+		const handle = await loadHandle("export");
+		if (!handle)
+			return { success: false, entries: 0, error: "No sync folder connected" };
+
+		const hasPermission = await verifyPermission(handle, false);
+		if (!hasPermission)
+			return { success: false, entries: 0, error: "Permission denied" };
+
+		const safeName = (userName || "unnamed")
+			.toLowerCase()
+			.replace(/\s+/g, "_")
+			.replace(/[^a-z0-9_]/g, "");
+		const backupFilename = `${safeName}_backup.json`;
+
+		/* Try to read the full backup file */
+		let backupData = null;
+		try {
+			const fileHandle = await handle.getFileHandle(backupFilename, {
+				create: false,
+			});
+			const file = await fileHandle.getFile();
+			const text = await file.text();
+			backupData = JSON.parse(text);
+		} catch (e) {
+			/* No full backup — try to reconstruct from weekly files */
+			console.log("No full backup found, trying weekly files...");
+		}
+
+		if (!backupData) {
+			/* Scan for weekly export files matching this user */
+			const weeklyData = { weeks: [], contributor: { name: userName } };
+
+			for await (const [name, entry] of handle.entries()) {
+				if (entry.kind !== "file" || !name.endsWith(".json")) continue;
+				if (!name.toLowerCase().startsWith(safeName)) continue;
+				if (name.includes("backup")) continue;
+
+				try {
+					const file = await entry.getFile();
+					const text = await file.text();
+					const data = JSON.parse(text);
+
+					if (data.entries && data.entries.length > 0) {
+						weeklyData.weeks.push({
+							weekKey: data.weekKey,
+							entries: data.entries,
+							weeklyNotes: data.weeklyNotes,
+							ticketStats: data.ticketStats,
+						});
+					}
+				} catch (e) {
+					console.warn(`Failed to read ${name}:`, e.message);
+				}
+			}
+
+			if (weeklyData.weeks.length > 0) {
+				backupData = weeklyData;
+			}
+		}
+
+		if (!backupData) {
+			return { success: false, entries: 0, error: "No backup files found" };
+		}
+
+		/* Validate the backup data */
+		const hasEntries =
+			backupData.allEntries?.length > 0 || backupData.weeks?.length > 0;
+		if (!hasEntries) {
+			return { success: false, entries: 0, error: "Backup file is empty" };
+		}
+
+		/* Restore the data */
+		const result = await restoreFromPersonalBackup(backupData);
+
+		console.log(
+			`Restored from backup: ${result.entries} entries, ${result.notes} notes, ${result.tickets} ticket stats`,
+		);
+		return { success: true, entries: result.entries, error: "" };
+	} catch (err) {
+		console.warn("Auto-restore failed:", err.message);
+		return { success: false, entries: 0, error: err.message };
+	}
+}
+
+/**
+ * getBackupAge
+ * Returns milliseconds since the last successful backup.
+ * Returns null if no backup has been recorded.
+ *
+ * @returns {number|null}
+ */
+export function getBackupAge() {
+	const timestamp = localStorage.getItem("chronos-last-backup");
+	if (!timestamp) return null;
+	return Date.now() - parseInt(timestamp);
 }
 
 /**

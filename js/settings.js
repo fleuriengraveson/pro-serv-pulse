@@ -297,6 +297,7 @@ async function renderSettings() {
             </div>
             <div id="sync-export-status" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
             </div>
+			<div id="sync-backup-age" style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;"></div>
             <div style="display: flex; gap: 6px;">
               <button id="sync-export-connect" style="
                 font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 8px;
@@ -374,6 +375,16 @@ async function renderSettings() {
               Import
               <input type="file" id="btn-restore-backup" accept=".json" class="hidden" />
             </label>
+          </div>
+		  <div class="flex items-center justify-between border-t border-stone-100 pt-3">
+            <div>
+              <span class="text-sm font-medium text-stone-600">Restore from sync folder</span>
+              <p class="text-xs text-stone-400">Recover your data from the connected Google Drive folder.</p>
+            </div>
+            <button id="btn-restore-sync"
+                    class="text-xs px-3 py-1.5 rounded-lg border border-stone-200 text-stone-500 hover:text-stone-700 hover:border-stone-300 transition-colors">
+              Restore
+            </button>
           </div>
 
         </div>
@@ -855,6 +866,24 @@ async function attachSettingsListeners() {
 				importDisconnectBtn?.classList.add("hidden");
 			}
 		}
+		/* Show last backup time */
+		const backupAgeEl = document.getElementById("sync-backup-age");
+		if (backupAgeEl) {
+			const { getBackupAge } = await import("./sync.js");
+			const age = getBackupAge();
+			if (age !== null) {
+				const minutes = Math.round(age / 60000);
+				if (minutes < 60) {
+					backupAgeEl.textContent = `Last backup: ${minutes} minutes ago`;
+				} else if (minutes < 1440) {
+					backupAgeEl.textContent = `Last backup: ${Math.round(minutes / 60)} hours ago`;
+				} else {
+					backupAgeEl.textContent = `Last backup: ${Math.round(minutes / 1440)} days ago`;
+				}
+			} else {
+				backupAgeEl.textContent = "No backup recorded yet";
+			}
+		}
 	}
 
 	await updateSyncStatusUI();
@@ -903,5 +932,38 @@ async function attachSettingsListeners() {
 		?.addEventListener("click", async () => {
 			await disconnectSyncFolder("import");
 			await updateSyncStatusUI();
+		});
+
+	/* --- Restore from sync folder --- */
+	container
+		.querySelector("#btn-restore-sync")
+		?.addEventListener("click", async () => {
+			if (
+				!confirm(
+					"This will restore your data from the sync folder backup. Continue?",
+				)
+			)
+				return;
+
+			const { autoRestoreFromBackup } = await import("./sync.js");
+			const name = appState.settings.name;
+
+			if (!name) {
+				alert("Please set your name first.");
+				return;
+			}
+
+			const result = await autoRestoreFromBackup(name);
+
+			if (result.success) {
+				alert(`Restored ${result.entries} entries from backup.`);
+				const { getUserSettings, getTierMap } = await import("./db.js");
+				appState.settings = await getUserSettings();
+				appState.tierMap = await getTierMap();
+				renderSettings();
+				if (onChangeCallback) onChangeCallback(appState.settings);
+			} else {
+				alert(`Restore failed: ${result.error}`);
+			}
 		});
 }
