@@ -942,8 +942,8 @@ async function renderStats() {
       TEAM ALERTS
       ================================================================ -->
     <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
-      ${(() => {
-				const alerts = renderTeamAlerts(entries, expectedHours);
+      ${await (async () => {
+				const alerts = await renderTeamAlerts(entries, expectedHours);
 				if (alerts.length === 0) {
 					return '<div style="font-size: 12px; color: var(--text-muted);">No alerts — team is on track.</div>';
 				}
@@ -1415,7 +1415,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
  * renderTeamAlerts
  * Generates auto-detected alerts across the team.
  */
-function renderTeamAlerts(teamEntries, expectedHours) {
+async function renderTeamAlerts(teamEntries, expectedHours) {
 	const alerts = [];
 	const tierMap = appState.tierMap || {};
 
@@ -1551,6 +1551,110 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 		alerts.push({
 			type: "warning",
 			message: `<strong>Skipped lunch:</strong> ${lunchSkippers.join(", ")}`,
+		});
+	}
+
+	/* Overtime check — flag members over 40h/week */
+	const {
+		getWeekDates: getWeekDatesUtil,
+		formatDateISO: fmtISO,
+		getISOWeekKey: getWeekKey,
+	} = await import("./utils.js");
+
+	/* Get entries grouped by member and week */
+	const overtimeWarnings = [];
+	const overtimeDangers = [];
+
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		/* Group this member's entries by week */
+		const byWeek = {};
+		memberEntries.forEach((e) => {
+			if (!e.date || e.category === "ooo") return;
+			const weekKey = getWeekKey(new Date(e.date));
+			if (!byWeek[weekKey]) byWeek[weekKey] = 0;
+			byWeek[weekKey] += 0.5;
+		});
+
+		/* Find weeks over 40h */
+		const overWeeks = Object.entries(byWeek)
+			.filter(([, hrs]) => hrs > 40)
+			.map(([wk]) => wk)
+			.sort();
+
+		if (overWeeks.length === 0) continue;
+
+		/* Check for consecutive weeks */
+		let hasConsecutive = false;
+		for (let i = 1; i < overWeeks.length; i++) {
+			const prev = overWeeks[i - 1];
+			const curr = overWeeks[i];
+			/* Parse week numbers to check if consecutive */
+			const [, prevW] = prev.split("-W").map(Number);
+			const [, currW] = curr.split("-W").map(Number);
+			if (currW === prevW + 1) {
+				hasConsecutive = true;
+				break;
+			}
+		}
+
+		/* If only one week in the period, check the previous week from team data */
+		if (overWeeks.length === 1) {
+			const currentWeekKey = overWeeks[0];
+			const [yearStr, weekStr] = currentWeekKey.split("-W");
+			const prevWeekNum = parseInt(weekStr) - 1;
+			const prevWeekKey =
+				prevWeekNum > 0
+					? `${yearStr}-W${String(prevWeekNum).padStart(2, "0")}`
+					: null;
+
+			if (prevWeekKey) {
+				try {
+					const { getTeamMemberData } = await import("./db.js");
+					const prevEntries = await getTeamMemberData(
+						name,
+						`${yearStr}-01-01`,
+						`${yearStr}-12-31`,
+					);
+					const prevWeekHours =
+						prevEntries.filter(
+							(e) =>
+								getWeekKey(new Date(e.date)) === prevWeekKey &&
+								e.category !== "ooo",
+						).length * 0.5;
+					if (prevWeekHours > 40) {
+						hasConsecutive = true;
+					}
+				} catch (e) {
+					/* ignore */
+				}
+			}
+		}
+
+		const totalOverHours = overWeeks
+			.map((wk) => byWeek[wk])
+			.reduce((s, h) => s + h, 0);
+		const avgOver =
+			Math.round((totalOverHours / overWeeks.length - 40) * 10) / 10;
+
+		if (hasConsecutive) {
+			overtimeDangers.push(
+				`${name} (${avgOver}h+ over, ${overWeeks.length} weeks)`,
+			);
+		} else {
+			overtimeWarnings.push(`${name} (${avgOver}h+ over)`);
+		}
+	}
+
+	if (overtimeDangers.length > 0) {
+		alerts.push({
+			type: "flag",
+			message: `<strong>Consecutive overtime:</strong> ${overtimeDangers.join(", ")}`,
+		});
+	}
+	if (overtimeWarnings.length > 0) {
+		alerts.push({
+			type: "warning",
+			message: `<strong>Over 40h this week:</strong> ${overtimeWarnings.join(", ")}`,
 		});
 	}
 
