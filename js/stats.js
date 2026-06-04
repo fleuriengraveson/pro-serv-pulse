@@ -1655,24 +1655,6 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 			const values = memberHours.map((m) => m.hours);
 			const mean = calculateMean(values);
 			const stdDev = calculateStdDev(values);
-
-			if (stdDev > 0) {
-				memberHours.forEach((m) => {
-					const deviation = (m.hours - mean) / stdDev;
-					if (deviation >= 1.5 && m.hours > 2) {
-						const pct =
-							totalTeamHours > 0
-								? Math.round(
-										(m.hours / countTrackedHours(byMember[m.name])) * 100,
-									)
-								: 0;
-						alerts.push({
-							type: "info",
-							message: `<strong>${m.name} is an outlier on ${cat.label}</strong> — ${pct}% of their time (${m.hours} hrs) vs. team avg of ${mean.toFixed(1)} hrs.`,
-						});
-					}
-				});
-			}
 		});
 	}
 
@@ -1851,8 +1833,6 @@ function renderOutsourcingCandidates(entries) {
 		.slice(0, 3);
 
 	if (sorted.length === 0) return "";
-
-	const totalTeamHours = sorted.reduce((sum, [, hrs]) => sum + hrs, 0);
 
 	/* Group entries by member for each category to show distribution */
 	const byMember = {};
