@@ -1592,7 +1592,7 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 			const pctOfCategory = Math.round((p.hours / catTotal) * 100);
 			if (pctOfCategory >= 60) {
 				alerts.push({
-					type: "flag",
+					type: "info",
 					message: `<strong>Coverage risk:</strong> ${p.name} handles ${pctOfCategory}% of all ${catLabel} — only ${participants.length} ${participants.length === 1 ? "person does" : "people do"} this (${catTotal}h total)`,
 				});
 			}
