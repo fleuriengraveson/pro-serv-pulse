@@ -726,7 +726,7 @@ function renderSidebar(stats) {
 
     <!-- Billable today -->
     <div class="stat-card">
-      <div class="stat-card-label">Billable today <span class="info-bubble" data-help="Hours marked as <strong>billable</strong> today. Billable work is above-and-beyond the standard service — things like custom data formatting, migration projects, or custom integrations that could be invoiced separately.">i</span></div>
+      <div class="stat-card-label">Billable today <span class="info-bubble" data-help="Hours marked as <strong>billable</strong> today. Billable work is any work done for a specific customer that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></div>
       <div class="stat-card-value text-emerald-600">
         ${stats.dailyBillable}
         <span class="text-sm font-normal text-stone-400">hrs</span>
@@ -1190,7 +1190,7 @@ async function showEditDropdown(
             <input type="checkbox" id="edit-billable"
                    ${entry.billable ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
-            <span class="text-xs" style="color: var(--text-secondary);">Billable <span class="info-bubble" data-help="Mark as billable if this work is <strong>above the standard service</strong> — custom data formatting, migration projects, custom integrations, or other work that could be invoiced separately. Routine support, troubleshooting, and meetings are generally not billable.">i</span></span>
+            <span class="text-xs" style="color: var(--text-secondary);">Billable <span class="info-bubble" data-help="Billable work is any work done for a specific customer that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="edit-urgent"

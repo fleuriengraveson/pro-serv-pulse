@@ -820,7 +820,7 @@ async function renderStats() {
 
 				return `
       <div class="stat-card">
-        <div class="stat-card-label">Billable ratio <span class="info-bubble" data-help="Percentage of tracked hours marked as billable. Billable work is <strong>above standard service</strong> — custom projects, data formatting, migrations — not routine support or troubleshooting.">i</span></div>
+        <div class="stat-card-label">Billable ratio <span class="info-bubble" data-help="Percentage of tracked hours marked as billable. Billable work is any work done for a specific customer that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></div>
         <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 6px;">
           <div class="stat-card-value">${billablePct}%</div>
           <span style="font-size: 12px; color: var(--text-muted);">${billable} of ${tracked} hrs</span>
@@ -1340,7 +1340,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 	rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
 	let html = `
-    <div class="text-sm font-medium mb-3">Team compliance <span class="info-bubble" data-help="<strong>Tracked:</strong> Total hours logged<br><strong>Compliance:</strong> Tracked vs expected (green ≥60%, red <42%)<br><strong>Billable:</strong> Hours above standard service<br><strong>Tier 1:</strong> Customer-facing work percentage<br><strong>Lunch:</strong> Days with lunch logged vs total tracked days">i</span></div>
+    <div class="text-sm font-medium mb-3">Team compliance <span class="info-bubble" data-help="<strong>Tracked:</strong> Total hours logged<br><strong>Compliance:</strong> Tracked vs expected (green ≥60%, red <42%)<br><strong>Billable:</strong> Billable hours<br><strong>Tier 1:</strong> Customer-facing work percentage<br><strong>Lunch:</strong> Days with lunch logged vs total tracked days">i</span></div>
     <div style="overflow-x: auto;">
     <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
       <thead>
