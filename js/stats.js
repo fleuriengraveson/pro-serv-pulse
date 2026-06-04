@@ -1465,25 +1465,180 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		});
 	}
 
-	/* Check category concentration across team */
-	const teamByCategory = aggregateByCategory(teamEntries);
-	const totalTeamHours = Object.values(teamByCategory)
-		.filter((_, i, arr) => {
-			return true;
-		})
-		.reduce((sum, hrs) => sum + hrs, 0);
+	/* ================================================================
+	 * WORKLOAD & SPECIALIZATION ALERTS
+	 * Replaces the old category concentration alert with four types:
+	 *   1. Heavy focus (personal dominance) — ≥40% of person's time
+	 *   2. Outlier (peer dominance) — ≥2× median of non-zero peers
+	 *   3. Combined — merges 1+2 when both fire for same person+category
+	 *   4. Coverage risk — ≥60% of category total, ≤2 people, ≥5h material
+	 * ================================================================ */
 
-	CATEGORIES.forEach((cat) => {
-		if (cat.id === "lunch" || cat.id === "ooo") return;
-		const hours = teamByCategory[cat.id] || 0;
-		const pct =
-			totalTeamHours > 0 ? Math.round((hours / totalTeamHours) * 100) : 0;
-		if (pct >= 30) {
+	/* Proportional minimum — ~12.5% of expected hours for the period */
+	const proportionalMin = Math.max(
+		2,
+		Math.round((expectedHours * 0.125) / Object.keys(byMember).length),
+	);
+
+	/* Build per-person per-category hours matrix */
+	const personCatHours = {}; /* { personName: { catId: hours } } */
+	const personTotals = {}; /* { personName: totalTrackedHours } */
+	const catTotals = {}; /* { catId: totalHoursAcrossTeam } */
+	const catParticipants = {}; /* { catId: [{ name, hours }] } */
+
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		personCatHours[name] = {};
+		let total = 0;
+
+		memberEntries.forEach((e) => {
+			if (!e.category || e.category === "lunch" || e.category === "ooo") return;
+			personCatHours[name][e.category] =
+				(personCatHours[name][e.category] || 0) + 0.5;
+			catTotals[e.category] = (catTotals[e.category] || 0) + 0.5;
+			total += 0.5;
+		});
+
+		personTotals[name] = total;
+	}
+
+	/* Build participant lists per category (non-zero only) */
+	for (const [name, cats] of Object.entries(personCatHours)) {
+		for (const [catId, hours] of Object.entries(cats)) {
+			if (hours > 0) {
+				if (!catParticipants[catId]) catParticipants[catId] = [];
+				catParticipants[catId].push({ name, hours });
+			}
+		}
+	}
+
+	/* Helper: calculate median of an array of numbers */
+	function median(arr) {
+		if (arr.length === 0) return 0;
+		const sorted = [...arr].sort((a, b) => a - b);
+		const mid = Math.floor(sorted.length / 2);
+		return sorted.length % 2 !== 0
+			? sorted[mid]
+			: (sorted[mid - 1] + sorted[mid]) / 2;
+	}
+
+	/* Track which person+category combos have been flagged to avoid duplicates */
+	const flaggedCombos = new Set();
+	const heavyFocusAlerts = [];
+	const outlierAlerts = [];
+	const coverageAlerts = [];
+
+	for (const [name, cats] of Object.entries(personCatHours)) {
+		const personTotal = personTotals[name];
+		if (personTotal === 0) continue;
+
+		for (const [catId, hours] of Object.entries(cats)) {
+			if (hours < proportionalMin) continue;
+
+			const cat = CATEGORIES.find((c) => c.id === catId);
+			const catLabel = cat?.label || catId;
+			const pctOfPerson = Math.round((hours / personTotal) * 100);
+			const comboKey = `${name}::${catId}`;
+
+			/* Check personal dominance — ≥40% of person's tracked time */
+			const isPersonalDominance = pctOfPerson >= 40;
+
+			/* Check peer dominance — ≥2× median of non-zero peers, ≥3 people in category */
+			let isPeerDominance = false;
+			let peerMultiple = 0;
+			const participants = catParticipants[catId] || [];
+			if (participants.length >= 3) {
+				const peerHours = participants
+					.filter((p) => p.name !== name)
+					.map((p) => p.hours);
+				const peerMedian = median(peerHours);
+				if (peerMedian > 0) {
+					peerMultiple = Math.round((hours / peerMedian) * 10) / 10;
+					isPeerDominance = peerMultiple >= 2;
+				}
+			}
+
+			if (isPersonalDominance && isPeerDominance) {
+				/* Combined alert */
+				heavyFocusAlerts.push({
+					name,
+					catLabel,
+					pct: pctOfPerson,
+					multiple: peerMultiple,
+					combined: true,
+				});
+				flaggedCombos.add(comboKey);
+			} else if (isPersonalDominance) {
+				heavyFocusAlerts.push({
+					name,
+					catLabel,
+					pct: pctOfPerson,
+					multiple: 0,
+					combined: false,
+				});
+				flaggedCombos.add(comboKey);
+			} else if (isPeerDominance) {
+				outlierAlerts.push({
+					name,
+					catLabel,
+					multiple: peerMultiple,
+				});
+				flaggedCombos.add(comboKey);
+			}
+		}
+	}
+
+	/* Coverage risk — ≥60% of category total, ≤2 people, ≥5h material */
+	for (const [catId, participants] of Object.entries(catParticipants)) {
+		const catTotal = catTotals[catId] || 0;
+		if (catTotal < 5) continue;
+		if (participants.length > 2) continue;
+
+		const cat = CATEGORIES.find((c) => c.id === catId);
+		const catLabel = cat?.label || catId;
+
+		for (const p of participants) {
+			const pctOfCategory = Math.round((p.hours / catTotal) * 100);
+			if (pctOfCategory >= 60) {
+				coverageAlerts.push({
+					name: p.name,
+					catLabel,
+					pct: pctOfCategory,
+					participantCount: participants.length,
+					catTotal,
+				});
+			}
+		}
+	}
+
+	/* Add heavy focus alerts */
+	heavyFocusAlerts.forEach((a) => {
+		if (a.combined) {
 			alerts.push({
 				type: "warning",
-				message: `<strong>${cat.label} consuming ${pct}% of team time</strong> — ${hours} total hours across the team.`,
+				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`,
+			});
+		} else {
+			alerts.push({
+				type: "warning",
+				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their tracked time`,
 			});
 		}
+	});
+
+	/* Add outlier alerts */
+	outlierAlerts.forEach((a) => {
+		alerts.push({
+			type: "warning",
+			message: `<strong>Outlier:</strong> ${a.name} spends ${a.multiple}× more time on ${a.catLabel} than the team median`,
+		});
+	});
+
+	/* Add coverage risk alerts */
+	coverageAlerts.forEach((a) => {
+		alerts.push({
+			type: "flag",
+			message: `<strong>Coverage risk:</strong> ${a.name} handles ${a.pct}% of all ${a.catLabel} — only ${a.participantCount} ${a.participantCount === 1 ? "person does" : "people do"} this (${a.catTotal}h total)`,
+		});
 	});
 
 	/* Check for individual outliers in category distribution */
