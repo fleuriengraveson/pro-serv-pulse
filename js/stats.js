@@ -1658,6 +1658,25 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		});
 	}
 
+	/* No hours logged — red flag for members with zero tracked time */
+	const noHoursMembers = [];
+	for (const [name, memberEntries] of Object.entries(byMember)) {
+		const tracked =
+			memberEntries.filter(
+				(e) => e.category && e.category !== "ooo" && e.category !== "lunch",
+			).length * 0.5;
+		if (tracked === 0) {
+			noHoursMembers.push(name);
+		}
+	}
+
+	if (noHoursMembers.length > 0) {
+		alerts.push({
+			type: "flag",
+			message: `<strong>No hours logged:</strong> ${noHoursMembers.join(", ")}`,
+		});
+	}
+
 	return alerts;
 }
 
