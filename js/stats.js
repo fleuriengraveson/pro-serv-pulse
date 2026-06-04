@@ -1599,54 +1599,6 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		}
 	}
 
-	/* Add heavy focus alerts */
-	heavyFocusAlerts.forEach((a) => {
-		if (a.combined) {
-			alerts.push({
-				type: "info",
-				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`,
-			});
-		} else {
-			alerts.push({
-				type: "info",
-				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their tracked time`,
-			});
-		}
-	});
-
-	/* Add outlier alerts */
-	outlierAlerts.forEach((a) => {
-		alerts.push({
-			type: "info",
-			message: `<strong>Outlier:</strong> ${a.name} spends ${a.multiple}× more time on ${a.catLabel} than the team median`,
-		});
-	});
-
-	/* Add coverage risk alerts */
-	coverageAlerts.forEach((a) => {
-		alerts.push({
-			type: "flag",
-			message: `<strong>Coverage risk:</strong> ${a.name} handles ${a.pct}% of all ${a.catLabel} — only ${a.participantCount} ${a.participantCount === 1 ? "person does" : "people do"} this (${a.catTotal}h total)`,
-		});
-	});
-
-	/* Check for individual outliers in category distribution */
-	const memberCount = Object.keys(byMember).length;
-	if (memberCount >= 3) {
-		CATEGORIES.forEach((cat) => {
-			if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other") return;
-
-			const memberHours = Object.entries(byMember).map(([name, entries]) => ({
-				name,
-				hours: entries.filter((e) => e.category === cat.id).length * 0.5,
-			}));
-
-			const values = memberHours.map((m) => m.hours);
-			const mean = calculateMean(values);
-			const stdDev = calculateStdDev(values);
-		});
-	}
-
 	/* Lunch compliance check */
 	const now = new Date();
 	const todayStr = now.toISOString().slice(0, 10);
@@ -2733,72 +2685,6 @@ function renderDailyChart(entries, range) {
 							callback: (v) => `${v}h`,
 						},
 						grid: { color: getChartColors().gridColor },
-					},
-				},
-			},
-		});
-	} else if (currentPeriod === "weekly") {
-		/* Weekly view: 5 bars for Mon-Fri of the specific week */
-		const weekDates = getWeekDates(periodDate);
-		const dayLabels = weekDates.map((d) => formatDateShort(d));
-
-		const byDate = {};
-		entries.forEach((e) => {
-			if (!byDate[e.date]) byDate[e.date] = [];
-			byDate[e.date].push(e);
-		});
-
-		const activeCats = CATEGORIES.filter((cat) => {
-			return (
-				cat.id !== "ooo" &&
-				cat.id !== "lunch" &&
-				entries.some((e) => e.category === cat.id)
-			);
-		});
-
-		const datasets = activeCats.map((cat) => ({
-			label: cat.label,
-			data: weekDates.map((d) => {
-				const dateEntries = byDate[formatDateISO(d)] || [];
-				return (
-					dateEntries.filter((e) => e.category === cat.id).length *
-					(TIME_DEFAULTS.blockMinutes / 60)
-				);
-			}),
-			backgroundColor: getChartColors().categories[cat.id],
-			borderWidth: 0,
-			borderRadius: 2,
-		}));
-
-		chartInstances.daily = new Chart(canvas, {
-			type: "bar",
-			data: { labels: dayLabels, datasets },
-			options: {
-				responsive: true,
-				maintainAspectRatio: false,
-				plugins: {
-					legend: { display: false },
-					tooltip: {
-						callbacks: {
-							label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y} hrs`,
-						},
-					},
-				},
-				scales: {
-					x: {
-						stacked: true,
-						ticks: { font: { size: 11 }, color: getChartColors().tickColor },
-						grid: { display: false },
-					},
-					y: {
-						stacked: true,
-						ticks: {
-							font: { size: 10 },
-							color: getChartColors().tickColor,
-							callback: (v) => `${v}h`,
-						},
-						grid: { color: getChartColors().gridColor },
-						max: 8,
 					},
 				},
 			},
