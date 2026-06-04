@@ -1522,6 +1522,10 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 	}
 
 	/* Lunch compliance check */
+	const now = new Date();
+	const todayStr = now.toISOString().slice(0, 10);
+	const isPast3pm = now.getHours() >= 15;
+
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		const dates = [...new Set(memberEntries.map((e) => e.date))];
 		const daysWithoutLunch = dates.filter((date) => {
@@ -1530,12 +1534,16 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 			const hasWork = dayEntries.some(
 				(e) => e.category && e.category !== "lunch" && e.category !== "ooo",
 			);
+
+			/* For today, only count as missed if it's after 3pm */
+			if (date === todayStr && !isPast3pm) return false;
+
 			return hasWork && !hasLunch;
 		});
 
 		if (daysWithoutLunch.length >= 2) {
 			alerts.push({
-				type: "info",
+				type: "warning",
 				message: `<strong>${name} skipped lunch on ${daysWithoutLunch.length} days</strong> this period.`,
 			});
 		}
