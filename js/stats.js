@@ -958,7 +958,9 @@ async function renderStats() {
 									? "var(--warning)"
 									: a.type === "flag"
 										? "var(--danger)"
-										: "var(--info)"
+										: a.type === "concentration"
+											? "var(--accent)"
+											: "var(--info)"
 							}">${a.type === "flag" ? "!" : a.type === "warning" ? "!" : "i"}</div>
               <div>${a.message}</div>
             </div>
@@ -1576,7 +1578,7 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		} else {
 			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} at ${a.multiple}× the team median`;
 		}
-		alerts.push({ type: "info", message: msg });
+		alerts.push({ type: "concentration", message: msg });
 	});
 
 	/* --- Coverage risk alerts --- */

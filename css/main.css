@@ -1067,6 +1067,10 @@ body {
 	background: var(--danger-bg);
 	color: var(--danger-text);
 }
+.insight-concentration {
+	background: rgba(139, 92, 246, 0.06);
+	border-left: 3px solid var(--accent);
+}
 .insight-icon {
 	width: 18px;
 	height: 18px;
