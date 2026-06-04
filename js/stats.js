@@ -1472,10 +1472,10 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	 * ================================================================ */
 
 	/* Proportional minimum — ~12.5% of expected hours per person */
-	const memberCount = Object.keys(byMember).length;
+	const teamSize = Object.keys(byMember).length;
 	const proportionalMin =
-		memberCount > 0
-			? Math.max(2, Math.round((expectedHours * 0.125) / memberCount))
+		teamSize > 0
+			? Math.max(2, Math.round((expectedHours * 0.125) / teamSize))
 			: 2;
 
 	/* Build per-person per-category hours matrix */
