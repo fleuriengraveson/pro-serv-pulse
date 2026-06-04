@@ -1525,6 +1525,7 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 	const now = new Date();
 	const todayStr = now.toISOString().slice(0, 10);
 	const isPast3pm = now.getHours() >= 15;
+	const lunchSkippers = [];
 
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		const dates = [...new Set(memberEntries.map((e) => e.date))];
@@ -1542,11 +1543,15 @@ function renderTeamAlerts(teamEntries, expectedHours) {
 		});
 
 		if (daysWithoutLunch.length >= 2) {
-			alerts.push({
-				type: "warning",
-				message: `<strong>${name} skipped lunch on ${daysWithoutLunch.length} days</strong> this period.`,
-			});
+			lunchSkippers.push(`${name} (${daysWithoutLunch.length} days)`);
 		}
+	}
+
+	if (lunchSkippers.length > 0) {
+		alerts.push({
+			type: "warning",
+			message: `<strong>Skipped lunch:</strong> ${lunchSkippers.join(", ")}`,
+		});
 	}
 
 	return alerts;
