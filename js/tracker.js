@@ -2547,7 +2547,10 @@ function closeOOOPopover() {
  *   - Manager viewing specific team member: read-only member notes
  *   - Manager viewing all team: read-only notes grouped by section
  */
-export async function showNotesPanel(externalState = null) {
+export async function showNotesPanel(
+	externalState = null,
+	overrideDate = null,
+) {
 	/* Use external state if tracker hasn't been initialized */
 	if (externalState && !appState) {
 		appState = externalState;
@@ -2566,7 +2569,9 @@ export async function showNotesPanel(externalState = null) {
 		return;
 	}
 
-	const weekKey = getISOWeekKey(currentDate);
+	const notesDate = overrideDate || currentDate;
+	const notesWeekDates = overrideDate ? getWeekDates(overrideDate) : weekDates;
+	const weekKey = getISOWeekKey(notesDate);
 
 	/* Determine which mode we're in by checking the stats page state */
 	const statsVisible = !document
@@ -2578,7 +2583,7 @@ export async function showNotesPanel(externalState = null) {
 
 	let panelContent;
 	let panelTitle;
-	let panelSubtitle = `Week of ${formatDateDisplay(weekDates[0])}`;
+	let panelSubtitle = `Week of ${formatDateDisplay(notesWeekDates[0])}`;
 
 	if (isManager && statsVisible && selectedMember === "all") {
 		/* All team notes — grouped by section */

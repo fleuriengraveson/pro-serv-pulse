@@ -681,9 +681,15 @@ async function renderStats() {
 
 	  <!-- Notes + Period navigation -->
       <div class="flex items-center gap-3">
+        ${
+					currentPeriod === "weekly"
+						? `
         <button id="stats-notes-btn" class="sidebar-btn sidebar-btn-notes" style="padding: 5px 12px; font-size: 12px;">
           Notes (N)
         </button>
+        `
+						: ""
+				}
         <div class="flex items-center gap-2">
           <button id="period-prev"
 
@@ -2914,7 +2920,7 @@ function attachStatsListeners() {
 
 	/* Notes button */
 	document.getElementById("stats-notes-btn")?.addEventListener("click", () => {
-		showNotesPanel(appState);
+		showNotesPanel(appState, periodDate);
 	});
 }
 
