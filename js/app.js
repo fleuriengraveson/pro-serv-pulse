@@ -530,6 +530,9 @@ async function updateNotesReminder() {
 	const snoozedUntil = localStorage.getItem("chronos-notes-snoozed-until");
 	if (snoozedUntil && Date.now() < parseInt(snoozedUntil)) return;
 
+	/* Managers don't need the notes reminder */
+	if (state.settings.role === "manager") return;
+
 	/* Only show on Friday or if last week's notes are empty */
 	const now = new Date();
 	const today = now.getDay(); /* 0=Sun, 1=Mon ... 5=Fri, 6=Sat */
