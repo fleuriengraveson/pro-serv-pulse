@@ -1467,24 +1467,22 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 
 	/* ================================================================
 	 * WORKLOAD & SPECIALIZATION ALERTS
-	 * Replaces the old category concentration alert with four types:
-	 *   1. Heavy focus (personal dominance) — ≥40% of person's time
-	 *   2. Outlier (peer dominance) — ≥2× median of non-zero peers
-	 *   3. Combined — merges 1+2 when both fire for same person+category
-	 *   4. Coverage risk — ≥60% of category total, ≤2 people, ≥5h material
+	 *   1. Concentration — fires if personal share ≥50% OR peer ≥3× median
+	 *   2. Coverage risk — ≥60% of category total, ≤2 people, ≥5h material
 	 * ================================================================ */
 
-	/* Proportional minimum — ~12.5% of expected hours for the period */
-	const proportionalMin = Math.max(
-		2,
-		Math.round((expectedHours * 0.125) / Object.keys(byMember).length),
-	);
+	/* Proportional minimum — ~12.5% of expected hours per person */
+	const memberCount = Object.keys(byMember).length;
+	const proportionalMin =
+		memberCount > 0
+			? Math.max(2, Math.round((expectedHours * 0.125) / memberCount))
+			: 2;
 
 	/* Build per-person per-category hours matrix */
-	const personCatHours = {}; /* { personName: { catId: hours } } */
-	const personTotals = {}; /* { personName: totalTrackedHours } */
-	const catTotals = {}; /* { catId: totalHoursAcrossTeam } */
-	const catParticipants = {}; /* { catId: [{ name, hours }] } */
+	const personCatHours = {};
+	const personTotals = {};
+	const catTotals = {};
+	const catParticipants = {};
 
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		personCatHours[name] = {};
@@ -1521,11 +1519,8 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 			: (sorted[mid - 1] + sorted[mid]) / 2;
 	}
 
-	/* Track which person+category combos have been flagged to avoid duplicates */
-	const flaggedCombos = new Set();
-	const heavyFocusAlerts = [];
-	const outlierAlerts = [];
-	const coverageAlerts = [];
+	/* --- Concentration alerts --- */
+	const concentrationAlerts = [];
 
 	for (const [name, cats] of Object.entries(personCatHours)) {
 		const personTotal = personTotals[name];
@@ -1537,13 +1532,12 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 			const cat = CATEGORIES.find((c) => c.id === catId);
 			const catLabel = cat?.label || catId;
 			const pctOfPerson = Math.round((hours / personTotal) * 100);
-			const comboKey = `${name}::${catId}`;
 
-			/* Check personal dominance — ≥40% of person's tracked time */
-			const isPersonalDominance = pctOfPerson >= 40;
+			/* Check personal share — ≥50% of person's tracked time */
+			const isPersonalHigh = pctOfPerson >= 50;
 
-			/* Check peer dominance — ≥2× median of non-zero peers, ≥3 people in category */
-			let isPeerDominance = false;
+			/* Check peer multiple — ≥3× median of non-zero peers, ≥3 people */
+			let isPeerHigh = false;
 			let peerMultiple = 0;
 			const participants = catParticipants[catId] || [];
 			if (participants.length >= 3) {
@@ -1553,41 +1547,39 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 				const peerMedian = median(peerHours);
 				if (peerMedian > 0) {
 					peerMultiple = Math.round((hours / peerMedian) * 10) / 10;
-					isPeerDominance = peerMultiple >= 2;
+					isPeerHigh = peerMultiple >= 3;
 				}
 			}
 
-			if (isPersonalDominance && isPeerDominance) {
-				/* Combined alert */
-				heavyFocusAlerts.push({
+			/* Fire if EITHER condition holds */
+			if (isPersonalHigh || isPeerHigh) {
+				concentrationAlerts.push({
 					name,
 					catLabel,
 					pct: pctOfPerson,
-					multiple: peerMultiple,
-					combined: true,
+					multiple: isPeerHigh ? peerMultiple : 0,
+					hasBoth: isPersonalHigh && isPeerHigh,
+					hasPersonal: isPersonalHigh,
+					hasPeer: isPeerHigh,
 				});
-				flaggedCombos.add(comboKey);
-			} else if (isPersonalDominance) {
-				heavyFocusAlerts.push({
-					name,
-					catLabel,
-					pct: pctOfPerson,
-					multiple: 0,
-					combined: false,
-				});
-				flaggedCombos.add(comboKey);
-			} else if (isPeerDominance) {
-				outlierAlerts.push({
-					name,
-					catLabel,
-					multiple: peerMultiple,
-				});
-				flaggedCombos.add(comboKey);
 			}
 		}
 	}
 
-	/* Coverage risk — ≥60% of category total, ≤2 people, ≥5h material */
+	/* Add concentration alerts */
+	concentrationAlerts.forEach((a) => {
+		let msg;
+		if (a.hasBoth) {
+			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`;
+		} else if (a.hasPersonal) {
+			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their tracked time`;
+		} else {
+			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} at ${a.multiple}× the team median`;
+		}
+		alerts.push({ type: "info", message: msg });
+	});
+
+	/* --- Coverage risk alerts --- */
 	for (const [catId, participants] of Object.entries(catParticipants)) {
 		const catTotal = catTotals[catId] || 0;
 		if (catTotal < 5) continue;
@@ -1599,12 +1591,9 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		for (const p of participants) {
 			const pctOfCategory = Math.round((p.hours / catTotal) * 100);
 			if (pctOfCategory >= 60) {
-				coverageAlerts.push({
-					name: p.name,
-					catLabel,
-					pct: pctOfCategory,
-					participantCount: participants.length,
-					catTotal,
+				alerts.push({
+					type: "flag",
+					message: `<strong>Coverage risk:</strong> ${p.name} handles ${pctOfCategory}% of all ${catLabel} — only ${participants.length} ${participants.length === 1 ? "person does" : "people do"} this (${catTotal}h total)`,
 				});
 			}
 		}
@@ -1614,12 +1603,12 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	heavyFocusAlerts.forEach((a) => {
 		if (a.combined) {
 			alerts.push({
-				type: "warning",
+				type: "info",
 				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`,
 			});
 		} else {
 			alerts.push({
-				type: "warning",
+				type: "info",
 				message: `<strong>Heavy focus:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their tracked time`,
 			});
 		}
@@ -1628,7 +1617,7 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	/* Add outlier alerts */
 	outlierAlerts.forEach((a) => {
 		alerts.push({
-			type: "warning",
+			type: "info",
 			message: `<strong>Outlier:</strong> ${a.name} spends ${a.multiple}× more time on ${a.catLabel} than the team median`,
 		});
 	});
