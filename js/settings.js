@@ -120,7 +120,7 @@ async function renderSettings() {
               <label for="setting-lunch-hour" class="block text-sm font-medium text-stone-600 mb-1">Lunch starts at</label>
               <select id="setting-lunch-hour"
                       class="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 bg-surface-50">
-                ${generateHourOptions(settings.lunchStartHour || TIME_DEFAULTS.lunchStartHour)}
+                ${generateHalfHourOptions(settings.lunchStartHour || TIME_DEFAULTS.lunchStartHour)}
               </select>
             </div>
             <div>
@@ -419,6 +419,27 @@ function generateHourOptions(selectedHour) {
 	return html;
 }
 
+/**
+ * generateHalfHourOptions
+ * Generates <option> elements with 30-minute increments for lunch time.
+ *
+ * @param {number} selectedValue - Currently selected value (e.g., 12.5 for 12:30 PM)
+ * @returns {string} HTML options string
+ */
+function generateHalfHourOptions(selectedValue) {
+	let html = "";
+	for (let h = 6; h <= 22; h++) {
+		for (let m = 0; m < 60; m += 30) {
+			const value = h + m / 60;
+			const period = h >= 12 ? "PM" : "AM";
+			const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+			const label = `${displayHour}:${String(m).padStart(2, "0")} ${period}`;
+			html += `<option value="${value}" ${value === selectedValue ? "selected" : ""}>${label}</option>`;
+		}
+	}
+	return html;
+}
+
 /* ============================================================================
  * EVENT LISTENERS
  * --------------------------------------------------------------------------
@@ -446,7 +467,7 @@ async function attachSettingsListeners() {
 			parseInt(container.querySelector("#setting-end-hour")?.value) ||
 			TIME_DEFAULTS.dayEndHour;
 		settings.lunchStartHour =
-			parseInt(container.querySelector("#setting-lunch-hour")?.value) ||
+			parseFloat(container.querySelector("#setting-lunch-hour")?.value) ||
 			TIME_DEFAULTS.lunchStartHour;
 		settings.lunchBlocks =
 			parseInt(container.querySelector("#setting-lunch-blocks")?.value) ||

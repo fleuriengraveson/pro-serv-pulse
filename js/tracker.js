@@ -2913,9 +2913,13 @@ async function fillLunch() {
 	const dateStr = formatDateISO(currentDate);
 
 	/* Generate the lunch time slots */
+	const startHour = Math.floor(lunchStart);
+	const startMinute = Math.round((lunchStart % 1) * 60);
+
 	for (let i = 0; i < lunchBlocks; i++) {
-		const hour = lunchStart + Math.floor((i * 30) / 60);
-		const minute = (i * 30) % 60;
+		const totalMinutes = startHour * 60 + startMinute + i * 30;
+		const hour = Math.floor(totalMinutes / 60);
+		const minute = totalMinutes % 60;
 		const slot = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
 		await saveEntry({
@@ -2958,9 +2962,13 @@ async function fillLunchWeek() {
 	for (const day of weekDates) {
 		const dateStr = formatDateISO(day);
 
+		const startHour = Math.floor(lunchStart);
+		const startMinute = Math.round((lunchStart % 1) * 60);
+
 		for (let i = 0; i < lunchBlocks; i++) {
-			const hour = lunchStart + Math.floor((i * 30) / 60);
-			const minute = (i * 30) % 60;
+			const totalMinutes = startHour * 60 + startMinute + i * 30;
+			const hour = Math.floor(totalMinutes / 60);
+			const minute = totalMinutes % 60;
 			const slot = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
 			/* Only fill if the block is empty */
