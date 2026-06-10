@@ -22,7 +22,7 @@ import {
 } from "./db.js";
 import { initTracker } from "./tracker.js";
 import { initSettings } from "./settings.js";
-import { initStats, getStatsContext } from "./stats.js";
+import { initStats, getStatsContext, cleanupStats } from "./stats.js";
 import {
 	getISOWeekKey,
 	getWeekDateRange,
@@ -303,6 +303,13 @@ function setupNavigation() {
  * @param {string} viewId - One of the VIEWS constants
  */
 async function switchView(viewId) {
+	/* If we're leaving the stats view, stop its team-data auto-refresh so it
+	 * doesn't keep polling the sync folder while on the tracker/settings.
+	 * state.currentView still holds the *previous* view here (it's updated below). */
+	if (state.currentView === VIEWS.STATS && viewId !== VIEWS.STATS) {
+		cleanupStats();
+	}
+
 	/* Hide all view containers */
 	document.querySelectorAll(".view-container").forEach((el) => {
 		el.classList.add("hidden");

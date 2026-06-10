@@ -66,6 +66,20 @@ let appState = null; // Reference to global app state
 let currentPeriod = "weekly"; // Active time filter
 let periodDate = new Date(); // The reference date for period navigation
 let chartInstances = {}; // Track Chart.js instances for cleanup
+
+/* --- Manager team-data auto-refresh state ---------------------------------
+ * The stats page imported team JSON only once (on load), so a manager who
+ * opened it in the morning never saw entries that arrived later in the day.
+ * These hold the auto-refresh machinery so it can start when the manager
+ * enters the stats view and be torn down again when they leave.
+ */
+
+let teamRefreshTimer = null; // setInterval id for the periodic re-import (null = not running)
+let onVisibilityChange = null; // visibilitychange handler ref, kept so we can detach it
+let isRefreshing = false; // guard so two refreshes can't overlap if an import runs long
+let lastImportedAt = null; // Date of the most recent successful import (used by the freshness label, next pass)
+
+const TEAM_REFRESH_MS = 60000; // how often to re-check the sync folder while stats is open (60s)
 let selectedMember = "all"; // 'all', a member name, or 'self'
 let teamMembers = []; // Cached list of imported team members
 
@@ -99,6 +113,7 @@ export async function initStats(state) {
 			const importStatus = await getSyncStatus("import");
 			if (importStatus.connected && importStatus.hasPermission) {
 				const result = await autoImportTeamData();
+				lastImportedAt = new Date(); // record freshness so the header label shows on first render
 				if (result.imported > 0 || result.updated > 0) {
 					console.log(
 						`Auto-imported: ${result.imported} new, ${result.updated} updated`,
@@ -123,6 +138,99 @@ export async function initStats(state) {
 	}
 
 	await renderStats();
+
+	/* Begin auto-refreshing team data while the manager stays on this view.
+	 * (No-op for contributors.) Torn down by cleanupStats() on view switch. */
+	startTeamAutoRefresh();
+}
+
+/* ============================================================================
+ * TEAM DATA AUTO-REFRESH (manager only)
+ * --------------------------------------------------------------------------
+ * autoImportTeamData() already re-reads the sync folder fresh on every call,
+ * so the only thing missing was calling it again after the first load. These
+ * helpers re-import on a timer and whenever the tab regains visibility, and
+ * only re-render when the import actually changed something (so an idle
+ * dashboard doesn't redraw and lose the manager's scroll position).
+ * ========================================================================= */
+
+/**
+ * refreshTeamData
+ * Re-imports team JSON from the connected sync folder and, if anything changed,
+ * refreshes the member list and re-renders the dashboard. Safe to call
+ * repeatedly; no-ops for non-managers or when no import folder is connected.
+ */
+async function refreshTeamData(forceRender = false) {
+	/* Only managers import team data, and skip if a previous run is still going */
+	if (appState.settings.role !== "manager" || isRefreshing) return;
+
+	isRefreshing = true;
+	try {
+		const { autoImportTeamData, getSyncStatus } = await import("./sync.js");
+
+		/* Bail quietly if the import folder isn't connected / authorized */
+		const importStatus = await getSyncStatus("import");
+		if (!importStatus.connected || !importStatus.hasPermission) return;
+
+		const result = await autoImportTeamData();
+		lastImportedAt = new Date();
+
+		/* Redraw when data changed, OR when a manual refresh forces it so the
+		 * "Updated HH:MM" label always reflects the click even on no-change days. */
+		if (forceRender || result.imported > 0 || result.updated > 0) {
+			teamMembers = await getTeamMemberList();
+			await renderStats();
+		}
+	} catch (e) {
+		console.warn("Team data refresh failed:", e.message);
+	} finally {
+		isRefreshing = false;
+	}
+}
+
+/**
+ * startTeamAutoRefresh
+ * Begins periodic re-import and wires a visibilitychange listener so the
+ * dashboard also refreshes the moment the manager returns to the tab.
+ * Clears any existing timer first so we never stack two intervals.
+ */
+function startTeamAutoRefresh() {
+	stopTeamAutoRefresh(); /* defensive: never run two timers at once */
+	if (appState.settings.role !== "manager") return;
+
+	/* Periodic re-import — handles the "opened at 9am and left it on screen" case */
+	teamRefreshTimer = setInterval(refreshTeamData, TEAM_REFRESH_MS);
+
+	/* Immediate refresh when the tab becomes visible again — handles the
+	 * "alt-tabbed away and came back" case without waiting for the interval. */
+	onVisibilityChange = () => {
+		if (document.visibilityState === "visible") refreshTeamData();
+	};
+	document.addEventListener("visibilitychange", onVisibilityChange);
+}
+
+/**
+ * stopTeamAutoRefresh
+ * Tears down the interval and the visibilitychange listener.
+ */
+function stopTeamAutoRefresh() {
+	if (teamRefreshTimer !== null) {
+		clearInterval(teamRefreshTimer);
+		teamRefreshTimer = null;
+	}
+	if (onVisibilityChange) {
+		document.removeEventListener("visibilitychange", onVisibilityChange);
+		onVisibilityChange = null;
+	}
+}
+
+/**
+ * cleanupStats
+ * Called by app.js (switchView) when navigating away from the stats view, so
+ * the auto-refresh timer/listener don't keep running on other views.
+ */
+export function cleanupStats() {
+	stopTeamAutoRefresh();
 }
 
 /* ============================================================================
@@ -681,6 +789,31 @@ async function renderStats() {
 
 	  <!-- Notes + Period navigation -->
       <div class="flex items-center gap-3">
+	  ${
+			appState.settings.role === "manager"
+				? `
+        <!-- Team-data freshness + manual refresh (managers only).
+             #stats-last-imported is painted from lastImportedAt on every render;
+             #stats-refresh-btn forces an immediate re-import (wired in attachStatsListeners). -->
+        <div class="flex items-center gap-2">
+          <span id="stats-last-imported" style="font-size: 11px; color: var(--text-muted); white-space: nowrap;">
+            ${
+							lastImportedAt
+								? "Updated " +
+									lastImportedAt.toLocaleTimeString([], {
+										hour: "2-digit",
+										minute: "2-digit",
+									})
+								: ""
+						}
+          </span>
+          <button id="stats-refresh-btn" class="sidebar-btn" style="padding: 5px 12px; font-size: 12px;" title="Re-import team data from the sync folder now">
+            Refresh
+          </button>
+        </div>
+        `
+				: ""
+		}
         ${
 					currentPeriod === "weekly"
 						? `
@@ -690,10 +823,7 @@ async function renderStats() {
         `
 						: ""
 				}
-        <div class="flex items-center gap-2">
-          <button id="period-prev"
-
-      <!-- Period navigation -->
+         <!-- Period navigation -->
       <div class="flex items-center gap-2">
         <button id="period-prev" class="w-7 h-7 flex items-center justify-center rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 transition-colors">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3070,6 +3200,26 @@ function attachStatsListeners() {
 	document.getElementById("stats-notes-btn")?.addEventListener("click", () => {
 		showNotesPanel(appState, periodDate);
 	});
+
+	/* Manual "Refresh" button — force an immediate re-import + re-render (managers only). */
+	document
+		.getElementById("stats-refresh-btn")
+		?.addEventListener("click", async (e) => {
+			const btn = e.currentTarget;
+			btn.disabled = true;
+			btn.textContent = "Refreshing…";
+
+			/* forceRender=true so the timestamp updates even when no new data arrived. */
+			await refreshTeamData(true);
+
+			/* If renderStats ran, it rebuilt this button fresh and `btn` is now
+			 * detached — the check below is a safe no-op. If it didn't run (e.g.
+			 * import folder disconnected), restore the original button state. */
+			if (document.body.contains(btn)) {
+				btn.disabled = false;
+				btn.textContent = "Refresh";
+			}
+		});
 }
 
 /**
