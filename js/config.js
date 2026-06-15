@@ -20,18 +20,21 @@ export const CATEGORIES = [
 	{
 		id: "admin_internal",
 		label: "Admin — Internal",
+		help: "Email and Slack that is not customer-related",
 		hex: "#F09088",
 		cssVar: "--cat-admin-internal-border",
 	},
 	{
 		id: "admin_merchant",
 		label: "Admin — Merchant",
+		help: "Queue work, short ticket handling, replying to customers",
 		hex: "#E07068",
 		cssVar: "--cat-admin-merchant-border",
 	},
 	{
 		id: "analytics",
 		label: "Analytics Support",
+		help: "Troubleshooting or building custom Analytics reports",
 		color: "rose",
 		hex: "#E0A8D8",
 		cssVar: "--cat-analytics-border",
@@ -39,6 +42,7 @@ export const CATEGORIES = [
 	{
 		id: "api_scoping",
 		label: "API / Technical Scoping",
+		help: "Consulting or troubleshooting Lightspeed's API",
 		color: "lavender",
 		hex: "#C0A8E0",
 		cssVar: "--cat-api-border",
@@ -46,6 +50,7 @@ export const CATEGORIES = [
 	{
 		id: "data_migration",
 		label: "Data Migration / Cleaning",
+		help: "Transforming merchant data, cleaning CSV files, imports",
 		color: "indigo",
 		hex: "#9898D8",
 		cssVar: "--cat-migration-border",
@@ -53,6 +58,7 @@ export const CATEGORIES = [
 	{
 		id: "hardware",
 		label: "Hardware Support",
+		help: "Troubleshooting or training customers on hardware",
 		color: "coral",
 		hex: "#F8A8B0",
 		cssVar: "--cat-hardware-border",
@@ -60,6 +66,7 @@ export const CATEGORIES = [
 	{
 		id: "internal_tools",
 		label: "Internal Tools Dev",
+		help: "Building team tools",
 		color: "mint",
 		hex: "#88D8A8",
 		cssVar: "--cat-tools-border",
@@ -67,6 +74,7 @@ export const CATEGORIES = [
 	{
 		id: "meeting_internal",
 		label: "Live Meeting — Internal",
+		help: "Internal team meeting",
 		color: "sky",
 		hex: "#A8D8F0",
 		cssVar: "--cat-meeting-int-border",
@@ -74,6 +82,7 @@ export const CATEGORIES = [
 	{
 		id: "meeting_merchant",
 		label: "Live Meeting — Merchant",
+		help: "Live meeting with a merchant",
 		color: "teal",
 		hex: "#88C8D8",
 		cssVar: "--cat-meeting-merch-border",
@@ -81,6 +90,7 @@ export const CATEGORIES = [
 	{
 		id: "research_sync",
 		label: "Research / Product Sync",
+		help: "Jira creation or in-depth research not related to troubleshooting",
 		color: "lime",
 		hex: "#C8E088",
 		cssVar: "--cat-research-border",
@@ -88,6 +98,7 @@ export const CATEGORIES = [
 	{
 		id: "troubleshooting",
 		label: "Troubleshooting",
+		help: "Diagnosing and fixing issues not covered by other categories",
 		hex: "#F5C040",
 		cssVar: "--cat-troubleshooting-border",
 	},
@@ -108,6 +119,7 @@ export const CATEGORIES = [
 	{
 		id: "other",
 		label: "Other",
+		help: "Work that doesn't fit any other category",
 		color: "stone",
 		hex: "#A8A8A8",
 		cssVar: "--cat-other-border",

@@ -213,6 +213,7 @@ async function init() {
 	await updateSyncIndicator();
 
 	initInfoBubbles();
+	initCategoryHelp();
 }
 
 /* ============================================================================
@@ -1377,8 +1378,29 @@ function initInfoBubbles() {
 		if (left + popRect.width > window.innerWidth - 8) {
 			left = window.innerWidth - popRect.width - 8;
 		}
+		/* --- Vertical placement: below by default, flip above only if it fits --- */
+		/* If the popover would spill past the BOTTOM edge of the viewport... */
 		if (top + popRect.height > window.innerHeight - 8) {
-			top = rect.top - popRect.height - 6;
+			/* Calculate where the popover's top would be if placed ABOVE the bubble */
+			const aboveTop = rect.top - popRect.height - 6;
+			/* Only flip above if there's genuinely room up there (won't clip the top).
+			 * If it wouldn't fit above either (tall popover near the top of the
+			 * screen), we leave it below and let the clamps below sort it out. */
+			if (aboveTop >= 8) {
+				top = aboveTop;
+			}
+		}
+
+		/* --- Final viewport clamps (run regardless of above/below choice) --- */
+		/* Pull up if it overflows the bottom edge... */
+		if (top + popRect.height > window.innerHeight - 8) {
+			top = window.innerHeight - popRect.height - 8;
+		}
+		/* ...then pull down if it overflows the top edge. This runs LAST on
+		 * purpose: for a popover taller than the viewport, the top edge wins,
+		 * so the start of the content is always visible rather than clipped. */
+		if (top < 8) {
+			top = 8;
 		}
 
 		popover.style.left = `${left}px`;
@@ -1398,6 +1420,103 @@ function initInfoBubbles() {
 					activeBubble = null;
 				}
 			}, 150);
+		}
+	});
+}
+
+/**
+ * initCategoryHelp
+ * Shows a small description popover when the user deliberately hovers a category
+ * option in the edit dropdown. Set up once at startup; works for dropdowns created
+ * later because it listens on `document` (event delegation).
+ *
+ * Two deliberate UX choices live here:
+ *   1. A hover-intent DELAY, so sliding the cursor down the list to click an
+ *      option doesn't flash a popover on every row it passes.
+ *   2. SIDE placement (beside the whole dropdown), so the popover never covers
+ *      the option list, the form fields, or the cursor.
+ */
+function initCategoryHelp() {
+	let currentOption = null; // The option we're currently tracking (or null)
+	let popover = null; // The visible popover element (or null)
+	let showTimer = null; // Pending "show after delay" timer
+	const SHOW_DELAY = 350; // ms of deliberate hover before the popover appears
+	const GAP = 10; // px gap between the dropdown and the popover
+
+	/* Cancel any pending show and remove the popover. Safe to call anytime. */
+	function clearPopover() {
+		if (showTimer) {
+			clearTimeout(showTimer);
+			showTimer = null;
+		}
+		if (popover) {
+			popover.remove();
+			popover = null;
+		}
+	}
+
+	document.addEventListener("mouseover", (e) => {
+		/* Only react to category options that carry help text */
+		const option = e.target.closest(".dropdown-option[data-help]");
+		if (!option) return;
+
+		/* Moving WITHIN the same option (e.g. dot → label) shouldn't restart
+		 * the delay timer — ignore it. */
+		if (option === currentOption) return;
+		currentOption = option;
+
+		/* New option: clear whatever was showing/pending, then start the timer */
+		clearPopover();
+		const text = option.dataset.help;
+		if (!text) return; // categories with no help (e.g. lunch) show nothing
+
+		showTimer = setTimeout(() => {
+			/* Build the popover, reusing the existing .info-popover styling */
+			popover = document.createElement("div");
+			popover.className = "info-popover";
+			popover.innerHTML = text;
+			document.body.appendChild(popover);
+
+			/* Measure the hovered option and the popover itself */
+			const optRect = option.getBoundingClientRect();
+			const popRect = popover.getBoundingClientRect();
+
+			/* Horizontal: prefer directly to the LEFT of the hovered option.
+			 * If the left placement would clip off the left edge of the screen,
+			 * flip to the RIGHT of the option instead. */
+			let left = optRect.left - popRect.width - GAP;
+			if (left < 8) {
+				left = optRect.right + GAP;
+			}
+			/* Last-resort clamp so it can't run off the right edge either */
+			if (left + popRect.width > window.innerWidth - 8) {
+				left = window.innerWidth - popRect.width - 8;
+			}
+
+			/* Vertical: line up with the hovered option, then clamp to the
+			 * viewport (top edge wins, so the start is always visible). */
+			let top = optRect.top;
+			if (top + popRect.height > window.innerHeight - 8) {
+				top = window.innerHeight - popRect.height - 8;
+			}
+			if (top < 8) top = 8;
+
+			popover.style.left = `${left}px`;
+			popover.style.top = `${top}px`;
+		}, SHOW_DELAY);
+	});
+
+	document.addEventListener("mouseout", (e) => {
+		const option = e.target.closest(".dropdown-option[data-help]");
+		if (!option) return;
+
+		/* Moving to something still inside the same option isn't "leaving" it */
+		if (e.relatedTarget && option.contains(e.relatedTarget)) return;
+
+		/* Actually left the option → tear everything down */
+		if (option === currentOption) {
+			currentOption = null;
+			clearPopover();
 		}
 	});
 }

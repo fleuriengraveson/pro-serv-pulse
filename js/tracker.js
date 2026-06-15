@@ -1101,7 +1101,7 @@ async function showEditDropdown(
       <!-- LEFT: Category list -->
       <div class="dropdown-categories">
         <div style="padding: 4px 8px 6px; font-size: 10px; color: var(--text-placeholder);">
-          Category <span class="info-bubble" data-help="• <strong>Admin — Internal:</strong> Email and Slack that is not customer-related<br>• <strong>Admin — Merchant:</strong> Queue work, short ticket handling, replying to customers<br>• <strong>Data Migration/Cleaning:</strong> Transforming merchant data, cleaning CSV files, imports<br>• <strong>Hardware:</strong> Troubleshooting or training on hardware<br>• <strong>Troubleshooting:</strong> Diagnosing and fixing issues not covered by other categories<br>• <strong>API / Technical Scoping:</strong> Consulting or troubleshooting Lightspeed's API<br>• <strong>Analytics:</strong> Troubleshooting or building custom Analytics reports<br>• <strong>Meetings:</strong> Internal (team) or Merchant (customer)<br>• <strong>Research / Product Sync:</strong> In-depth research not related to troubleshooting, Jira creation<br>• <strong>Internal Tools:</strong> Building team tools">i</span>
+          Category
         </div>
         ${CATEGORIES.filter((cat) => {
 					const hidden = appState.settings.hiddenCategories || [];
@@ -1114,7 +1114,8 @@ async function showEditDropdown(
 						const isSelected = entry.category === cat.id;
 						return `
             <div class="dropdown-option ${isSelected ? "selected" : ""}"
-                 data-category="${cat.id}">
+                 data-category="${cat.id}"
+                 data-help="${cat.help || ""}">
               <div class="cat-dot" style="background: var(${cat.cssVar})"></div>
               <span>${cat.label}</span>
             </div>
@@ -1190,7 +1191,7 @@ async function showEditDropdown(
             <input type="checkbox" id="edit-billable"
                    ${entry.billable ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
-            <span class="text-xs" style="color: var(--text-secondary);">Billable <span class="info-bubble" data-help="Billable work is any work done for a specific customer that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></span>
+            <span class="text-xs" style="color: var(--text-secondary);">Billable <span class="info-bubble" data-help="Billable work is any work done for a <strong>specific customer</strong> that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="edit-urgent"
