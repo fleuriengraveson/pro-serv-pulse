@@ -24,6 +24,7 @@ import {
 	importTeamMemberData,
 	getTeamMemberList,
 	getTicketStatsForRange,
+	getDayMetaForRange,
 	getEntryCount,
 	hasAnyData,
 	restoreFromPersonalBackup,
@@ -309,6 +310,11 @@ export async function autoExportWeek(state, refDate = new Date()) {
 					closedTickets: s.closedTickets,
 				}),
 			),
+			/* Per-day metadata (queue duty flags) for this week */
+			dayMeta: (await getDayMetaForRange(startDate, endDate)).map((m) => ({
+				date: m.date,
+				onQueue: m.onQueue || false,
+			})),
 			weeklyNotes: notes
 				? {
 						wins: notes.wins || "",
@@ -389,6 +395,8 @@ export async function autoExportFullBackup(state) {
 			"2000-01-01",
 			"2099-12-31",
 		);
+		/* Gather all day metadata (queue duty flags) */
+		const allDayMeta = await getDayMetaForRange("2000-01-01", "2099-12-31");
 
 		const backupData = {
 			exportDate: new Date().toISOString(),
@@ -408,6 +416,10 @@ export async function autoExportFullBackup(state) {
 				queueSize: s.queueSize,
 				newTickets: s.newTickets,
 				closedTickets: s.closedTickets,
+			})),
+			allDayMeta: allDayMeta.map((m) => ({
+				date: m.date,
+				onQueue: m.onQueue || false,
 			})),
 		};
 
@@ -542,6 +554,7 @@ export async function autoRestoreFromBackup(userName) {
 							entries: data.entries,
 							weeklyNotes: data.weeklyNotes,
 							ticketStats: data.ticketStats,
+							dayMeta: data.dayMeta || [],
 						});
 					}
 				} catch (e) {
@@ -661,6 +674,14 @@ export async function autoExportAllWeeks(state) {
 							closedTickets: s.closedTickets,
 						}));
 					})(),
+					/* Per-day metadata (queue duty flags) for this week */
+					dayMeta: await (async () => {
+						const metas = await getDayMetaForRange(startDate, endDate);
+						return metas.map((m) => ({
+							date: m.date,
+							onQueue: m.onQueue || false,
+						}));
+					})(),
 					weeklyNotes: notes
 						? {
 								wins: notes.wins || "",
@@ -745,6 +766,7 @@ export async function autoImportTeamData() {
 							endDate: week.endDate,
 							entries: week.entries,
 							weeklyNotes: week.weeklyNotes,
+							dayMeta: week.dayMeta || [],
 						};
 						const isNew = await importTeamMemberData(
 							data.contributor.name,

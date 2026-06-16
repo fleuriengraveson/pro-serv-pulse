@@ -25,6 +25,7 @@ import {
 	getTeamMemberNotes,
 	getAllTeamTicketStats,
 	getTeamMemberTicketStats,
+	getAllTeamDayMeta,
 } from "./db.js";
 import {
 	formatDateISO,
@@ -663,6 +664,22 @@ async function renderStats() {
 		}
 	}
 
+	/* Load queue day data for the period (all-team view only)
+	 * Builds a lookup of memberName → count of days marked on queue */
+	let queueDaysByMember = {};
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		const dayMetaRecords = await getAllTeamDayMeta(
+			range.startDate,
+			range.endDate,
+		);
+		dayMetaRecords.forEach((m) => {
+			if (m.onQueue) {
+				queueDaysByMember[m.memberName] =
+					(queueDaysByMember[m.memberName] || 0) + 1;
+			}
+		});
+	}
+
 	/* Aggregate stats */
 	const tracked = countTrackedHours(entries);
 
@@ -1126,7 +1143,7 @@ async function renderStats() {
       TICKET QUEUE
       ================================================================ -->
     ${(() => {
-			const ticketHtml = renderTicketOverview(ticketStats);
+			const ticketHtml = renderTicketOverview(ticketStats, queueDaysByMember);
 			return ticketHtml
 				? `
     <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
@@ -1140,7 +1157,7 @@ async function renderStats() {
       CATEGORY HEATMAP
       ================================================================ -->
     ${(() => {
-			const heatmapHtml = renderCategoryHeatmap(entries);
+			const heatmapHtml = renderCategoryHeatmap(entries, queueDaysByMember);
 			return heatmapHtml
 				? `
     <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
@@ -1995,7 +2012,7 @@ function renderOutsourcingCandidates(entries) {
  * Cell color intensity indicates hours spent — darker means more time.
  * Helps managers spot specialization patterns at a glance.
  */
-function renderCategoryHeatmap(entries) {
+function renderCategoryHeatmap(entries, queueDaysByMember = {}) {
 	/* Group entries by member */
 	const byMember = {};
 	entries.forEach((e) => {
@@ -2101,6 +2118,7 @@ function renderCategoryHeatmap(entries) {
           <div style="display: flex; align-items: center; gap: 6px;">
             <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; color: var(--accent-text);">${initials}</div>
             <span style="font-weight: 500; font-size: 11px; color: var(--accent-text);">${name}</span>
+            ${queueDaysByMember[name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[name]}d</span>` : ""}
           </div>
         </td>
     `;
@@ -2161,7 +2179,7 @@ function renderCategoryHeatmap(entries) {
  * Shows ticket queue data for the team or individual member.
  * Displays current queue, new tickets, closed tickets, and net change.
  */
-function renderTicketOverview(ticketStats) {
+function renderTicketOverview(ticketStats, queueDaysByMember = {}) {
 	if (!ticketStats || ticketStats.length === 0) return "";
 
 	const isAllTeam =
@@ -2240,7 +2258,10 @@ function renderTicketOverview(ticketStats) {
           <td style="padding: 6px 8px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-              <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
+              <div>
+                <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
+                ${queueDaysByMember[r.name] > 0 ? `<div style="font-size: 10px; color: var(--teal-text); margin-top: 1px;">Queue: ${queueDaysByMember[r.name]}d</div>` : ""}
+              </div>
             </div>
           </td>
           <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${r.currentQueue}</td>

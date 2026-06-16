@@ -50,6 +50,11 @@
 	--info-bg: #eff6ff;
 	--info-text: #1e40af;
 
+	/* Teal — queue duty indicators */
+	--teal: #0d9488;
+	--teal-light: #ccfbf1;
+	--teal-text: #0d9488;
+
 	/* Progress bar */
 	--progress-track: #edebe8;
 	--progress-gradient-start: #a78bfa;
@@ -149,6 +154,11 @@
 	--info: #63b3ed;
 	--info-bg: rgba(99, 179, 237, 0.1);
 	--info-text: #90cdf4;
+
+	/* Teal — queue duty indicators */
+	--teal: #2dd4bf;
+	--teal-light: rgba(45, 212, 191, 0.12);
+	--teal-text: #5eead4;
 
 	/* Progress bar */
 	--progress-track: #2a2730;
@@ -1309,6 +1319,37 @@ body {
 	box-shadow:
 		0 4px 24px rgba(0, 0, 0, 0.3),
 		0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* ----------------------------------------------------------------------------
+ * QUEUE DUTY TOGGLE
+ * --------------------------------------------------------------------------
+ * Small circular "Q" button below each day chip in the tracker.
+ * Active state fills teal. Hover effect handled here since
+ * inline styles can't express :hover.
+ * ------------------------------------------------------------------------- */
+
+.queue-toggle:hover {
+	border-color: var(--teal) !important;
+	color: var(--teal-text) !important;
+	opacity: 0.85;
+}
+
+/* ----------------------------------------------------------------------------
+ * QUEUE DUTY PILL (STATS PAGE)
+ * --------------------------------------------------------------------------
+ * Small teal pill shown next to member names in the ticket queue
+ * table and category heatmap. Class used for dark mode support.
+ * ------------------------------------------------------------------------- */
+
+.queue-pill {
+	font-size: 9px;
+	font-weight: 500;
+	white-space: nowrap;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--teal-light);
+	color: var(--teal-text);
 }
 
 /* ============================================================================

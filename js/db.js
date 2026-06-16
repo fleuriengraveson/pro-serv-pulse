@@ -50,6 +50,13 @@ db.version(2).stores({
 	ticketStats: "date",
 });
 
+/* Version 3: Per-day metadata (queue duty tracking)
+ * Keyed by date string 'YYYY-MM-DD'. Stores daily flags
+ * like onQueue that apply to the whole day, not individual time slots. */
+db.version(3).stores({
+	dayMeta: "date",
+});
+
 /* ============================================================================
  * SETTINGS OPERATIONS
  * ========================================================================= */
@@ -570,6 +577,57 @@ export async function getAllTeamTicketStats(startDate, endDate) {
 	return stats;
 }
 
+/**
+ * getTeamMemberDayMeta
+ * Retrieves day metadata from an imported team member's data for a date range.
+ * Reads from the teamData store's embedded data.dayMeta array.
+ *
+ * @param {string} name      - Team member name
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate   - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>} Array of dayMeta records with memberName
+ */
+export async function getTeamMemberDayMeta(name, startDate, endDate) {
+	const records = await db.teamData.where("name").equals(name).toArray();
+
+	const metas = [];
+	records.forEach((r) => {
+		if (!r.data?.dayMeta) return;
+		r.data.dayMeta.forEach((m) => {
+			if (m.date >= startDate && m.date <= endDate) {
+				metas.push({ ...m, memberName: name });
+			}
+		});
+	});
+
+	return metas;
+}
+
+/**
+ * getAllTeamDayMeta
+ * Retrieves day metadata for all team members in a date range.
+ * Used by the manager stats page to show queue day counts per person.
+ *
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate   - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>} Array of dayMeta records with memberName
+ */
+export async function getAllTeamDayMeta(startDate, endDate) {
+	const records = await db.teamData.toArray();
+
+	const metas = [];
+	records.forEach((r) => {
+		if (!r.data?.dayMeta) return;
+		r.data.dayMeta.forEach((m) => {
+			if (m.date >= startDate && m.date <= endDate) {
+				metas.push({ ...m, memberName: r.name });
+			}
+		});
+	});
+
+	return metas;
+}
+
 /* ============================================================================
  * BULK IMPORT / RESTORE
  * ========================================================================= */
@@ -597,6 +655,7 @@ export async function restoreFromBackup(backupData) {
 			db.weeklyNotes,
 			db.teamData,
 			db.ticketStats,
+			db.dayMeta,
 		],
 		async () => {
 			/* Clear all existing data */
@@ -606,6 +665,7 @@ export async function restoreFromBackup(backupData) {
 			await db.weeklyNotes.clear();
 			await db.teamData.clear();
 			await db.ticketStats.clear();
+			await db.dayMeta.clear();
 
 			/* Restore each table */
 			if (backupData.entries?.length) {
@@ -626,6 +686,9 @@ export async function restoreFromBackup(backupData) {
 			if (backupData.ticketStats?.length) {
 				await db.ticketStats.bulkAdd(backupData.ticketStats);
 			}
+			if (backupData.dayMeta?.length) {
+				await db.dayMeta.bulkAdd(backupData.dayMeta);
+			}
 		},
 	);
 }
@@ -644,6 +707,7 @@ export async function exportAllData() {
 	const weeklyNotes = await db.weeklyNotes.toArray();
 	const teamData = await getAllTeamData();
 	const ticketStats = await db.ticketStats.toArray();
+	const dayMeta = await db.dayMeta.toArray();
 
 	return {
 		exportDate: new Date().toISOString(),
@@ -654,6 +718,7 @@ export async function exportAllData() {
 		weeklyNotes,
 		teamData,
 		ticketStats,
+		dayMeta,
 	};
 }
 
@@ -708,6 +773,54 @@ export async function getTicketStatsForRange(startDate, endDate) {
 export async function getMostRecentTicketStats() {
 	const all = await db.ticketStats.orderBy("date").reverse().limit(1).toArray();
 	return all.length > 0 ? all[0] : null;
+}
+
+/* ============================================================================
+ * DAY META OPERATIONS (QUEUE DUTY TRACKING)
+ * --------------------------------------------------------------------------
+ * Stores per-day metadata like queue duty status. Each record represents
+ * one calendar day and holds flags that apply to the whole day rather
+ * than individual time slots.
+ * ========================================================================= */
+
+/**
+ * getDayMeta
+ * Retrieves the metadata record for a single date.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @returns {Promise<Object|null>} { date, onQueue } or null if no record
+ */
+export async function getDayMeta(date) {
+	return (await db.dayMeta.get(date)) || null;
+}
+
+/**
+ * saveDayMeta
+ * Creates or updates the metadata record for a single date.
+ * Uses put() so it upserts — creates if missing, replaces if exists.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @param {Object} meta - Metadata fields, e.g. { onQueue: true }
+ */
+export async function saveDayMeta(date, meta) {
+	await db.dayMeta.put({ date, ...meta });
+}
+
+/**
+ * getDayMetaForRange
+ * Retrieves all day metadata records within a date range (inclusive).
+ * Used to load queue status for a full week in the tracker, or for
+ * counting queue days across a stats period.
+ *
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate   - 'YYYY-MM-DD'
+ * @returns {Promise<Array<Object>>} Array of dayMeta records
+ */
+export async function getDayMetaForRange(startDate, endDate) {
+	return await db.dayMeta
+		.where("date")
+		.between(startDate, endDate, true, true)
+		.toArray();
 }
 
 /**
@@ -846,6 +959,12 @@ export async function restoreFromPersonalBackup(backupData) {
 					ticketCount++;
 				}
 			}
+			/* Restore day metadata (queue duty flags) for this week */
+			if (week.dayMeta) {
+				for (const meta of week.dayMeta) {
+					await db.dayMeta.put(meta);
+				}
+			}
 		}
 	} else if (backupData.allEntries) {
 		/* Full backup format */
@@ -863,6 +982,12 @@ export async function restoreFromPersonalBackup(backupData) {
 			for (const stat of backupData.allTicketStats) {
 				await db.ticketStats.put(stat);
 				ticketCount++;
+			}
+		}
+		/* Restore all day metadata (queue duty flags) */
+		if (backupData.allDayMeta) {
+			for (const meta of backupData.allDayMeta) {
+				await db.dayMeta.put(meta);
 			}
 		}
 	}
