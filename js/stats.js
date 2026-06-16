@@ -2258,10 +2258,8 @@ function renderTicketOverview(ticketStats, queueDaysByMember = {}) {
           <td style="padding: 6px 8px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-              <div>
-                <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
-                ${queueDaysByMember[r.name] > 0 ? `<div style="font-size: 10px; color: var(--teal-text); margin-top: 1px;">Queue: ${queueDaysByMember[r.name]}d</div>` : ""}
-              </div>
+              <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
+              ${queueDaysByMember[r.name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[r.name]}d</span>` : ""}
             </div>
           </td>
           <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${r.currentQueue}</td>

@@ -375,35 +375,36 @@ async function renderTracker() {
 
     <!-- Week day chips -->
 	<div class="tracker-chips">
-    <div class="flex gap-1" style="padding-left: 56px; padding-right: calc(224px + 24px);">
+    <div class="flex gap-3" style="padding-left: 56px; padding-right: calc(224px + 24px);">
         ${weekDates
 					.map((d) => {
 						const dateStr = formatDateISO(d);
 						const isActive = dateStr === formatDateISO(currentDate);
 						const isOnQueue = queueStatus[dateStr] || false;
+						/* Build modifier classes for the split-chip wrapper */
+						const wrapClasses = [
+							"day-chip-wrap",
+							isOnQueue ? "on-queue" : "",
+							isActive ? "is-today" : "",
+						]
+							.filter(Boolean)
+							.join(" ");
 						return `
-            <div class="flex-1 flex flex-col items-center" style="gap: 4px;">
-                <button class="week-chip w-full py-2 text-center text-xs rounded-lg transition-colors
-                    ${
-											isActive
-												? "active-chip text-chronos-600 font-medium"
-												: "bg-surface-100 text-stone-400 hover:bg-surface-200"
-										}"
-                    data-date="${dateStr}">
-                    ${formatDateShort(d)}
-                </button>
-                <button class="queue-toggle"
-                    data-date="${dateStr}"
-                    title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}"
-                    style="
-                        width: 18px; height: 18px; border-radius: 50%;
-                        border: 1.5px solid ${isOnQueue ? "#0d9488" : "var(--border-default)"};
-                        background: ${isOnQueue ? "#0d9488" : "none"};
-                        color: ${isOnQueue ? "white" : "var(--text-placeholder)"};
-                        font-size: 9px; font-weight: 600; cursor: pointer;
-                        display: flex; align-items: center; justify-content: center;
-                        transition: all 0.15s; font-family: inherit; padding: 0;
-                    ">Q</button>
+            <div class="flex-1">
+                <div class="${wrapClasses}">
+                    <button class="week-chip flex-1 py-2 text-center text-xs rounded-l-lg transition-colors
+                        ${
+													isActive
+														? "active-chip text-chronos-600 font-medium"
+														: "bg-surface-100 text-stone-400 hover:bg-surface-200"
+												}"
+                        data-date="${dateStr}">
+                        ${formatDateShort(d)}
+                    </button>
+                    <button class="queue-toggle ${isActive ? "active-chip" : "bg-surface-100"}"
+                        data-date="${dateStr}"
+                        title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}">Q</button>
+                </div>
             </div>
         `;
 					})
@@ -2112,35 +2113,36 @@ async function renderWeekView() {
 
 	<!-- Week day chips (matches day view) -->
 	<div class="tracker-chips">
-    <div class="flex gap-1" style="padding-left: 56px; padding-right: calc(224px + 24px);">
+    <div class="flex gap-3" style="padding-left: 56px; padding-right: calc(224px + 24px);">
 	${weekDates
 		.map((d) => {
 			const dateStr = formatDateISO(d);
 			const isTodayDate = formatDateISO(d) === formatDateISO(new Date());
 			const isOnQueue = queueStatus[dateStr] || false;
+			/* Build modifier classes for the split-chip wrapper */
+			const wrapClasses = [
+				"day-chip-wrap",
+				isOnQueue ? "on-queue" : "",
+				isTodayDate ? "is-today" : "",
+			]
+				.filter(Boolean)
+				.join(" ");
 			return `
-		<div class="flex-1 flex flex-col items-center" style="gap: 4px;">
-			<button class="week-chip w-full py-2 text-center text-xs rounded-lg transition-colors
-				${
-					isTodayDate
-						? "active-chip text-chronos-600 font-medium"
-						: "bg-surface-100 text-stone-400 hover:bg-surface-200"
-				}"
-				data-date="${dateStr}">
-				${formatDateShort(d)}
-			</button>
-			<button class="queue-toggle"
-				data-date="${dateStr}"
-				title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}"
-				style="
-					width: 18px; height: 18px; border-radius: 50%;
-					border: 1.5px solid ${isOnQueue ? "var(--teal)" : "var(--border-default)"};
-					background: ${isOnQueue ? "var(--teal)" : "none"};
-					color: ${isOnQueue ? "white" : "var(--text-placeholder)"};
-					font-size: 9px; font-weight: 600; cursor: pointer;
-					display: flex; align-items: center; justify-content: center;
-					transition: all 0.15s; font-family: inherit; padding: 0;
-				">Q</button>
+		<div class="flex-1">
+			<div class="${wrapClasses}">
+				<button class="week-chip flex-1 py-2 text-center text-xs rounded-l-lg transition-colors
+					${
+						isTodayDate
+							? "active-chip text-chronos-600 font-medium"
+							: "bg-surface-100 text-stone-400 hover:bg-surface-200"
+					}"
+					data-date="${dateStr}">
+					${formatDateShort(d)}
+				</button>
+				<button class="queue-toggle ${isTodayDate ? "active-chip" : "bg-surface-100"}"
+					data-date="${dateStr}"
+					title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}">Q</button>
+			</div>
 		</div>
 		`;
 		})

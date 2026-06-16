@@ -1322,17 +1322,80 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
- * QUEUE DUTY TOGGLE
+ * QUEUE DUTY TOGGLE — SPLIT CHIP
  * --------------------------------------------------------------------------
- * Small circular "Q" button below each day chip in the tracker.
- * Active state fills teal. Hover effect handled here since
- * inline styles can't express :hover.
+ * The queue indicator is integrated into each day chip as a partitioned
+ * "Q" badge on the right side. The parent .day-chip-wrap gets a floating
+ * outline when the day is marked on-queue.
  * ------------------------------------------------------------------------- */
 
+/* Wrapper around the day chip + Q badge — holds the outline */
+.day-chip-wrap {
+	display: flex;
+	align-items: center;
+	border-radius: 8px; /* match the chip's own radius */
+	overflow: visible; /* so the offset outline isn't clipped */
+	outline: 2px solid transparent;
+	outline-offset: 2px;
+	transition: outline-color 0.15s ease;
+}
+
+/* On-queue state: show the lavender outline ring */
+.day-chip-wrap.on-queue {
+	outline-color: var(--accent-border);
+}
+
+/* The Q badge section inside the chip */
+.queue-toggle {
+	padding: 0 8px;
+	font-size: 11px;
+	font-weight: 500;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	align-self: stretch; /* fill the chip's full height */
+	border: none;
+	background: none;
+	border-left: 1px solid var(--border-subtle);
+	color: var(--text-muted); /* grey when inactive — matches date text */
+	font-family: inherit;
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease;
+	border-radius: 0 8px 8px 0; /* round only the right side */
+}
+
+/* On-queue: Q turns purple */
+.day-chip-wrap.on-queue .queue-toggle {
+	color: var(--accent-text);
+	border-left-color: var(--accent-border);
+}
+
+/* Hover: hint that the Q is clickable */
 .queue-toggle:hover {
-	border-color: var(--teal) !important;
-	color: var(--teal-text) !important;
-	opacity: 0.85;
+	color: var(--accent-text-light);
+}
+
+/* Today chip adjustments — the chip has a gradient bg, so the
+   divider and Q color need to work against that context */
+.day-chip-wrap.is-today .queue-toggle {
+	border-left-color: rgba(139, 92, 246, 0.15);
+	color: var(--text-muted);
+}
+.day-chip-wrap.is-today.on-queue .queue-toggle {
+	color: var(--accent-text);
+	border-left-color: rgba(139, 92, 246, 0.2);
+}
+
+/* Ensure the outline rings on queue chips aren't clipped */
+.tracker-chips .flex {
+	padding-top: 6px;
+	padding-bottom: 6px;
+	overflow: visible;
+}
+.tracker-chips {
+	overflow: visible;
 }
 
 /* ----------------------------------------------------------------------------
