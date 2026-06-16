@@ -395,13 +395,13 @@ async function renderTracker() {
                     <button class="week-chip flex-1 py-2 text-center text-xs rounded-l-lg transition-colors
                         ${
 													isActive
-														? "active-chip text-chronos-600 font-medium"
+														? "text-chronos-600 font-medium"
 														: "bg-surface-100 text-stone-400 hover:bg-surface-200"
 												}"
                         data-date="${dateStr}">
                         ${formatDateShort(d)}
                     </button>
-                    <button class="queue-toggle ${isActive ? "active-chip" : "bg-surface-100"}"
+                    <button class="queue-toggle ${isActive ? "" : "bg-surface-100"}"
                         data-date="${dateStr}"
                         title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}">Q</button>
                 </div>
@@ -594,6 +594,11 @@ async function calculateSidebarStats() {
 	const dailyPace = parseFloat((dailyTracked - dailyTarget).toFixed(1));
 	const weeklyPace = parseFloat((weeklyTracked - weeklyTarget).toFixed(1));
 
+	/* Check if any auto-filled lunch blocks exist this week */
+	const hasAutoLunches = weekEntries.some(
+		(e) => e.category === "lunch" && e.autoLunch,
+	);
+
 	return {
 		dailyTracked,
 		dailyBillable,
@@ -606,6 +611,7 @@ async function calculateSidebarStats() {
 		weeklyTarget,
 		weeklyPercent,
 		weeklyPace,
+		hasAutoLunches,
 	};
 }
 
@@ -699,7 +705,8 @@ function renderSidebar(stats) {
 	return `
     <!-- Action buttons -->
     <div class="sidebar-actions">
-      <button id="btn-fill-lunch" class="sidebar-btn">Fill lunch</button>
+      <button id="btn-fill-lunch" class="sidebar-btn"
+        data-mode="${stats.hasAutoLunches ? "clear" : "fill"}">${stats.hasAutoLunches ? "Clear lunch" : "Fill lunch"}</button>
       <button id="btn-today" class="sidebar-btn">Today</button>
       <button id="btn-notes" class="sidebar-btn sidebar-btn-notes">Notes (N)</button>
     </div>
@@ -1566,11 +1573,16 @@ function attachEventListeners() {
 		});
 	});
 
-	/* --- Fill lunch button --- */
+	/* --- Fill / Clear lunch button --- */
 	document
 		.getElementById("btn-fill-lunch")
 		?.addEventListener("click", async () => {
-			await fillLunch();
+			const mode = document.getElementById("btn-fill-lunch").dataset.mode;
+			if (mode === "clear") {
+				await clearAutoLunchDay();
+			} else {
+				await fillLunch();
+			}
 		});
 
 	/* Queue toggle buttons — mark a day as on/off queue */
@@ -1818,11 +1830,16 @@ function attachWeekEventListeners() {
 				}
 			});
 		});
-	/* Fill lunch for all days in the week */
+	/* Fill / Clear lunch for all days in the week */
 	document
 		.getElementById("btn-fill-lunch")
 		?.addEventListener("click", async () => {
-			await fillLunchWeek();
+			const mode = document.getElementById("btn-fill-lunch").dataset.mode;
+			if (mode === "clear") {
+				await clearAutoLunchWeek();
+			} else {
+				await fillLunchWeek();
+			}
 		});
 
 	/* Queue toggle buttons — mark a day as on/off queue */
@@ -2133,13 +2150,13 @@ async function renderWeekView() {
 				<button class="week-chip flex-1 py-2 text-center text-xs rounded-l-lg transition-colors
 					${
 						isTodayDate
-							? "active-chip text-chronos-600 font-medium"
+							? "text-chronos-600 font-medium"
 							: "bg-surface-100 text-stone-400 hover:bg-surface-200"
 					}"
 					data-date="${dateStr}">
 					${formatDateShort(d)}
 				</button>
-				<button class="queue-toggle ${isTodayDate ? "active-chip" : "bg-surface-100"}"
+				<button class="queue-toggle ${isTodayDate ? "" : "bg-surface-100"}"
 					data-date="${dateStr}"
 					title="${isOnQueue ? "On queue — click to remove" : "Click to mark on queue"}">Q</button>
 			</div>
@@ -3020,25 +3037,42 @@ async function fillLunch() {
 	const startHour = Math.floor(lunchStart);
 	const startMinute = Math.round((lunchStart % 1) * 60);
 
+	/* Load existing entries once so we can skip occupied blocks */
+	const existing = await getEntriesForDate(dateStr);
+	const occupiedSlots = new Set(existing.map((e) => e.timeSlot));
+
+	/* Skip entirely if this day already has a full lunch period */
+	const existingLunchCount = existing.filter(
+		(e) => e.category === "lunch",
+	).length;
+	if (existingLunchCount >= lunchBlocks) {
+		await renderTracker();
+		return;
+	}
+
 	for (let i = 0; i < lunchBlocks; i++) {
 		const totalMinutes = startHour * 60 + startMinute + i * 30;
 		const hour = Math.floor(totalMinutes / 60);
 		const minute = totalMinutes % 60;
 		const slot = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
-		await saveEntry({
-			date: dateStr,
-			timeSlot: slot,
-			category: "lunch",
-			subCategory: "",
-			billable: false,
-			urgent: false,
-			ticketLink: "",
-			merchant: "",
-			formerPOS: "",
-			notes: "",
-		});
-		markHasData();
+		/* Only fill if the block is empty — don't overwrite manual entries */
+		if (!occupiedSlots.has(slot)) {
+			await saveEntry({
+				date: dateStr,
+				timeSlot: slot,
+				category: "lunch",
+				subCategory: "",
+				billable: false,
+				urgent: false,
+				ticketLink: "",
+				merchant: "",
+				formerPOS: "",
+				notes: "",
+				autoLunch: true /* Flag so "Clear lunch" knows this was auto-filled */,
+			});
+			markHasData();
+		}
 	}
 
 	/* Re-render to show the filled lunch blocks */
@@ -3069,6 +3103,18 @@ async function fillLunchWeek() {
 		const startHour = Math.floor(lunchStart);
 		const startMinute = Math.round((lunchStart % 1) * 60);
 
+		/* Load existing entries once per day (not per slot) */
+		const existing = await getEntriesForDate(dateStr);
+
+		/* Skip this day if it already has a full lunch period */
+		const existingLunchCount = existing.filter(
+			(e) => e.category === "lunch",
+		).length;
+		if (existingLunchCount >= lunchBlocks) continue;
+
+		/* Build a set of occupied slots so we don't overwrite manual entries */
+		const occupiedSlots = new Set(existing.map((e) => e.timeSlot));
+
 		for (let i = 0; i < lunchBlocks; i++) {
 			const totalMinutes = startHour * 60 + startMinute + i * 30;
 			const hour = Math.floor(totalMinutes / 60);
@@ -3076,9 +3122,7 @@ async function fillLunchWeek() {
 			const slot = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
 			/* Only fill if the block is empty */
-			const existing = await getEntriesForDate(dateStr);
-			const blockExists = existing.find((e) => e.timeSlot === slot);
-			if (!blockExists) {
+			if (!occupiedSlots.has(slot)) {
 				await saveEntry({
 					date: dateStr,
 					timeSlot: slot,
@@ -3090,9 +3134,65 @@ async function fillLunchWeek() {
 					merchant: "",
 					formerPOS: "",
 					notes: "",
+					autoLunch: true,
 				});
 				markHasData();
 			}
+		}
+	}
+
+	/* Auto-export to sync folder if connected */
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState);
+	} catch (e) {
+		/* sync not available, ignore */
+	}
+
+	await renderWeekView();
+}
+
+/**
+ * clearAutoLunchDay
+ * Removes only auto-filled lunch blocks for the current day.
+ * Manually placed lunches (without the autoLunch flag) are left untouched.
+ */
+async function clearAutoLunchDay() {
+	const dateStr = formatDateISO(currentDate);
+	const dayEntries = await getEntriesForDate(dateStr);
+
+	/* Delete only entries that were auto-filled by the Fill lunch button */
+	for (const entry of dayEntries) {
+		if (entry.category === "lunch" && entry.autoLunch) {
+			await deleteEntry(entry.date, entry.timeSlot);
+		}
+	}
+
+	/* Auto-export to sync folder if connected */
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState);
+	} catch (e) {
+		/* sync not available, ignore */
+	}
+
+	await renderTracker();
+}
+
+/**
+ * clearAutoLunchWeek
+ * Removes only auto-filled lunch blocks across the entire week.
+ * Manually placed lunches (without the autoLunch flag) are left untouched.
+ */
+async function clearAutoLunchWeek() {
+	const weekStart = formatDateISO(weekDates[0]);
+	const weekEnd = formatDateISO(weekDates[4]);
+	const weekEntries = await getEntriesForDateRange(weekStart, weekEnd);
+
+	/* Delete only entries that were auto-filled by the Fill lunch button */
+	for (const entry of weekEntries) {
+		if (entry.category === "lunch" && entry.autoLunch) {
+			await deleteEntry(entry.date, entry.timeSlot);
 		}
 	}
 

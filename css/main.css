@@ -1398,6 +1398,23 @@ body {
 	overflow: visible;
 }
 
+/* Today's chip — gradient lives on the wrapper so it spans
+   both the date text and the Q badge seamlessly */
+.day-chip-wrap.is-today {
+	background: linear-gradient(
+		135deg,
+		rgba(192, 132, 252, 0.15),
+		rgba(103, 232, 249, 0.15)
+	);
+}
+[data-theme="dark"] .day-chip-wrap.is-today {
+	background: linear-gradient(
+		135deg,
+		rgba(167, 139, 250, 0.12),
+		rgba(103, 232, 249, 0.12)
+	);
+}
+
 /* ----------------------------------------------------------------------------
  * QUEUE DUTY PILL (STATS PAGE)
  * --------------------------------------------------------------------------
