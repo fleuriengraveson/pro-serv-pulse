@@ -123,6 +123,18 @@
 	--cat-troubleshooting-bg: rgba(148, 223, 124, 0.16);
 	--cat-troubleshooting-text: #398320;
 
+	--cat-lunch-border: #c8c4c0;
+	--cat-lunch-bg: #e1e1e1;
+	--cat-lunch-text: #454545;
+
+	--cat-ooo-border: #b0b8c0;
+	--cat-ooo-bg: #e1e1e1;
+	--cat-ooo-text: #454545;
+
+	--cat-other-border: #a8a8a8;
+	--cat-other-bg: #e1e1e1;
+	--cat-other-text: #454545;
+
 	/* Scrollbar */
 	--scrollbar-thumb: #d6d3d1;
 	--scrollbar-thumb-hover: #a8a29e;
