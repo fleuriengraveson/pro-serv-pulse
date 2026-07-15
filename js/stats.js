@@ -931,9 +931,9 @@ async function renderStats() {
 					tierTotal > 0
 						? `
 				<div style="display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin: 8px 0 10px;">
-					${t1Pct > 0 ? `<div style="width: ${t1Pct}%; background: var(${TIERS[1].hexVar}); opacity: 0.7; border-right: 1px solid var(--bg-card);"></div>` : ""}
-					${t2Pct > 0 ? `<div style="width: ${t2Pct}%; background: var(${TIERS[2].hexVar}); opacity: 0.7; border-right: 1px solid var(--bg-card);"></div>` : ""}
-					${t3Pct > 0 ? `<div style="width: ${t3Pct}%; background: var(${TIERS[3].hexVar}); opacity: 0.7;"></div>` : ""}
+					${t1Pct > 0 ? `<div style="width: ${t1Pct}%; background: var(${TIERS[1].hexVar}); border-right: 1px solid var(--bg-card);"></div>` : ""}
+					${t2Pct > 0 ? `<div style="width: ${t2Pct}%; background: var(${TIERS[2].hexVar}); border-right: 1px solid var(--bg-card);"></div>` : ""}
+					${t3Pct > 0 ? `<div style="width: ${t3Pct}%; background: var(${TIERS[3].hexVar}); "></div>` : ""}
 				</div>
 				<div style="display: flex; flex-direction: column; gap: 3px;">
 					<div style="display: flex; justify-content: space-between; font-size: 11px;">
@@ -1547,9 +1547,9 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
           </td>
           <td style="padding: 8px 6px;">
             <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden;">
-              ${r.t1Pct > 0 ? `<div style="width: ${r.t1Pct}%; background: var(${TIERS[1].hexVar}); opacity: 0.7;"></div>` : ""}
-              ${r.t2Pct > 0 ? `<div style="width: ${r.t2Pct}%; background: var(${TIERS[2].hexVar}); opacity: 0.7;"></div>` : ""}
-              ${100 - r.t1Pct - r.t2Pct > 0 ? `<div style="width: ${100 - r.t1Pct - r.t2Pct}%; background: var(${TIERS[3].hexVar}); opacity: 0.7;"></div>` : ""}
+              ${r.t1Pct > 0 ? `<div style="width: ${r.t1Pct}%; background: var(${TIERS[1].hexVar});"></div>` : ""}
+              ${r.t2Pct > 0 ? `<div style="width: ${r.t2Pct}%; background: var(${TIERS[2].hexVar});"></div>` : ""}
+              ${100 - r.t1Pct - r.t2Pct > 0 ? `<div style="width: ${100 - r.t1Pct - r.t2Pct}%; background: var(${TIERS[3].hexVar});"></div>` : ""}
             </div>
           </td>
         </tr>
@@ -2379,9 +2379,9 @@ function renderTeamMerchantTable(entries) {
       <div>
         <div class="flex items-center gap-2 text-xs">
           <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
-          <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
-            <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
-          </div>
+          <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
+  <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
+</div>
           <span class="font-medium w-12 text-right">${data.hours} hrs</span>
           <span class="text-stone-400 w-8 text-right">${pct}%</span>
         </div>
@@ -2457,9 +2457,9 @@ function renderTeamPOSTable(entries) {
       <div>
         <div class="flex items-center gap-2 text-xs">
           <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
-          <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
-            <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
-          </div>
+          <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
+  <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
+</div>
           <span class="font-medium w-12 text-right">${data.hours} hrs</span>
           <span class="text-stone-400 w-8 text-right">${pct}%</span>
         </div>
@@ -2545,9 +2545,9 @@ function renderMerchantTable(byMerchant, total) {
 		html += `
       <div class="flex items-center gap-2 text-xs">
         <span class="text-stone-500 w-28 truncate">${name}</span>
-        <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
-          <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
-        </div>
+        <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
+  <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
+</div>
         <span class="font-medium w-12 text-right">${hours} hrs</span>
         <span class="text-stone-400 w-8 text-right">${pct}%</span>
       </div>
@@ -2590,9 +2590,9 @@ function renderPOSTable(byPOS, total) {
 		html += `
       <div class="flex items-center gap-2 text-xs">
         <span class="text-stone-500 w-28 truncate">${name}</span>
-        <div class="flex-1 h-2 bg-stone-50 rounded-full overflow-hidden">
-          <div class="h-full rounded-full bg-chronos-200" style="width: ${barWidth}%"></div>
-        </div>
+        <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
+  <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
+</div>
         <span class="font-medium w-12 text-right">${hours} hrs</span>
         <span class="text-stone-400 w-8 text-right">${pct}%</span>
       </div>

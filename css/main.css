@@ -64,48 +64,64 @@
 	--progress-bad: #ef4444;
 
 	/* Category block colors — pastel rainbow palette */
-	--cat-meeting-int-border: #a8d8f0;
-	--cat-meeting-int-bg: rgba(168, 216, 240, 0.18);
-	--cat-meeting-int-text: #2b5a7b;
-	--cat-meeting-merch-border: #88c8d8;
-	--cat-meeting-merch-bg: rgba(136, 200, 216, 0.18);
-	--cat-meeting-merch-text: #2b6b70;
-	--cat-migration-border: #9898d8;
-	--cat-migration-bg: rgba(152, 152, 216, 0.18);
-	--cat-migration-text: #3a3a8b;
-	--cat-admin-internal-bg: rgba(240, 128, 128, 0.12);
-	--cat-admin-internal-border: rgba(240, 128, 128, 0.55);
-	--cat-admin-internal-text: #c0392b;
-	--cat-admin-merchant-bg: rgba(233, 105, 96, 0.12);
-	--cat-admin-merchant-border: rgba(233, 105, 96, 0.55);
-	--cat-admin-merchant-text: #a93226;
-	--cat-analytics-border: #e0a8d8;
-	--cat-analytics-bg: rgba(224, 168, 216, 0.18);
-	--cat-analytics-text: #7b3a70;
-	--cat-research-border: #c8e088;
-	--cat-research-bg: rgba(200, 224, 136, 0.18);
-	--cat-research-text: #4a5a1b;
-	--cat-troubleshooting-bg: rgba(251, 191, 36, 0.12);
-	--cat-troubleshooting-border: rgba(251, 191, 36, 0.55);
-	--cat-troubleshooting-text: #b7791f;
-	--cat-tools-border: #88d8a8;
-	--cat-tools-bg: rgba(136, 216, 168, 0.18);
-	--cat-tools-text: #1b6b3a;
-	--cat-api-border: #c0a8e0;
-	--cat-api-bg: rgba(192, 168, 224, 0.18);
-	--cat-api-text: #5a3a7b;
-	--cat-hardware-border: #f8a8b0;
-	--cat-hardware-bg: rgba(248, 168, 176, 0.18);
-	--cat-hardware-text: #7b2a32;
-	--cat-lunch-border: #c8c4c0;
-	--cat-lunch-bg: rgba(200, 196, 192, 0.1);
-	--cat-lunch-text: #8a8490;
-	--cat-ooo-border: #b0b8c0;
-	--cat-ooo-bg: rgba(176, 184, 192, 0.15);
-	--cat-ooo-text: #5b6b7b;
-	--cat-other-border: #a8a8a8;
-	--cat-other-bg: rgba(168, 168, 168, 0.08);
-	--cat-other-text: #6b6560;
+	/* admin_internal — soft yellow */
+	--cat-admin-internal-border: #dfd87c;
+	--cat-admin-internal-bg: rgba(223, 216, 124, 0.16);
+	--cat-admin-internal-text: #7b751e;
+
+	/* admin_merchant — deeper yellow (same hue, distinguishable from admin_internal) */
+	--cat-admin-merchant-border: #e5db76;
+	--cat-admin-merchant-bg: rgba(229, 219, 118, 0.16);
+	--cat-admin-merchant-text: #817718;
+
+	/* analytics — orange */
+	--cat-analytics-border: #e8ad73;
+	--cat-analytics-bg: rgba(232, 173, 115, 0.16);
+	--cat-analytics-text: #8c5217;
+
+	/* api_scoping → --cat-api-* — coral-pink */
+	--cat-api-border: #df7c8e;
+	--cat-api-bg: rgba(223, 124, 142, 0.16);
+	--cat-api-text: #832032;
+
+	/* data_migration → --cat-migration-* — magenta/orchid */
+	--cat-migration-border: #df7cc6;
+	--cat-migration-bg: rgba(223, 124, 198, 0.16);
+	--cat-migration-text: #83206b;
+
+	/* hardware — purple */
+	--cat-hardware-border: #bb7cdf;
+	--cat-hardware-bg: rgba(187, 124, 223, 0.16);
+	--cat-hardware-text: #5f2083;
+
+	/* internal_tools → --cat-tools-* — indigo/blue-purple */
+	--cat-tools-border: #7c85df;
+	--cat-tools-bg: rgba(124, 133, 223, 0.16);
+	--cat-tools-text: #202983;
+
+	/* meeting_internal → --cat-meeting-int-* — blue */
+	--cat-meeting-int-border: #7cabdf;
+	--cat-meeting-int-bg: rgba(124, 171, 223, 0.16);
+	--cat-meeting-int-text: #204f83;
+
+	/* meeting_merchant → --cat-meeting-merch-* — deeper blue (same hue, distinguishable from meeting_internal) */
+	--cat-meeting-merch-border: #76aae5;
+	--cat-meeting-merch-bg: rgba(118, 170, 229, 0.16);
+	--cat-meeting-merch-text: #1a4e89;
+
+	--cat-onboarding-border: #7cdfd8;
+	--cat-onboarding-bg: rgba(124, 223, 216, 0.16);
+	--cat-onboarding-text: #20837d;
+
+	/* research_sync → --cat-research-* — green-teal */
+	--cat-research-border: #7cdf9e;
+	--cat-research-bg: rgba(124, 223, 158, 0.16);
+	--cat-research-text: #208342;
+
+	/* troubleshooting — green */
+	--cat-troubleshooting-border: #94df7c;
+	--cat-troubleshooting-bg: rgba(148, 223, 124, 0.16);
+	--cat-troubleshooting-text: #398320;
 
 	/* Scrollbar */
 	--scrollbar-thumb: #d6d3d1;
@@ -169,48 +185,64 @@
 	--progress-bad: #fc8181;
 
 	/* Category block colors — more vibrant on dark */
-	--cat-meeting-int-border: #63b3ed;
-	--cat-meeting-int-bg: rgba(99, 179, 237, 0.1);
-	--cat-meeting-int-text: #90cdf4;
-	--cat-meeting-merch-border: #4fd1c5;
-	--cat-meeting-merch-bg: rgba(79, 209, 197, 0.1);
-	--cat-meeting-merch-text: #81e6d9;
-	--cat-migration-border: #b794f4;
-	--cat-migration-bg: rgba(183, 148, 244, 0.1);
-	--cat-migration-text: #d6bcfa;
-	--cat-admin-internal-bg: rgba(240, 128, 128, 0.15);
-	--cat-admin-internal-border: rgba(240, 128, 128, 0.45);
-	--cat-admin-internal-text: #f5a9a3;
-	--cat-admin-merchant-bg: rgba(233, 105, 96, 0.15);
-	--cat-admin-merchant-border: rgba(233, 105, 96, 0.45);
-	--cat-admin-merchant-text: #e8837a;
-	--cat-analytics-border: #f472b6;
-	--cat-analytics-bg: rgba(244, 114, 182, 0.08);
-	--cat-analytics-text: #fbb6ce;
-	--cat-research-border: #9ae6b4;
-	--cat-research-bg: rgba(154, 230, 180, 0.08);
-	--cat-research-text: #c6f6d5;
-	--cat-troubleshooting-bg: rgba(251, 191, 36, 0.15);
-	--cat-troubleshooting-border: rgba(251, 191, 36, 0.45);
-	--cat-troubleshooting-text: #fbd38d;
-	--cat-tools-border: #48dbb4;
-	--cat-tools-bg: rgba(72, 219, 180, 0.08);
-	--cat-tools-text: #81e6d9;
-	--cat-api-border: #fbb27d;
-	--cat-api-bg: rgba(251, 178, 125, 0.08);
-	--cat-api-text: #fbd38d;
-	--cat-hardware-border: #fc8181;
-	--cat-hardware-bg: rgba(252, 129, 129, 0.08);
-	--cat-hardware-text: #feb2b2;
-	--cat-lunch-border: #4a4558;
-	--cat-lunch-bg: rgba(107, 101, 128, 0.1);
-	--cat-lunch-text: #6b6580;
-	--cat-ooo-border: #475569;
-	--cat-ooo-bg: rgba(71, 85, 105, 0.12);
-	--cat-ooo-text: #94a3b8;
-	--cat-other-border: #6b6580;
-	--cat-other-bg: rgba(107, 101, 128, 0.06);
-	--cat-other-text: #9590a0;
+	/* admin_internal */
+	--cat-admin-internal-border: #d9d163;
+	--cat-admin-internal-bg: rgba(217, 209, 99, 0.1);
+	--cat-admin-internal-text: #efecbd;
+
+	/* admin_merchant */
+	--cat-admin-merchant-border: #e0d45c;
+	--cat-admin-merchant-bg: rgba(224, 212, 92, 0.1);
+	--cat-admin-merchant-text: #f2edba;
+
+	/* analytics */
+	--cat-analytics-border: #e49e59;
+	--cat-analytics-bg: rgba(228, 158, 89, 0.1);
+	--cat-analytics-text: #f3d6b9;
+
+	/* api_scoping → --cat-api-* */
+	--cat-api-border: #d96378;
+	--cat-api-bg: rgba(217, 99, 120, 0.1);
+	--cat-api-text: #efbdc6;
+
+	/* data_migration → --cat-migration-* */
+	--cat-migration-border: #d963bc;
+	--cat-migration-bg: rgba(217, 99, 188, 0.1);
+	--cat-migration-text: #efbde3;
+
+	/* hardware */
+	--cat-hardware-border: #ae63d9;
+	--cat-hardware-bg: rgba(174, 99, 217, 0.1);
+	--cat-hardware-text: #ddbdef;
+
+	/* internal_tools → --cat-tools-* */
+	--cat-tools-border: #636ed9;
+	--cat-tools-bg: rgba(99, 110, 217, 0.1);
+	--cat-tools-text: #bdc2ef;
+
+	/* meeting_internal → --cat-meeting-int-* */
+	--cat-meeting-int-border: #639bd9;
+	--cat-meeting-int-bg: rgba(99, 155, 217, 0.1);
+	--cat-meeting-int-text: #bdd5ef;
+
+	/* meeting_merchant → --cat-meeting-merch-* */
+	--cat-meeting-merch-border: #5c9ae0;
+	--cat-meeting-merch-bg: rgba(92, 154, 224, 0.1);
+	--cat-meeting-merch-text: #bad4f2;
+
+	--cat-onboarding-border: #63d9d1;
+	--cat-onboarding-bg: rgba(99, 217, 209, 0.1);
+	--cat-onboarding-text: #bdefec;
+
+	/* research_sync → --cat-research-* */
+	--cat-research-border: #63d98b;
+	--cat-research-bg: rgba(99, 217, 139, 0.1);
+	--cat-research-text: #bdefce;
+
+	/* troubleshooting */
+	--cat-troubleshooting-border: #80d963;
+	--cat-troubleshooting-bg: rgba(128, 217, 99, 0.1);
+	--cat-troubleshooting-text: #caefbd;
 
 	/* Scrollbar */
 	--scrollbar-thumb: #3d3852;
@@ -313,6 +345,36 @@ body {
 	border-left: 3px solid;
 	transition: all 0.15s ease;
 }
+.cat-admin_internal {
+	background: var(--cat-admin-internal-bg);
+	border-left: 3px solid var(--cat-admin-internal-border);
+	color: var(--cat-admin-internal-text);
+}
+.cat-admin_merchant {
+	background: var(--cat-admin-merchant-bg);
+	border-left: 3px solid var(--cat-admin-merchant-border);
+	color: var(--cat-admin-merchant-text);
+}
+.cat-analytics {
+	border-left-color: var(--cat-analytics-border);
+	background-color: var(--cat-analytics-bg);
+	color: var(--cat-analytics-text);
+}
+.cat-api_scoping {
+	border-left-color: var(--cat-api-border);
+	background-color: var(--cat-api-bg);
+	color: var(--cat-api-text);
+}
+.cat-hardware {
+	border-left-color: var(--cat-hardware-border);
+	background-color: var(--cat-hardware-bg);
+	color: var(--cat-hardware-text);
+}
+.cat-internal_tools {
+	border-left-color: var(--cat-tools-border);
+	background-color: var(--cat-tools-bg);
+	color: var(--cat-tools-text);
+}
 .cat-meeting_internal {
 	border-left-color: var(--cat-meeting-int-border);
 	background-color: var(--cat-meeting-int-bg);
@@ -328,18 +390,10 @@ body {
 	background-color: var(--cat-migration-bg);
 	color: var(--cat-migration-text);
 }
-.cat-admin_internal {
-	background: var(--cat-admin-internal-bg);
-	border-left: 3px solid var(--cat-admin-internal-border);
-}
-.cat-admin_merchant {
-	background: var(--cat-admin-merchant-bg);
-	border-left: 3px solid var(--cat-admin-merchant-border);
-}
-.cat-analytics {
-	border-left-color: var(--cat-analytics-border);
-	background-color: var(--cat-analytics-bg);
-	color: var(--cat-analytics-text);
+.cat-onboarding {
+	border-left-color: var(--cat-onboarding-border);
+	background-color: var(--cat-onboarding-bg);
+	color: var(--cat-onboarding-text);
 }
 .cat-research_sync {
 	border-left-color: var(--cat-research-border);
@@ -349,21 +403,7 @@ body {
 .cat-troubleshooting {
 	background: var(--cat-troubleshooting-bg);
 	border-left: 3px solid var(--cat-troubleshooting-border);
-}
-.cat-internal_tools {
-	border-left-color: var(--cat-tools-border);
-	background-color: var(--cat-tools-bg);
-	color: var(--cat-tools-text);
-}
-.cat-api_scoping {
-	border-left-color: var(--cat-api-border);
-	background-color: var(--cat-api-bg);
-	color: var(--cat-api-text);
-}
-.cat-hardware {
-	border-left-color: var(--cat-hardware-border);
-	background-color: var(--cat-hardware-bg);
-	color: var(--cat-hardware-text);
+	color: var(--cat-troubleshooting-text);
 }
 .cat-lunch {
 	border-left-color: var(--cat-lunch-border);
