@@ -256,6 +256,18 @@
 	--cat-troubleshooting-bg: rgba(128, 217, 99, 0.1);
 	--cat-troubleshooting-text: #caefbd;
 
+	--cat-lunch-border: #8d857c;
+	--cat-lunch-bg: rgba(141, 133, 124, 0.12);
+	--cat-lunch-text: #dbd9d6;
+
+	--cat-ooo-border: #778592;
+	--cat-ooo-bg: rgba(119, 133, 146, 0.12);
+	--cat-ooo-text: #d4d9dd;
+
+	--cat-other-border: #858585;
+	--cat-other-bg: rgba(133, 133, 133, 0.12);
+	--cat-other-text: #d9d9d9;
+
 	/* Scrollbar */
 	--scrollbar-thumb: #3d3852;
 	--scrollbar-thumb-hover: #5a5568;
