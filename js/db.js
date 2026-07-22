@@ -918,13 +918,58 @@ export async function restoreFromPersonalBackup(backupData) {
 
 	/* Restore settings if present */
 	if (backupData.settings) {
-		await db.settings.put({ key: "user", ...backupData.settings });
+		const restoredSettings = backupData.settings.value || backupData.settings;
+		await db.settings.put({
+			key: "user",
+			value: {
+				...DEFAULT_USER_SETTINGS,
+				...restoredSettings,
+			},
+		});
 	}
 
 	/* Restore tier map if present */
 	if (backupData.tierMap) {
-		for (const [catId, tier] of Object.entries(backupData.tierMap)) {
-			await db.tierMap.put({ categoryId: catId, tier });
+		const restoredTierMap = backupData.tierMap.value || backupData.tierMap;
+		await db.tierMap.put({
+			key: "tiers",
+			value: {
+				...DEFAULT_TIER_MAP,
+				...restoredTierMap,
+			},
+		});
+	}
+
+	/* Restore settings/tier map from weekly backup bundles as well */
+	if (backupData.weeks?.length && !backupData.settings) {
+		for (const week of backupData.weeks) {
+			if (week.settings) {
+				const restoredSettings = week.settings.value || week.settings;
+				await db.settings.put({
+					key: "user",
+					value: {
+						...DEFAULT_USER_SETTINGS,
+						...restoredSettings,
+					},
+				});
+				break;
+			}
+		}
+	}
+
+	if (backupData.weeks?.length && !backupData.tierMap) {
+		for (const week of backupData.weeks) {
+			if (week.tierMap) {
+				const restoredTierMap = week.tierMap.value || week.tierMap;
+				await db.tierMap.put({
+					key: "tiers",
+					value: {
+						...DEFAULT_TIER_MAP,
+						...restoredTierMap,
+					},
+				});
+				break;
+			}
 		}
 	}
 
@@ -938,6 +983,7 @@ export async function restoreFromPersonalBackup(backupData) {
 					entryCount++;
 				}
 			}
+
 			if (week.weeklyNotes) {
 				await db.weeklyNotes.put({
 					weekKey: week.weekKey,
@@ -945,21 +991,14 @@ export async function restoreFromPersonalBackup(backupData) {
 				});
 				notesCount++;
 			}
-			console.log(
-				"RESTORE: week",
-				week.weekKey,
-				"ticketStats:",
-				week.ticketStats?.length,
-				"entries:",
-				week.entries?.length,
-			);
+
 			if (week.ticketStats) {
 				for (const stat of week.ticketStats) {
 					await db.ticketStats.put(stat);
 					ticketCount++;
 				}
 			}
-			/* Restore day metadata (queue duty flags) for this week */
+
 			if (week.dayMeta) {
 				for (const meta of week.dayMeta) {
 					await db.dayMeta.put(meta);
@@ -972,19 +1011,21 @@ export async function restoreFromPersonalBackup(backupData) {
 			await db.entries.put(entry);
 			entryCount++;
 		}
+
 		if (backupData.allNotes) {
 			for (const note of backupData.allNotes) {
 				await db.weeklyNotes.put(note);
 				notesCount++;
 			}
 		}
+
 		if (backupData.allTicketStats) {
 			for (const stat of backupData.allTicketStats) {
 				await db.ticketStats.put(stat);
 				ticketCount++;
 			}
 		}
-		/* Restore all day metadata (queue duty flags) */
+
 		if (backupData.allDayMeta) {
 			for (const meta of backupData.allDayMeta) {
 				await db.dayMeta.put(meta);

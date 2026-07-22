@@ -290,6 +290,7 @@ export async function autoExportWeek(state, refDate = new Date()) {
 				name: state.settings.name || "Unnamed",
 				role: state.settings.role,
 			},
+			settings: { ...state.settings },
 			entries: entries.map((e) => ({
 				date: e.date,
 				timeSlot: e.timeSlot,
@@ -536,7 +537,12 @@ export async function autoRestoreFromBackup(userName) {
 
 		if (!backupData) {
 			/* Scan for weekly export files matching this user */
-			const weeklyData = { weeks: [], contributor: { name: userName } };
+			const weeklyData = {
+				weeks: [],
+				contributor: { name: userName },
+				settings: null,
+				tierMap: null,
+			};
 
 			for await (const [name, entry] of handle.entries()) {
 				if (entry.kind !== "file" || !name.endsWith(".json")) continue;
@@ -548,6 +554,12 @@ export async function autoRestoreFromBackup(userName) {
 					const text = await file.text();
 					const data = JSON.parse(text);
 
+					if (data.settings && !weeklyData.settings) {
+						weeklyData.settings = data.settings;
+					}
+					if (data.tierMap && !weeklyData.tierMap) {
+						weeklyData.tierMap = data.tierMap;
+					}
 					if (data.entries && data.entries.length > 0) {
 						weeklyData.weeks.push({
 							weekKey: data.weekKey,
