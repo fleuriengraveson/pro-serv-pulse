@@ -50,6 +50,7 @@ import {
 	isFutureDate,
 	countOOOHours,
 	countOOODays,
+	isOnboardingEntry,
 } from "./utils.js";
 import { markHasData } from "./app.js";
 
@@ -480,6 +481,7 @@ function renderTimeBlock(slot) {
           <div class="ml-auto flex items-center gap-2">
             ${entry.urgent ? '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>' : ""}
             ${entry.billable ? '<span class="text-[10px] font-medium text-emerald-500">$</span>' : ""}
+			${isOnboardingEntry(entry) ? '<span class="text-[10px]" style="font-weight: 700; color: #7c3aed;">O</span>' : ""}
             ${entry.ticketLink ? `<a href="${entry.ticketLink}" target="_blank" rel="noopener" class="text-[10px] text-blue-400 hover:underline" onclick="event.stopPropagation();">#${entry.ticketLink.split("/").pop()}</a>` : ""}
           </div>
           ${
@@ -496,6 +498,7 @@ function renderTimeBlock(slot) {
             ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
             ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
             <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
+			<div class="tooltip-row"><span class="tooltip-label">Onboarding</span><span class="tooltip-value"${isOnboardingEntry(entry) ? ' style="color: #7c3aed;"' : ""}>${isOnboardingEntry(entry) ? "Yes" : "No"}</span></div>
             ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
           </div>
           `
@@ -1142,6 +1145,7 @@ async function showEditDropdown(
         </div>
         ${CATEGORIES.filter((cat) => {
 					const hidden = appState.settings.hiddenCategories || [];
+					if (cat.legacy && entry.category !== cat.id) return false;
 					if (cat.id === "lunch" || cat.id === "ooo" || cat.id === "other")
 						return true;
 					if (entry.category === cat.id) return true;
@@ -1235,6 +1239,13 @@ async function showEditDropdown(
                    ${entry.urgent ? "checked" : ""}
                    class="w-3.5 h-3.5 rounded border-stone-300 text-red-500 focus:ring-red-300" />
             <span class="text-xs" style="color: var(--text-secondary);">Urgent <span class="info-bubble" data-help="Mark as urgent if this was <strong>unplanned reactive work</strong> that needed to be actioned immediately. Helps management track how much time is spent on emergencies vs planned work.">i</span></span>
+          </label>
+
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="checkbox" id="edit-onboarding"
+                   ${isOnboardingEntry(entry) ? "checked" : ""}
+                   class="w-3.5 h-3.5 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
+            <span class="text-xs" style="color: var(--text-secondary);">Onboarding <span class="info-bubble" data-help="Mark time spent <strong>onboarding a merchant</strong> — helping a new customer get set up and started on Lightspeed. Can be combined with any category.">i</span></span>
           </label>
         </div>
 
@@ -1434,6 +1445,7 @@ async function showEditDropdown(
 				dropdown.querySelector("#edit-subcategory")?.value.trim() || "",
 			billable: dropdown.querySelector("#edit-billable")?.checked || false,
 			urgent: dropdown.querySelector("#edit-urgent")?.checked || false,
+			onboarding: dropdown.querySelector("#edit-onboarding")?.checked || false,
 			ticketLink: dropdown.querySelector("#edit-ticket")?.value.trim() || "",
 			merchant: dropdown.querySelector("#edit-merchant")?.value.trim() || "",
 			formerPOS: dropdown.querySelector("#edit-formerpos")?.value.trim() || "",
@@ -1800,6 +1812,7 @@ function attachWeekEventListeners() {
 							billable: entry.billable || false,
 							merchant: entry.merchant || "",
 							urgent: entry.urgent || false,
+							onboarding: entry.onboarding || false,
 							ticketLink: entry.ticketLink || "",
 							formerPOS: entry.formerPOS || "",
 							notes: entry.notes || "",
@@ -1905,6 +1918,7 @@ function copyBlock(slot) {
 		billable: entry.billable || false,
 		merchant: entry.merchant || "",
 		urgent: entry.urgent || false,
+		onboarding: entry.onboarding || false,
 		ticketLink: entry.ticketLink || "",
 		formerPOS: entry.formerPOS || "",
 		notes: entry.notes || "",
@@ -1969,6 +1983,7 @@ async function fillRange(fromSlot, toSlot, date) {
 			billable: source.billable || false,
 			merchant: source.merchant || "",
 			urgent: source.urgent || false,
+			onboarding: source.onboarding || false,
 			ticketLink: source.ticketLink || "",
 			formerPOS: source.formerPOS || "",
 			notes: source.notes || "",
@@ -2200,6 +2215,7 @@ async function renderWeekView() {
                       ${entry.merchant || entry.subCategory ? `<span class="week-block-sub">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
                       <div class="absolute top-0.5 right-1 flex items-center gap-1">
                         ${entry.billable ? '<span class="text-[8px] text-emerald-500">$</span>' : ""}
+						${isOnboardingEntry(entry) ? '<span class="text-[8px]" style="font-weight: 700; color: #7c3aed;">O</span>' : ""}
                         ${entry.urgent ? '<span class="w-1 h-1 rounded-full bg-red-400 inline-block"></span>' : ""}
                       </div>
                       ${
@@ -2216,6 +2232,7 @@ async function renderWeekView() {
                         ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
                         ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
                         <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
+						<div class="tooltip-row"><span class="tooltip-label">Onboarding</span><span class="tooltip-value"${isOnboardingEntry(entry) ? ' style="color: #7c3aed;"' : ""}>${isOnboardingEntry(entry) ? "Yes" : "No"}</span></div>
                         ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
                       </div>
                       `
@@ -2348,6 +2365,11 @@ function showWeekPopover(entry, blockEl) {
         <span class="week-popover-label">Billable</span>
         <span class="week-popover-value">${entry.billable ? "Yes" : "No"}</span>
       </div>
+
+	  <div class="week-popover-row">
+        <span class="week-popover-label">Onboarding</span>
+        <span class="week-popover-value"${isOnboardingEntry(entry) ? ' style="color: #7c3aed;"' : ""}>${isOnboardingEntry(entry) ? "Yes" : "No"}</span>
+      </div>
     </div>
 
     <!-- Action buttons -->
@@ -2420,6 +2442,7 @@ function showWeekPopover(entry, blockEl) {
 			billable: entry.billable || false,
 			merchant: entry.merchant || "",
 			urgent: entry.urgent || false,
+			onboarding: entry.onboarding || false,
 			ticketLink: entry.ticketLink || "",
 			formerPOS: entry.formerPOS || "",
 			notes: entry.notes || "",

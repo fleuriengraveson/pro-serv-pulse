@@ -570,6 +570,57 @@ export function countUrgentHours(entries) {
 }
 
 /**
+ * isOnboardingEntry
+ * Determines whether a single time entry should count as onboarding.
+ *
+ * An entry can be onboarding in two ways, and this helper treats them as
+ * equivalent so old and new data stay consistent:
+ *   1. New model — the entry carries an explicit `onboarding: true` flag
+ *      alongside a normal category (exactly like billable/urgent).
+ *   2. Legacy model — the entry predates the flag and instead used the old
+ *      `category: "onboarding"` value.
+ *
+ * Testing `=== true` (not just truthiness) means a missing/undefined flag on
+ * legacy or partial data is safely treated as "not flagged", so we correctly
+ * fall through to the legacy category check.
+ *
+ * @param {Object} entry - A single time entry object
+ * @returns {boolean} True if the entry is onboarding by either model
+ */
+export function isOnboardingEntry(entry) {
+	if (!entry) return false;
+	return entry.onboarding === true || entry.category === "onboarding";
+}
+
+/**
+ * countOnboardingHours
+ * Sums the hours of all onboarding entries, using the same fixed-block model
+ * as every other count helper (each entry = one block = blockMinutes/60 hrs).
+ *
+ * The filter mirrors countBillableHours, swapping in the onboarding test:
+ *   - isOnboardingEntry(e)   → matches new-flagged OR legacy-category rows
+ *   - e.category             → must have a category, so this total stays a
+ *                              strict SUBSET of countTrackedHours()
+ *   - e.category !== "ooo"   → never count out-of-office time
+ *
+ * Note: unlike countUrgentHours, we intentionally do NOT exclude "lunch"
+ * here, because the ratio's denominator (countTrackedHours) INCLUDES lunch.
+ * Matching that keeps the onboarding total a clean subset of tracked hours,
+ * so the stats-card ratio can never exceed 100%.
+ *
+ * @param {Array<Object>} entries - Array of time entry objects
+ * @returns {number} Total onboarding hours
+ */
+export function countOnboardingHours(entries) {
+	return (
+		entries.filter(
+			(e) => isOnboardingEntry(e) && e.category && e.category !== "ooo",
+		).length *
+		(TIME_DEFAULTS.blockMinutes / 60)
+	);
+}
+
+/**
  * detectDisproportionate
  * Identifies items that take up a disproportionate share of total time.
  * Uses a percentage-of-total approach with a minimum hours floor

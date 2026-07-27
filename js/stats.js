@@ -43,6 +43,7 @@ import {
 	aggregateByPOS,
 	countTrackedHours,
 	countBillableHours,
+	countOnboardingHours,
 	countTotalHours,
 	countOOOHours,
 	countOOODays,
@@ -685,6 +686,7 @@ async function renderStats() {
 
 	const total = countTotalHours(entries);
 	const billable = countBillableHours(entries);
+	const onboarding = countOnboardingHours(entries);
 	const byCategory = aggregateByCategory(entries);
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
@@ -914,56 +916,30 @@ async function renderStats() {
 				})()}
       </div>
 
-      <!-- Card 2: Tier split -->
-			${(() => {
-				const tierTotal =
-					(byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
-				const t1Pct =
-					tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
-				const t2Pct =
-					tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
-				const t3Pct = tierTotal > 0 ? 100 - t1Pct - t2Pct : 0;
+      <!-- Card 2: Onboarding ratio (replaces the former Time allocation card).
+           Cloned from the Billable ratio card below for visual consistency:
+           same layout, same progress-bar treatment, same empty-state line.
+           - Numerator: onboarding hours (new-flagged + legacy), from Stage 1 helper
+           - Denominator: tracked hours (excludes OOO, includes lunch) — identical
+             to the Billable card, so both ratios are directly comparable
+           - Guard: tracked > 0 ? … : 0 prevents divide-by-zero on empty periods,
+             matching your requested "just show 0" behaviour -->
+      ${(() => {
+				const onboardingPct =
+					tracked > 0 ? Math.round((onboarding / tracked) * 100) : 0;
 
 				return `
-			<div class="stat-card">
-				<div class="stat-card-label">Time allocation <span class="info-bubble" data-help="How time splits across tiers.<br><br><strong>Tier 1 (purple):</strong> Customer-facing work like migrations, hardware, API work, merchant meetings<br><strong>Tier 2 (green):</strong> Internal work like admin, internal meetings, research, tools<br><strong>Tier 3 (grey):</strong> Other">i</span></div>
-				${
-					tierTotal > 0
-						? `
-				<div style="display: flex; height: 14px; border-radius: 4px; overflow: hidden; margin: 8px 0 10px;">
-					${t1Pct > 0 ? `<div style="width: ${t1Pct}%; background: var(${TIERS[1].hexVar}); border-right: 1px solid var(--bg-card);"></div>` : ""}
-					${t2Pct > 0 ? `<div style="width: ${t2Pct}%; background: var(${TIERS[2].hexVar}); border-right: 1px solid var(--bg-card);"></div>` : ""}
-					${t3Pct > 0 ? `<div style="width: ${t3Pct}%; background: var(${TIERS[3].hexVar}); "></div>` : ""}
-				</div>
-				<div style="display: flex; flex-direction: column; gap: 3px;">
-					<div style="display: flex; justify-content: space-between; font-size: 11px;">
-						<span style="display: flex; align-items: center; gap: 4px;">
-							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[1].hexVar});"></span>
-							<span style="color: var(--text-muted);">Customer</span>
-						</span>
-						<span style="font-weight: 500;">${t1Pct}%</span>
-					</div>
-					<div style="display: flex; justify-content: space-between; font-size: 11px;">
-						<span style="display: flex; align-items: center; gap: 4px;">
-							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[2].hexVar});"></span>
-							<span style="color: var(--text-muted);">Internal</span>
-						</span>
-						<span style="font-weight: 500;">${t2Pct}%</span>
-					</div>
-					<div style="display: flex; justify-content: space-between; font-size: 11px;">
-						<span style="display: flex; align-items: center; gap: 4px;">
-							<span style="width: 6px; height: 6px; border-radius: 2px; background: var(${TIERS[3].hexVar});"></span>
-							<span style="color: var(--text-muted);">Other</span>
-						</span>
-						<span style="font-weight: 500;">${t3Pct}%</span>
-					</div>
-				</div>
-        `
-						: `
-				<div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">No tiered time this period</div>
-        `
-				}
-			</div>`;
+      <div class="stat-card">
+        <div class="stat-card-label">Onboarding ratio <span class="info-bubble" data-help="Percentage of tracked hours spent onboarding merchants — helping new customers get set up and started on Lightspeed. Includes both newer entries flagged as onboarding and older entries logged under the legacy Onboarding category.">i</span></div>
+        <div style="display: flex; align-items: baseline; gap: 6px; margin-top: 6px;">
+          <div class="stat-card-value">${onboardingPct}%</div>
+          <span style="font-size: 12px; color: var(--text-muted);">${onboarding} of ${tracked} hrs</span>
+        </div>
+        <div style="height: 6px; border-radius: 3px; background: var(--progress-track); margin-top: 8px; overflow: hidden;">
+          <div style="height: 100%; width: ${Math.max(onboardingPct, 2)}%; border-radius: 3px; background: ${onboarding > 0 ? "#7c3aed" : "var(--text-placeholder)"};"></div>
+        </div>
+        ${onboarding === 0 ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">No onboarding hours this period</div>` : ""}
+      </div>`;
 			})()}
 
       <!-- Card 3: Billable ratio -->
@@ -1438,6 +1414,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		const tracked = countTrackedHours(memberEntries);
 		const billable = countBillableHours(memberEntries);
+		const onboarding = countOnboardingHours(memberEntries);
 		const byTier = aggregateByTier(memberEntries, tierMap);
 		const tierTotal = (byTier[1] || 0) + (byTier[2] || 0) + (byTier[3] || 0);
 		const t1Pct =
@@ -1481,6 +1458,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 			name,
 			tracked,
 			billable,
+			onboarding,
 			byTier,
 			t1Pct,
 			t2Pct,
@@ -1495,7 +1473,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 	rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
 	let html = `
-    <div class="text-sm font-medium mb-3">Team compliance <span class="info-bubble" data-help="<strong>Tracked:</strong> Total hours logged<br><strong>Compliance:</strong> Tracked vs expected (green ≥60%, red <42%)<br><strong>Billable:</strong> Billable hours<br><strong>Tier 1:</strong> Customer-facing work percentage<br><strong>Lunch:</strong> Days with lunch logged vs total tracked days">i</span></div>
+    <div class="text-sm font-medium mb-3">Team compliance <span class="info-bubble" data-help="<strong>Tracked:</strong> Total hours logged<br><strong>Compliance:</strong> Tracked vs expected (green ≥60%, red <42%)<br><strong>Billable:</strong> Billable hours<br><strong>Onboarding:</strong> Onboarding hours (new-flagged + legacy)<br><strong>Tier 1:</strong> Customer-facing work percentage<br><strong>Lunch:</strong> Days with lunch logged vs total tracked days">i</span></div>
     <div style="overflow-x: auto;">
     <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
       <thead>
@@ -1504,6 +1482,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Tracked</th>
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Compliance</th>
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Billable</th>
+		  <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Onboarding</th>
           <th style="text-align: right; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Tier 1</th>
           <th style="text-align: center; padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px;">Lunch</th>
           <th style="padding: 8px 6px; font-weight: 500; color: var(--text-muted); font-size: 11px; width: 120px;">Tier split</th>
@@ -1539,6 +1518,7 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
             <span style="color: ${complianceColor}; font-weight: 500;">${r.compliancePct}%</span>
           </td>
           <td style="text-align: right; padding: 8px 6px;">${r.billable} hrs</td>
+		  <td style="text-align: right; padding: 8px 6px;">${r.onboarding} hrs</td>
           <td style="text-align: right; padding: 8px 6px;">${r.t1Pct}%</td>
           <td style="text-align: center; padding: 8px 6px;">
             <span style="font-size: 11px; font-weight: 500; color: ${r.lunchRatio >= 0.8 ? "var(--positive)" : r.lunchRatio >= 0.5 ? "var(--warning)" : "var(--danger)"};">
@@ -3274,6 +3254,7 @@ export async function getStatsContext() {
 	const entries = filterEntriesUpToNow(allEntries);
 	const tracked = countTrackedHours(entries);
 	const billable = countBillableHours(entries);
+	const onboarding = countOnboardingHours(entries);
 	const byCategory = aggregateByCategory(entries);
 	const byTier = aggregateByTier(entries, tierMap);
 	const byMerchant = aggregateByMerchant(entries);
@@ -3325,6 +3306,7 @@ export async function getStatsContext() {
 		entries,
 		tracked,
 		billable,
+		onboarding,
 		expectedHours,
 		byCategory,
 		byTier,

@@ -787,6 +787,7 @@ async function exportCurrentWeek() {
 			billable: e.billable || false,
 			merchant: e.merchant || "",
 			urgent: e.urgent || false,
+			onboarding: e.onboarding || false,
 			ticketLink: e.ticketLink || "",
 			formerPOS: e.formerPOS || "",
 			notes: e.notes || "",
@@ -858,6 +859,7 @@ async function exportAllWeeks() {
 					billable: e.billable || false,
 					merchant: e.merchant || "",
 					urgent: e.urgent || false,
+					onboarding: e.onboarding || false,
 					ticketLink: e.ticketLink || "",
 					formerPOS: e.formerPOS || "",
 					notes: e.notes || "",
@@ -919,6 +921,7 @@ async function exportTeamReport() {
 		entries,
 		tracked,
 		billable,
+		onboarding,
 		expectedHours,
 		byCategory,
 		byTier,
@@ -941,6 +944,8 @@ async function exportTeamReport() {
 		tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
 	const t3Pct = tierTotal > 0 ? 100 - t1Pct - t2Pct : 0;
 	const billablePct = tracked > 0 ? Math.round((billable / tracked) * 100) : 0;
+	const onboardingPct =
+		tracked > 0 ? Math.round((onboarding / tracked) * 100) : 0;
 
 	/* Sort categories by hours */
 	const sortedCats = Object.entries(byCategory)
@@ -1159,13 +1164,9 @@ async function exportTeamReport() {
         <div class="metric-sub">of ${expectedHours} expected</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Time allocation</div>
-        <div class="tier-bar" style="margin: 8px 0;">
-          ${t1Pct > 0 ? `<div style="width: ${t1Pct}%; background: #8B5CF6;"></div>` : ""}
-          ${t2Pct > 0 ? `<div style="width: ${t2Pct}%; background: #10B981;"></div>` : ""}
-          ${t3Pct > 0 ? `<div style="width: ${t3Pct}%; background: #A8A29E;"></div>` : ""}
-        </div>
-        <div class="metric-sub">T1: ${t1Pct}% | T2: ${t2Pct}% | T3: ${t3Pct}%</div>
+        <div class="metric-label">Onboarding ratio</div>
+        <div class="metric-value">${onboardingPct}%</div>
+        <div class="metric-sub">${onboarding} of ${tracked} hrs</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Billable ratio</div>

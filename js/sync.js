@@ -299,6 +299,7 @@ export async function autoExportWeek(state, refDate = new Date()) {
 				billable: e.billable || false,
 				merchant: e.merchant || "",
 				urgent: e.urgent || false,
+				onboarding: e.onboarding || false,
 				ticketLink: e.ticketLink || "",
 				formerPOS: e.formerPOS || "",
 				notes: e.notes || "",

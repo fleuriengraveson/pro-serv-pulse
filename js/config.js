@@ -96,6 +96,7 @@ export const CATEGORIES = [
 		color: "cool aqua",
 		hex: "#c5f1ee",
 		cssVar: "--cat-onboarding-border",
+		legacy: true,
 	},
 	{
 		id: "research_sync",
