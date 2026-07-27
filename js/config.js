@@ -182,10 +182,10 @@ export const TIERS = {
 	2: {
 		label: "Tier 2",
 		description: "Internal job duties",
-		hex: "#0d9488",
+		hex: "#10b981",
 		bg: "#D1FAE5",
-		hexVar: "--teal",
-		bgVar: "--teal-light",
+		hexVar: "--positive",
+		bgVar: "--positive-light",
 	},
 	3: {
 		label: "Tier 3",
