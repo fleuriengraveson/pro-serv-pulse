@@ -439,6 +439,39 @@ export async function getTeamMemberList() {
 }
 
 /**
+ * getFirstTrackedDateForMember
+ * Finds a team member's TRUE first-tracked ("join") date — the earliest
+ * entry date found across ALL of their imported weeks, not just the weeks
+ * that happen to fall inside whatever period is currently being viewed.
+ *
+ * This mirrors getFirstTrackedDate() above, which does the same thing for
+ * the local user's own entries table. Without this, a manager viewing a
+ * single week would see a member's "first date" as the first day THAT
+ * MEMBER TRACKED SOMETHING IN THAT WEEK — which wrongly clamps their
+ * expected hours to whichever day they happened to start tracking, and
+ * hides any no-entry days before that within the same period.
+ *
+ * @param {string} name - Team member's name
+ * @returns {Promise<string|null>} Earliest date across all their imported
+ *   weeks in 'YYYY-MM-DD' format, or null if they have no imported data
+ *   (or no entries with a date on any of it).
+ */
+export async function getFirstTrackedDateForMember(name) {
+	const records = await db.teamData.where("name").equals(name).toArray();
+
+	let earliest = null;
+	records.forEach((record) => {
+		(record.data?.entries || []).forEach((e) => {
+			if (e.date && (earliest === null || e.date < earliest)) {
+				earliest = e.date;
+			}
+		});
+	});
+
+	return earliest;
+}
+
+/**
  * getTeamMemberData
  * Retrieves all imported data for a specific team member within a date range.
  *

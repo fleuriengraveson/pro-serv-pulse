@@ -20,6 +20,7 @@ import {
 	getTierMap,
 	getFirstTrackedDate,
 	getTeamMemberList,
+	getFirstTrackedDateForMember,
 	getTeamMemberData,
 	getAllTeamEntriesForPeriod,
 	getTeamMemberNotes,
@@ -703,22 +704,22 @@ async function renderStats() {
 		(selectedMember !== "self" || appState.settings.enableFormerPOS)
 			? detectDisproportionate(byPOS)
 			: [];
-	let expectedHours = await getExpectedHours(allEntries, allEntries);
+	let expectedHours = await getExpectedHours(selectedMember, allEntries);
 
-	/* For "All team" view, calculate expected hours per member and sum them */
+	/* For "All team" view, calculate expected hours per member and sum them.
+	 * IMPORTANT: iterate the full roster (teamMembers, cached module-level
+	 * list from getTeamMemberList) rather than deriving names from
+	 * allEntries — a member who tracked ZERO hours this period has no
+	 * entries to derive a name from, so deriving from entries silently
+	 * drops them from both the roster AND the team's expected-hours total. */
 	if (appState.settings.role === "manager" && selectedMember === "all") {
-		const memberNames = [
-			...new Set(allEntries.map((e) => e.memberName).filter(Boolean)),
-		];
-		if (memberNames.length > 0) {
+		if (teamMembers.length > 0) {
 			let totalExpected = 0;
-			for (const name of memberNames) {
-				const memberEntries = allEntries.filter((e) => e.memberName === name);
-				const memberExpected = await getExpectedHours(
-					memberEntries,
-					memberEntries,
+			for (const member of teamMembers) {
+				const memberEntries = allEntries.filter(
+					(e) => e.memberName === member.name,
 				);
-				totalExpected += memberExpected;
+				totalExpected += await getExpectedHours(member.name, memberEntries);
 			}
 			expectedHours = totalExpected;
 		}
@@ -1098,7 +1099,7 @@ async function renderStats() {
       TEAM COMPLIANCE TABLE
       ================================================================ -->
     <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
-      ${renderTeamComplianceTable(entries, expectedHours)}
+      ${await renderTeamComplianceTable(entries)}
     </div>
 
     <!-- ================================================================
@@ -1397,11 +1398,17 @@ async function renderStats() {
  * renderTeamComplianceTable
  * Shows every team member's tracking compliance, tier split, and hours.
  */
-function renderTeamComplianceTable(teamEntries, expectedHours) {
+async function renderTeamComplianceTable(teamEntries) {
 	const range = getPeriodRange();
 
-	/* Group entries by member */
+	/* Start from the FULL roster (module-level teamMembers, cached from
+	 * getTeamMemberList) so a member who tracked zero hours this period
+	 * still gets a row — with an empty entries array — instead of being
+	 * invisible because they have no entries to derive a name from. */
 	const byMember = {};
+	teamMembers.forEach((m) => {
+		byMember[m.name] = [];
+	});
 	teamEntries.forEach((e) => {
 		const name = e.memberName || "Unknown";
 		if (!byMember[name]) byMember[name] = [];
@@ -1421,23 +1428,10 @@ function renderTeamComplianceTable(teamEntries, expectedHours) {
 			tierTotal > 0 ? Math.round(((byTier[1] || 0) / tierTotal) * 100) : 0;
 		const t2Pct =
 			tierTotal > 0 ? Math.round(((byTier[2] || 0) / tierTotal) * 100) : 0;
-		/* Calculate per-member expected hours independently */
-		const memberOOO = getOOODatesFromEntries(memberEntries);
-		const startHour = appState.settings.dayStartHour || 8;
-		const memberFirstDate =
-			memberEntries
-				.map((e) => e.date)
-				.filter(Boolean)
-				.sort()[0] || range.startDate;
-		const effectiveStart =
-			memberFirstDate > range.startDate ? memberFirstDate : range.startDate;
-		const memberExpected = countExpectedHoursUpToNow(
-			effectiveStart,
-			range.endDate,
-			TARGETS.dailyTrackableHours,
-			memberOOO,
-			startHour,
-		);
+		/* Expected hours now come from the single consolidated helper,
+		 * which clamps to this member's TRUE join date (full history),
+		 * not just their first entry within this period's memberEntries. */
+		const memberExpected = await getExpectedHours(name, memberEntries);
 		const compliancePct =
 			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
 
@@ -1548,8 +1542,13 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	const alerts = [];
 	const tierMap = appState.tierMap || {};
 
-	/* Group entries by member */
+	/* Same roster-driven approach as renderTeamComplianceTable: start from
+	 * the full team roster so a zero-hours member still shows up as a
+	 * "Below target" alert rather than vanishing entirely. */
 	const byMember = {};
+	teamMembers.forEach((m) => {
+		byMember[m.name] = [];
+	});
 	teamEntries.forEach((e) => {
 		const name = e.memberName || "Unknown";
 		if (!byMember[name]) byMember[name] = [];
@@ -1560,23 +1559,10 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	const belowTarget = [];
 	for (const [name, memberEntries] of Object.entries(byMember)) {
 		const tracked = countTrackedHours(memberEntries);
-		const memberOOO = getOOODatesFromEntries(memberEntries);
-		const startHour = appState.settings.dayStartHour || 8;
-		const range = getPeriodRange();
-		const memberFirstDate =
-			memberEntries
-				.map((e) => e.date)
-				.filter(Boolean)
-				.sort()[0] || range.startDate;
-		const effectiveStart =
-			memberFirstDate > range.startDate ? memberFirstDate : range.startDate;
-		const memberExpected = countExpectedHoursUpToNow(
-			effectiveStart,
-			range.endDate,
-			TARGETS.dailyTrackableHours,
-			memberOOO,
-			startHour,
-		);
+		/* Same consolidated helper as the compliance table — clamps to
+		 * this member's true join date rather than their first entry
+		 * within THIS period's memberEntries. */
+		const memberExpected = await getExpectedHours(name, memberEntries);
 		const compliancePct =
 			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
 		if (compliancePct < TARGETS.compliancePercent) {
@@ -2621,38 +2607,42 @@ function renderBillableBreakdown(entries, total) {
 
 /**
  * getExpectedHours
- * Returns the expected trackable hours for the current period,
- * only counting days/hours up to now. Future days are not included.
- * OOO days are excluded. First tracked date is derived from the
- * entries themselves, not the local database.
+ * Returns the expected trackable hours for the current period, for either
+ * the local user ("self") or a single named team member, counting only
+ * days/hours up to now (future days excluded, OOO days excluded).
  *
- * @param {Array<Object>} entries - Entries for the period (needed to detect OOO days)
- * @param {Array<Object>} allAvailableEntries - All entries to find first tracked date (optional)
- * @returns {Promise<number>} Expected trackable hours up to now
+ * The window's start is clamped to whichever is LATER: the period start,
+ * or the person's TRUE first-ever-tracked ("join") date. That join date
+ * always comes from their FULL history — the local entries table for
+ * self, or every imported week for a team member — never just the
+ * entries passed in here. That means:
+ *   - A new hire is never penalized for days before they joined.
+ *   - Once joined, EVERY workday counts toward expected hours, including
+ *     days with zero entries in the period currently being viewed — a
+ *     no-show day no longer just disappears from the math.
+ *   - Self and manager views agree on the same person's compliance %,
+ *     since both now derive from the same unbounded join date.
+ *
+ * @param {string} name - "self", or a team member's name
+ * @param {Array<Object>} entries - That person's entries for the CURRENT
+ *   period only. Used solely to detect which days are marked OOO — NOT
+ *   used to determine the join date anymore.
+ * @returns {Promise<number>} Expected trackable hours so far
  */
-async function getExpectedHours(entries = [], allAvailableEntries = null) {
+async function getExpectedHours(name, entries = []) {
 	const range = getPeriodRange();
 	const oooDates = getOOODatesFromEntries(entries);
 	const startHour = appState.settings.dayStartHour || 8;
 
-	/* Find first tracked date from the appropriate source */
-	let firstDate;
-	if (selectedMember === "self") {
-		/* Own data — use local database */
-		firstDate = await getFirstTrackedDate();
-	} else if (allAvailableEntries && allAvailableEntries.length > 0) {
-		/* Team data — find earliest date from the entries */
-		firstDate =
-			allAvailableEntries
-				.map((e) => e.date)
-				.filter(Boolean)
-				.sort()[0] || null;
-	} else {
-		firstDate = null;
-	}
+	/* Look up the person's true join date from their full history,
+	 * never from the (possibly period-limited) entries passed in. */
+	const joinDate =
+		name === "self"
+			? await getFirstTrackedDate()
+			: await getFirstTrackedDateForMember(name);
 
 	const effectiveStart =
-		firstDate && firstDate > range.startDate ? firstDate : range.startDate;
+		joinDate && joinDate > range.startDate ? joinDate : range.startDate;
 
 	return countExpectedHoursUpToNow(
 		effectiveStart,
@@ -3229,6 +3219,15 @@ function attachStatsListeners() {
 export async function getStatsContext() {
 	if (!appState) return null;
 
+	/* Fetch the roster explicitly rather than relying on the module-level
+	 * teamMembers cache (which is only refreshed when initStats/
+	 * refreshTeamData run on the dashboard). getStatsContext is called
+	 * independently by app.js for report generation, so it shouldn't
+	 * depend on the dashboard having refreshed recently — this local
+	 * const also shadows the module-level variable, making the
+	 * dependency explicit instead of an implicit closure fallthrough. */
+	const teamMembers = await getTeamMemberList();
+
 	const range = getPeriodRange();
 	const tierMap = await getTierMap();
 
@@ -3261,22 +3260,22 @@ export async function getStatsContext() {
 	const byPOS = aggregateByPOS(entries);
 	const urgentHours = countUrgentHours(entries);
 	const urgentPct = tracked > 0 ? Math.round((urgentHours / tracked) * 100) : 0;
-	let expectedHours = await getExpectedHours(allEntries, allEntries);
+	let expectedHours = await getExpectedHours(selectedMember, allEntries);
 
-	/* For "All team" view, calculate expected hours per member and sum them */
+	/* For "All team" view, calculate expected hours per member and sum them.
+	 * IMPORTANT: iterate the full roster (teamMembers, cached module-level
+	 * list from getTeamMemberList) rather than deriving names from
+	 * allEntries — a member who tracked ZERO hours this period has no
+	 * entries to derive a name from, so deriving from entries silently
+	 * drops them from both the roster AND the team's expected-hours total. */
 	if (appState.settings.role === "manager" && selectedMember === "all") {
-		const memberNames = [
-			...new Set(allEntries.map((e) => e.memberName).filter(Boolean)),
-		];
-		if (memberNames.length > 0) {
+		if (teamMembers.length > 0) {
 			let totalExpected = 0;
-			for (const name of memberNames) {
-				const memberEntries = allEntries.filter((e) => e.memberName === name);
-				const memberExpected = await getExpectedHours(
-					memberEntries,
-					memberEntries,
+			for (const member of teamMembers) {
+				const memberEntries = allEntries.filter(
+					(e) => e.memberName === member.name,
 				);
-				totalExpected += memberExpected;
+				totalExpected += await getExpectedHours(member.name, memberEntries);
 			}
 			expectedHours = totalExpected;
 		}
