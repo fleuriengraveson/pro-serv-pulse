@@ -142,7 +142,8 @@ export function getWeekDateRange(date) {
 /**
  * getFiscalYear
  * Determines the fiscal year for a given date.
- * Fiscal year starts April 1, so April 2026 through March 2027 is FY2026.
+ * Fiscal year starts April 1, so April 2026 through March 2027 is FY2027
+ * (named after the year it ends).
  *
  * @param {Date} date
  * @returns {number} The fiscal year number
