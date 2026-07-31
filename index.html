@@ -104,6 +104,65 @@
 			>
 				Reading from backup
 			</div>
+
+			<!-- Restore flow buttons — hidden by default, shown one at a
+			     time by maybeOfferRestore() in app.js depending on what
+			     step the person is at. -->
+			<button
+				id="restore-connect-btn"
+				class="hidden"
+				style="
+					margin-top: 16px;
+					font-size: 13px;
+					font-weight: 500;
+					padding: 8px 16px;
+					border-radius: 8px;
+					border: none;
+					background: #8b5cf6;
+					color: white;
+					cursor: pointer;
+					font-family: inherit;
+				"
+			>
+				Connect sync folder
+			</button>
+
+			<div style="margin-top: 16px; display: flex; gap: 8px">
+				<button
+					id="restore-confirm-btn"
+					class="hidden"
+					style="
+						font-size: 13px;
+						font-weight: 500;
+						padding: 8px 16px;
+						border-radius: 8px;
+						border: none;
+						background: #8b5cf6;
+						color: white;
+						cursor: pointer;
+						font-family: inherit;
+					"
+				>
+					Restore
+				</button>
+				<button
+					id="restore-skip-btn"
+					class="hidden"
+					style="
+						font-size: 13px;
+						font-weight: 500;
+						padding: 8px 16px;
+						border-radius: 8px;
+						border: 1px solid #e7e5e4;
+						background: white;
+						color: #57534e;
+						cursor: pointer;
+						font-family: inherit;
+					"
+				>
+					Start fresh
+				</button>
+			</div>
 		</div>
 		<style>
 			@keyframes spin {

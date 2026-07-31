@@ -39,6 +39,25 @@ const HANDLE_DB_VERSION = 1;
 const HANDLE_STORE = "handles";
 
 /* ============================================================================
+ * SYNC WRITE LOCK
+ * --------------------------------------------------------------------------
+ * While a restore decision is pending (empty local data, checking the
+ * sync folder for a backup before doing anything else), outbound writes
+ * must not run — otherwise a save that happens mid-decision could
+ * overwrite a real backup with blank/partial local data.
+ * Defaults to unlocked: normal users with existing data are never affected.
+ * ========================================================================= */
+let writesLocked = false;
+
+export function lockSyncWrites() {
+	writesLocked = true;
+}
+
+export function unlockSyncWrites() {
+	writesLocked = false;
+}
+
+/* ============================================================================
  * BROWSER SUPPORT CHECK
  * ========================================================================= */
 
@@ -171,7 +190,10 @@ async function verifyPermission(handle, readWrite = true) {
  * @param {string} purpose - 'export' or 'import'
  * @returns {Promise<{ success: boolean, name: string }>}
  */
-export async function connectSyncFolder(purpose = "export") {
+export async function connectSyncFolder(
+	purpose = "export",
+	{ readOnly = false } = {},
+) {
 	if (!isSyncSupported()) {
 		return {
 			success: false,
@@ -183,7 +205,7 @@ export async function connectSyncFolder(purpose = "export") {
 	try {
 		/* Show the native folder picker */
 		const handle = await window.showDirectoryPicker({
-			mode: purpose === "export" ? "readwrite" : "read",
+			mode: readOnly ? "read" : purpose === "export" ? "readwrite" : "read",
 			startIn: "documents",
 		});
 
@@ -249,6 +271,45 @@ export async function getSyncStatus(purpose = "export") {
 	};
 }
 
+/**
+ * checkForBackup
+ * Read-only inspection of the sync folder: looks for this user's backup
+ * file and reports what's in it, without importing anything. Used before
+ * offering a restore, so the person can see what they'd be recovering.
+ *
+ * @param {string} userName
+ * @returns {Promise<{found:boolean, entryCount?:number, exportDate?:string, error?:string}>}
+ */
+export async function checkForBackup(userName) {
+	const handle = await loadHandle("export");
+	if (!handle) return { found: false, error: "No folder connected" };
+
+	const hasPermission = await verifyPermission(
+		handle,
+		false,
+	); /* read-only check */
+	if (!hasPermission) return { found: false, error: "Permission denied" };
+
+	const safeName = (userName || "unnamed")
+		.toLowerCase()
+		.replace(/\s+/g, "_")
+		.replace(/[^a-z0-9_]/g, "");
+	try {
+		const fileHandle = await handle.getFileHandle(`${safeName}_backup.json`, {
+			create: false,
+		});
+		const file = await fileHandle.getFile();
+		const data = JSON.parse(await file.text());
+		return {
+			found: true,
+			entryCount: data.allEntries?.length || 0,
+			exportDate: data.exportDate || null,
+		};
+	} catch (e) {
+		return { found: false, error: "No backup file found for this name" };
+	}
+}
+
 /* ============================================================================
  * AUTO-EXPORT (CONTRIBUTORS)
  * --------------------------------------------------------------------------
@@ -267,6 +328,11 @@ export async function getSyncStatus(purpose = "export") {
  */
 export async function autoExportWeek(state, refDate = new Date()) {
 	try {
+		/* Refuse to write while a restore decision is pending */
+		if (writesLocked) {
+			console.log("Sync write skipped — restore decision pending");
+			return false;
+		}
 		const handle = await loadHandle("export");
 		if (!handle) return false;
 
@@ -330,6 +396,28 @@ export async function autoExportWeek(state, refDate = new Date()) {
 
 		/* Generate filename and write to the folder */
 		const filename = generateExportFilename(state.settings.name, weekKey);
+
+		/* Overwrite protection: if a file already exists for this week with
+		 * real entries, don't replace it with an empty one. Mirrors the
+		 * protection autoExportFullBackup already has, applied per-week. */
+		if (entries.length === 0) {
+			try {
+				const existingHandle = await handle.getFileHandle(filename, {
+					create: false,
+				});
+				const existingFile = await existingHandle.getFile();
+				const existingData = JSON.parse(await existingFile.text());
+				if (existingData.entries?.length > 0) {
+					console.warn(
+						`Skipping export of ${filename}: would overwrite ${existingData.entries.length} entries with 0`,
+					);
+					return false;
+				}
+			} catch (e) {
+				/* No existing file for this week — safe to write, nothing there to lose */
+			}
+		}
+
 		const fileHandle = await handle.getFileHandle(filename, { create: true });
 		const writable = await fileHandle.createWritable();
 		await writable.write(JSON.stringify(exportData, null, 2));
@@ -359,6 +447,11 @@ export async function autoExportWeek(state, refDate = new Date()) {
  */
 export async function autoExportFullBackup(state) {
 	try {
+		/* Refuse to write while a restore decision is pending */
+		if (writesLocked) {
+			console.log("Sync write skipped — restore decision pending");
+			return false;
+		}
 		const handle = await loadHandle("export");
 		if (!handle) return false;
 

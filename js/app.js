@@ -68,6 +68,7 @@ const state = {
 	settings: null, // Cached user settings
 	tierMap: null, // Cached tier mappings
 };
+window.state = state; // TEMP — for console testing only, remove before shipping
 
 /* ============================================================================
  * INITIALIZATION
@@ -105,94 +106,25 @@ async function init() {
 	await migrateAdminSplit();
 
 	/* ================================================================
-	 * EMPTY DATABASE DETECTION & AUTO-RESTORE
-	 * Check if the database was wiped (cache clear, etc.)
-	 * and attempt to restore from the sync folder backup.
-	 * This MUST run before any exports can trigger.
+	 * RESTORE CHECK
+	 * Note whether local data was missing at load. If so, lock outbound
+	 * sync writes immediately and — once we have a name to look up —
+	 * check the sync folder for a backup before anything else happens.
 	 * ================================================================ */
 	const { hasAnyData } = await import("./db.js");
-	const hasData = await hasAnyData();
-	const hadDataBefore = localStorage.getItem("chronos-has-data") === "true";
+	state.needsRestoreCheck = !(await hasAnyData());
 
-	if (!hasData && hadDataBefore && state.settings.name) {
-		/* Database was wiped but user had data before — attempt restore */
-		console.log(
-			"RESTORE: Database empty but had data before. Starting restore...",
-		);
-		const overlay = document.getElementById("restore-overlay");
-		overlay?.classList.remove("hidden");
+	if (state.needsRestoreCheck) {
+		const { lockSyncWrites } = await import("./sync.js");
+		lockSyncWrites();
 
-		/* Safety timeout — always hide overlay after 15 seconds */
-		const safetyTimeout = setTimeout(() => {
-			overlay?.classList.add("hidden");
-			console.warn("RESTORE: Safety timeout — hiding overlay");
-		}, 15000);
-
-		try {
-			const { autoRestoreFromBackup, getSyncStatus } =
-				await import("./sync.js");
-			console.log("RESTORE: Loaded sync module");
-
-			const syncStatus = await getSyncStatus("export");
-			console.log("RESTORE: Sync status:", syncStatus);
-
-			if (syncStatus.connected) {
-				console.log("RESTORE: Sync folder connected, attempting restore...");
-
-				const restoreMsg = document.getElementById("restore-message");
-				const restoreSub = document.getElementById("restore-sub");
-
-				if (!syncStatus.hasPermission) {
-					if (restoreMsg)
-						restoreMsg.textContent = "Grant file access to restore";
-					if (restoreSub) restoreSub.textContent = "Click Allow when prompted";
-				}
-
-				console.log("RESTORE: Calling autoRestoreFromBackup...");
-				const result = await autoRestoreFromBackup(state.settings.name);
-				console.log("RESTORE: Result:", result);
-
-				if (result.success) {
-					if (restoreMsg) restoreMsg.textContent = "Data restored!";
-					if (restoreSub)
-						restoreSub.textContent = `Recovered ${result.entries} entries`;
-
-					/* Reload settings after restore */
-					state.settings = await getUserSettings();
-					state.tierMap = await getTierMap();
-
-					await new Promise((r) => setTimeout(r, 1500));
-				} else {
-					console.log("RESTORE: Failed —", result.error);
-					if (restoreMsg)
-						restoreMsg.textContent = "Could not restore automatically";
-					if (restoreSub)
-						restoreSub.textContent =
-							result.error || "Try restoring from backup in Settings";
-					await new Promise((r) => setTimeout(r, 2500));
-				}
-			} else {
-				console.log("RESTORE: No sync folder connected");
-				const restoreMsg = document.getElementById("restore-message");
-				const restoreSub = document.getElementById("restore-sub");
-				if (restoreMsg) restoreMsg.textContent = "Data may be recoverable";
-				if (restoreSub)
-					restoreSub.textContent =
-						"Connect your sync folder in Settings to restore";
-				await new Promise((r) => setTimeout(r, 2500));
-			}
-		} catch (e) {
-			console.error("RESTORE: Error:", e);
+		/* If the name already survived (a partial-eviction case rather
+		 * than a full wipe), we can check for a backup immediately.
+		 * Otherwise this waits — showOnboarding's save handler calls
+		 * maybeOfferRestore once a name has been entered. */
+		if (state.settings.name) {
+			await maybeOfferRestore(state.settings.name);
 		}
-
-		console.log("RESTORE: Done — hiding overlay");
-		clearTimeout(safetyTimeout);
-		overlay?.classList.add("hidden");
-	}
-
-	/* Set the has-data flag for future detection */
-	if (hasData || hadDataBefore) {
-		localStorage.setItem("chronos-has-data", "true");
 	}
 
 	/* Check if this is a first-time user (no name set) */
@@ -266,6 +198,12 @@ function showOnboarding() {
 		await saveUserSettings(state.settings);
 		updateExportReportVisibility();
 
+		/* If local data was empty at load, check for a backup now that
+		 * we have a name to look up. Runs before the banner disappears. */
+		if (state.needsRestoreCheck) {
+			await maybeOfferRestore(name);
+		}
+
 		/* Hide the banner with a smooth transition */
 		banner.style.opacity = "0";
 		banner.style.transform = "translateY(-8px)";
@@ -277,6 +215,133 @@ function showOnboarding() {
 	input.addEventListener("keydown", (e) => {
 		if (e.key === "Enter") saveBtn.click();
 	});
+}
+
+/**
+ * maybeOfferRestore
+ * Checks the sync folder (read-only) for a backup matching this name,
+ * and — only on explicit confirmation — restores it. Always resolves by
+ * unlocking sync writes, whether or not a restore actually happened.
+ * Reuses the existing restore-overlay markup.
+ *
+ * @param {string} name
+ */
+async function maybeOfferRestore(name) {
+	const overlay = document.getElementById("restore-overlay");
+	const spinner = document.getElementById("restore-spinner");
+	const restoreMsg = document.getElementById("restore-message");
+	const restoreSub = document.getElementById("restore-sub");
+	const connectBtn = document.getElementById("restore-connect-btn");
+	const restoreBtn = document.getElementById("restore-confirm-btn");
+	const skipBtn = document.getElementById("restore-skip-btn");
+
+	const {
+		isSyncSupported,
+		getSyncStatus,
+		connectSyncFolder,
+		checkForBackup,
+		autoRestoreFromBackup,
+		unlockSyncWrites,
+	} = await import("./sync.js");
+
+	/* Always unlock on the way out, however this resolves */
+	const finish = () => {
+		unlockSyncWrites();
+		overlay?.classList.add("hidden");
+		spinner?.classList.remove("hidden"); /* reset for next time */
+		connectBtn?.classList.add("hidden");
+		restoreBtn?.classList.add("hidden");
+		skipBtn?.classList.add("hidden");
+	};
+
+	if (!isSyncSupported()) return finish();
+
+	overlay?.classList.remove("hidden");
+	if (restoreMsg) restoreMsg.textContent = "Checking for a backup...";
+	if (restoreSub) restoreSub.textContent = "";
+
+	const status = await getSyncStatus("export");
+
+	/* Runs the actual backup lookup once we're connected read-only */
+	async function runBackupCheck() {
+		spinner?.classList.remove("hidden"); /* checking the file is real work */
+		const backup = await checkForBackup(name);
+		spinner?.classList.add(
+			"hidden",
+		); /* result is in — nothing running until a click */
+
+		if (!backup.found) {
+			if (restoreMsg) restoreMsg.textContent = "No backup found";
+			if (restoreSub) restoreSub.textContent = backup.error || "Starting fresh";
+			setTimeout(finish, 2000);
+			return;
+		}
+
+		/* Show what's there and wait for explicit confirmation */
+		if (restoreMsg)
+			restoreMsg.textContent = `Backup found: ${backup.entryCount} entries`;
+		if (restoreSub) {
+			restoreSub.textContent = backup.exportDate
+				? `Last saved ${new Date(backup.exportDate).toLocaleDateString()} — restore it?`
+				: "Restore it?";
+		}
+
+		restoreBtn?.classList.remove("hidden");
+		skipBtn?.classList.remove("hidden");
+
+		restoreBtn.onclick = async () => {
+			restoreBtn.classList.add("hidden");
+			skipBtn?.classList.add("hidden");
+			spinner?.classList.remove("hidden"); /* restoring is real work */
+			const result = await autoRestoreFromBackup(name);
+			if (result.success) {
+				/* Re-run migration against the data that just arrived — the
+				 * guard would otherwise stay set from the earlier no-op
+				 * pass against the empty database. */
+				localStorage.removeItem("chronos-admin-split-migrated");
+				await migrateAdminSplit();
+
+				state.settings = await getUserSettings();
+				state.tierMap = await getTierMap();
+
+				if (restoreMsg) restoreMsg.textContent = "Data restored!";
+				if (restoreSub)
+					restoreSub.textContent = `Recovered ${result.entries} entries`;
+			} else {
+				if (restoreMsg) restoreMsg.textContent = "Restore failed";
+				if (restoreSub) restoreSub.textContent = result.error || "";
+			}
+			setTimeout(finish, 1500);
+		};
+
+		skipBtn.onclick = () => finish();
+	}
+
+	/* No folder connected yet — this needs a user gesture, so show a
+	 * prompt rather than firing the picker on its own. */
+	if (!status.connected) {
+		if (restoreMsg)
+			restoreMsg.textContent = "Have you used Pulse on this device before?";
+		if (restoreSub)
+			restoreSub.textContent = "Connect your sync folder to check for a backup";
+		spinner?.classList.add(
+			"hidden",
+		); /* nothing running — waiting on the person */
+		connectBtn?.classList.remove("hidden");
+
+		if (connectBtn) {
+			connectBtn.onclick = async () => {
+				connectBtn.classList.add("hidden");
+				spinner?.classList.remove("hidden"); /* connecting is real work again */
+				const result = await connectSyncFolder("export", { readOnly: true });
+				if (!result.success) return finish();
+				await runBackupCheck();
+			};
+		}
+		return; /* wait for the click — do not finish yet */
+	}
+
+	await runBackupCheck();
 }
 
 /* ============================================================================

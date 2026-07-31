@@ -949,6 +949,14 @@ export async function restoreFromPersonalBackup(backupData) {
 	let notesCount = 0;
 	let ticketCount = 0;
 
+	/* Build a lookup of existing local [date+timeSlot] pairs, so we skip
+	 * any backup entry that would duplicate something already logged
+	 * locally since the wipe (local wins — it's newer). */
+	const existingEntries = await db.entries.toArray();
+	const existingKeys = new Set(
+		existingEntries.map((e) => `${e.date}|${e.timeSlot}`),
+	);
+
 	/* Restore settings if present */
 	if (backupData.settings) {
 		const restoredSettings = backupData.settings.value || backupData.settings;
@@ -1012,6 +1020,9 @@ export async function restoreFromPersonalBackup(backupData) {
 		for (const week of backupData.weeks) {
 			if (week.entries) {
 				for (const entry of week.entries) {
+					const key = `${entry.date}|${entry.timeSlot}`;
+					if (existingKeys.has(key))
+						continue; /* local entry already covers this slot */
 					await db.entries.put(entry);
 					entryCount++;
 				}
@@ -1041,6 +1052,8 @@ export async function restoreFromPersonalBackup(backupData) {
 	} else if (backupData.allEntries) {
 		/* Full backup format */
 		for (const entry of backupData.allEntries) {
+			const key = `${entry.date}|${entry.timeSlot}`;
+			if (existingKeys.has(key)) continue;
 			await db.entries.put(entry);
 			entryCount++;
 		}
