@@ -181,8 +181,13 @@ export async function saveEntry(entry) {
 			.first();
 
 		if (existing) {
-			/* Update in place, keeping the same id */
-			await db.entries.put(entry, existing.id);
+			/* Update in place, keeping the same id. Set id directly on the
+			 * object rather than relying on put(obj, key) — Dexie doesn't
+			 * reliably inject an explicit key into an object with no id
+			 * property on tables with an auto-incrementing primary key,
+			 * which was causing it to attempt an insert instead of an
+			 * update and collide with the unique [date+timeSlot] index. */
+			await db.entries.put({ ...entry, id: existing.id });
 		} else {
 			await db.entries.add(entry);
 		}
