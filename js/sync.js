@@ -437,10 +437,9 @@ export async function autoExportWeek(state, refDate = new Date()) {
 
 /**
  * autoExportFullBackup
- * Writes a complete backup of all user data to the sync folder.
- * Uses safe-write: writes to a temp file first, then renames.
- * Includes overwrite protection — won't replace a larger backup
- * with significantly less data.
+ * Writes directly to the backup file; createWritable() only commits the
+ * new contents atomically on close(), so the file on disk is never left
+ * partially written or briefly missing.
  *
  * @param {Object} state - The app state
  * @returns {Promise<boolean>} true if backup succeeded
@@ -523,7 +522,6 @@ export async function autoExportFullBackup(state) {
 			.replace(/\s+/g, "_")
 			.replace(/[^a-z0-9_]/g, "");
 		const backupFilename = `${safeName}_backup.json`;
-		const tempFilename = `${safeName}_backup_new.json`;
 
 		/* Overwrite protection: check existing backup size */
 		try {
@@ -536,10 +534,21 @@ export async function autoExportFullBackup(state) {
 
 			if (
 				existingData.entryCount &&
-				allEntries.length < existingData.entryCount * 0.5
+				allEntries.length < existingData.entryCount
 			) {
+				/* Any decrease is treated as unsafe, not just a >50% drop.
+				 * Rationale: this file holds one user's ENTIRE history and
+				 * is the only recovery copy. Real entry counts should only
+				 * grow over time; a lower count almost always means this
+				 * device is behind (e.g. hasn't restored/synced yet), not
+				 * that the user actually deleted a chunk of their history.
+				 * The old 50%-drop-only threshold let smaller-but-real
+				 * data loss (e.g. 100 -> 60 entries) through silently.
+				 * If a genuine bulk deletion is ever needed, that should
+				 * go through a separate, explicit "force backup" action
+				 * rather than through this automatic write path. */
 				console.warn(
-					`Backup protection: new backup has ${allEntries.length} entries vs existing ${existingData.entryCount}. Skipping.`,
+					`Backup protection: new backup has ${allEntries.length} entries vs existing ${existingData.entryCount} (a decrease of ${existingData.entryCount - allEntries.length}). Skipping write to avoid overwriting a fuller backup.`,
 				);
 				return false;
 			}
@@ -547,36 +556,24 @@ export async function autoExportFullBackup(state) {
 			/* No existing backup — safe to write */
 		}
 
-		/* Safe write: write to temp file first */
-		const tempHandle = await handle.getFileHandle(tempFilename, {
+		/* Safe write: createWritable() commits atomically on close().
+		 * The FS Access API buffers everything written to a hidden swap
+		 * file under the hood, and only replaces the target file's actual
+		 * contents once close() resolves successfully. The on-disk backup
+		 * is therefore either the old complete backup or the new complete
+		 * backup — never a deleted/missing/half-written state.
+		 *
+		 * This is why the previous "write temp, delete old, copy temp over"
+		 * sequence was both unnecessary and unsafe: it manually recreated
+		 * the exact delete-then-write gap that createWritable() already
+		 * avoids for us. If write() or close() throws below, the existing
+		 * backup file on disk is left completely untouched. */
+		const backupHandle = await handle.getFileHandle(backupFilename, {
 			create: true,
 		});
-		const tempWritable = await tempHandle.createWritable();
-		await tempWritable.write(JSON.stringify(backupData, null, 2));
-		await tempWritable.close();
-
-		/* Remove old backup and rename temp */
-		try {
-			await handle.removeEntry(backupFilename);
-		} catch (e) {
-			/* Old backup didn't exist — that's fine */
-		}
-
-		/* Since File System Access API doesn't have rename, we copy and delete */
-		const finalHandle = await handle.getFileHandle(backupFilename, {
-			create: true,
-		});
-		const finalWritable = await finalHandle.createWritable();
-		const tempFile = await tempHandle.getFile();
-		await finalWritable.write(await tempFile.text());
-		await finalWritable.close();
-
-		/* Clean up temp file */
-		try {
-			await handle.removeEntry(tempFilename);
-		} catch (e) {
-			/* ignore */
-		}
+		const backupWritable = await backupHandle.createWritable();
+		await backupWritable.write(JSON.stringify(backupData, null, 2));
+		await backupWritable.close();
 
 		/* Store backup timestamp */
 		localStorage.setItem("chronos-last-backup", Date.now().toString());
