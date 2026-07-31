@@ -57,6 +57,42 @@ db.version(3).stores({
 	dayMeta: "date",
 });
 
+/* Version 4: Enforce true uniqueness on [date+timeSlot] for entries.
+ * The old index allowed duplicate rows for the same block, letting
+ * racy saves double-count hours. Before Dexie applies the new unique
+ * index, we scan for any existing duplicate [date+timeSlot] groups
+ * and delete all but the most recently-created row in each group —
+ * otherwise the upgrade will fail on existing data. */
+db.version(4)
+	.stores({
+		entries: "++id, &[date+timeSlot], date, category",
+		teamData: "++id, [name+weekKey], name, weekKey",
+	})
+	.upgrade(async (tx) => {
+		const all = await tx.table("entries").toArray();
+
+		/* Group rows by their [date+timeSlot] key */
+		const groups = new Map();
+		for (const row of all) {
+			const key = `${row.date}|${row.timeSlot}`;
+			if (!groups.has(key)) groups.set(key, []);
+			groups.get(key).push(row);
+		}
+
+		/* For any group with more than one row, keep the row with the
+		 * highest id (most recently written) and delete the rest. */
+		const idsToDelete = [];
+		for (const rows of groups.values()) {
+			if (rows.length <= 1) continue;
+			rows.sort((a, b) => b.id - a.id);
+			for (let i = 1; i < rows.length; i++) idsToDelete.push(rows[i].id);
+		}
+
+		if (idsToDelete.length > 0) {
+			await tx.table("entries").bulkDelete(idsToDelete);
+		}
+	});
+
 /* ============================================================================
  * SETTINGS OPERATIONS
  * ========================================================================= */
@@ -132,19 +168,25 @@ export async function saveTierMap(map) {
  *   - notes {string}      Optional notes
  */
 export async function saveEntry(entry) {
-	/* Check if an entry already exists for this date+timeSlot */
-	const existing = await db.entries
-		.where("[date+timeSlot]")
-		.equals([entry.date, entry.timeSlot])
-		.first();
+	/* Wrap the lookup + write in a transaction so concurrent calls to
+	 * saveEntry can't interleave and both decide "no existing row" at
+	 * once. IndexedDB serializes readwrite transactions against the
+	 * same store, so this closes the race that used to allow duplicate
+	 * [date+timeSlot] rows. The unique index on entries is a hard
+	 * backstop even if some other code path bypasses this function. */
+	await db.transaction("rw", db.entries, async () => {
+		const existing = await db.entries
+			.where("[date+timeSlot]")
+			.equals([entry.date, entry.timeSlot])
+			.first();
 
-	if (existing) {
-		/* Update the existing record, preserving its ID */
-		await db.entries.update(existing.id, entry);
-	} else {
-		/* Create a new record */
-		await db.entries.add(entry);
-	}
+		if (existing) {
+			/* Update in place, keeping the same id */
+			await db.entries.put(entry, existing.id);
+		} else {
+			await db.entries.add(entry);
+		}
+	});
 }
 
 /**
@@ -158,6 +200,22 @@ export async function saveMultipleEntries(entries) {
 	await db.transaction("rw", db.entries, async () => {
 		for (const entry of entries) {
 			await saveEntry(entry);
+		}
+	});
+}
+
+/**
+ * deleteMultipleEntries
+ * Batch delete multiple time entries at once. Runs in a single
+ * transaction so a clear/delete operation can't be left half-done
+ * (e.g. if the tab closes mid-loop).
+ *
+ * @param {Array<{date: string, timeSlot: string}>} keys - date+timeSlot pairs to delete
+ */
+export async function deleteMultipleEntries(keys) {
+	await db.transaction("rw", db.entries, async () => {
+		for (const { date, timeSlot } of keys) {
+			await deleteEntry(date, timeSlot);
 		}
 	});
 }
@@ -328,21 +386,20 @@ export async function saveWeeklyNotes(weekKey, notes) {
  * @returns {Promise<boolean>} True if imported, false if duplicate detected
  */
 export async function importTeamMemberData(name, weekKey, data) {
-	/* Check for existing import from this person for this week */
-	const existing = await db.teamData
-		.where("[name+weekKey]")
-		.equals([name, weekKey])
-		.first();
+	return await db.transaction("rw", db.teamData, async () => {
+		const existing = await db.teamData
+			.where("[name+weekKey]")
+			.equals([name, weekKey])
+			.first();
 
-	if (existing) {
-		/* Duplicate detected — update the existing record instead */
-		await db.teamData.update(existing.id, { name, weekKey, data });
-		return false;
-	}
+		if (existing) {
+			await db.teamData.put({ id: existing.id, name, weekKey, data });
+			return false;
+		}
 
-	/* New import — add to the database */
-	await db.teamData.add({ name, weekKey, data });
-	return true;
+		await db.teamData.add({ name, weekKey, data });
+		return true;
+	});
 }
 
 /**

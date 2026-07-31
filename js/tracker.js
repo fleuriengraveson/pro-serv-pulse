@@ -16,7 +16,9 @@ import { CATEGORIES, TIME_DEFAULTS, TARGETS } from "./config.js";
 import {
 	getEntriesForDate,
 	saveEntry,
+	saveMultipleEntries,
 	deleteEntry,
+	deleteMultipleEntries,
 	getEntriesForDateRange,
 	getTierMap,
 	getWeeklyNotes,
@@ -1967,15 +1969,15 @@ async function fillRange(fromSlot, toSlot, date) {
 	const source = entries[fromSlot];
 	if (!source) return;
 
-	/* Determine the range bounds (in case user shift-clicks upward) */
 	const fromIdx = timeSlots.indexOf(fromSlot);
 	const toIdx = timeSlots.indexOf(toSlot);
 	const startIdx = Math.min(fromIdx, toIdx);
 	const endIdx = Math.max(fromIdx, toIdx);
 
-	/* Fill every slot in the range */
+	/* Build the full batch first, then write it in one atomic transaction */
+	const batch = [];
 	for (let i = startIdx; i <= endIdx; i++) {
-		await saveEntry({
+		batch.push({
 			date,
 			timeSlot: timeSlots[i],
 			category: source.category,
@@ -1989,6 +1991,7 @@ async function fillRange(fromSlot, toSlot, date) {
 			notes: source.notes || "",
 		});
 	}
+	await saveMultipleEntries(batch);
 }
 
 /**
@@ -2608,20 +2611,21 @@ async function showOOOPopover(dateStr, chipEl) {
 
 	/* Mark as OOO (empty day) */
 	popover.querySelector("#ooo-confirm")?.addEventListener("click", async () => {
-		for (const slot of timeSlots) {
-			await saveEntry({
-				date: dateStr,
-				timeSlot: slot,
-				category: "ooo",
-				subCategory: "",
-				billable: false,
-				urgent: false,
-				ticketLink: "",
-				merchant: "",
-				formerPOS: "",
-				notes: "",
-			});
-		}
+		/* Build the full day's OOO batch, then write it in one
+		 * atomic transaction instead of saving slot-by-slot. */
+		const batch = timeSlots.map((slot) => ({
+			date: dateStr,
+			timeSlot: slot,
+			category: "ooo",
+			subCategory: "",
+			billable: false,
+			urgent: false,
+			ticketLink: "",
+			merchant: "",
+			formerPOS: "",
+			notes: "",
+		}));
+		await saveMultipleEntries(batch);
 		/* Auto-export to sync folder if connected */
 		try {
 			const { autoExportWeek } = await import("./sync.js");
@@ -2639,8 +2643,13 @@ async function showOOOPopover(dateStr, chipEl) {
 		if (isAllOOO) {
 			/* No confirmation needed for pure OOO days */
 			const entries = await getEntriesForDate(dateStr);
-			for (const entry of entries) {
-				await deleteEntry(dateStr, entry.timeSlot);
+			const keysToDelete = entries.map((entry) => ({
+				date: dateStr,
+				timeSlot: entry.timeSlot,
+			}));
+			if (keysToDelete.length > 0) {
+				await deleteMultipleEntries(keysToDelete);
+				markHasData();
 			}
 			closeOOOPopover();
 			await renderTracker();
@@ -2656,8 +2665,13 @@ async function showOOOPopover(dateStr, chipEl) {
 		.querySelector("#ooo-confirm-delete")
 		?.addEventListener("click", async () => {
 			const entries = await getEntriesForDate(dateStr);
-			for (const entry of entries) {
-				await deleteEntry(dateStr, entry.timeSlot);
+			const keysToDelete = entries.map((entry) => ({
+				date: dateStr,
+				timeSlot: entry.timeSlot,
+			}));
+			if (keysToDelete.length > 0) {
+				await deleteMultipleEntries(keysToDelete);
+				markHasData();
 			}
 			closeOOOPopover();
 			await renderTracker();
@@ -3073,6 +3087,9 @@ async function fillLunch() {
 		return;
 	}
 
+	/* Build the batch first, then write it in one atomic transaction
+	 * instead of saving slot-by-slot. */
+	const batch = [];
 	for (let i = 0; i < lunchBlocks; i++) {
 		const totalMinutes = startHour * 60 + startMinute + i * 30;
 		const hour = Math.floor(totalMinutes / 60);
@@ -3081,7 +3098,7 @@ async function fillLunch() {
 
 		/* Only fill if the block is empty — don't overwrite manual entries */
 		if (!occupiedSlots.has(slot)) {
-			await saveEntry({
+			batch.push({
 				date: dateStr,
 				timeSlot: slot,
 				category: "lunch",
@@ -3094,8 +3111,11 @@ async function fillLunch() {
 				notes: "",
 				autoLunch: true /* Flag so "Clear lunch" knows this was auto-filled */,
 			});
-			markHasData();
 		}
+	}
+	if (batch.length > 0) {
+		await saveMultipleEntries(batch);
+		markHasData();
 	}
 
 	/* Re-render to show the filled lunch blocks */
@@ -3138,6 +3158,9 @@ async function fillLunchWeek() {
 		/* Build a set of occupied slots so we don't overwrite manual entries */
 		const occupiedSlots = new Set(existing.map((e) => e.timeSlot));
 
+		/* Build the day's lunch batch first, then write it in one
+		 * atomic transaction instead of saving slot-by-slot. */
+		const batch = [];
 		for (let i = 0; i < lunchBlocks; i++) {
 			const totalMinutes = startHour * 60 + startMinute + i * 30;
 			const hour = Math.floor(totalMinutes / 60);
@@ -3146,7 +3169,7 @@ async function fillLunchWeek() {
 
 			/* Only fill if the block is empty */
 			if (!occupiedSlots.has(slot)) {
-				await saveEntry({
+				batch.push({
 					date: dateStr,
 					timeSlot: slot,
 					category: "lunch",
@@ -3159,8 +3182,11 @@ async function fillLunchWeek() {
 					notes: "",
 					autoLunch: true,
 				});
-				markHasData();
 			}
+		}
+		if (batch.length > 0) {
+			await saveMultipleEntries(batch);
+			markHasData();
 		}
 	}
 
@@ -3184,11 +3210,15 @@ async function clearAutoLunchDay() {
 	const dateStr = formatDateISO(currentDate);
 	const dayEntries = await getEntriesForDate(dateStr);
 
-	/* Delete only entries that were auto-filled by the Fill lunch button */
-	for (const entry of dayEntries) {
-		if (entry.category === "lunch" && entry.autoLunch) {
-			await deleteEntry(entry.date, entry.timeSlot);
-		}
+	/* Delete only entries that were auto-filled by the Fill lunch button,
+	 * as a single atomic transaction rather than one delete at a time. */
+	const keysToDelete = dayEntries
+		.filter((entry) => entry.category === "lunch" && entry.autoLunch)
+		.map((entry) => ({ date: entry.date, timeSlot: entry.timeSlot }));
+
+	if (keysToDelete.length > 0) {
+		await deleteMultipleEntries(keysToDelete);
+		markHasData();
 	}
 
 	/* Auto-export to sync folder if connected */
@@ -3212,11 +3242,15 @@ async function clearAutoLunchWeek() {
 	const weekEnd = formatDateISO(weekDates[4]);
 	const weekEntries = await getEntriesForDateRange(weekStart, weekEnd);
 
-	/* Delete only entries that were auto-filled by the Fill lunch button */
-	for (const entry of weekEntries) {
-		if (entry.category === "lunch" && entry.autoLunch) {
-			await deleteEntry(entry.date, entry.timeSlot);
-		}
+	/* Delete only entries that were auto-filled by the Fill lunch button,
+	 * as a single atomic transaction rather than one delete at a time. */
+	const keysToDelete = weekEntries
+		.filter((entry) => entry.category === "lunch" && entry.autoLunch)
+		.map((entry) => ({ date: entry.date, timeSlot: entry.timeSlot }));
+
+	if (keysToDelete.length > 0) {
+		await deleteMultipleEntries(keysToDelete);
+		markHasData();
 	}
 
 	/* Auto-export to sync folder if connected */
