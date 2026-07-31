@@ -20,7 +20,7 @@ import {
 	migrateAdminSplit,
 	getTicketStatsForRange,
 } from "./db.js";
-import { initTracker } from "./tracker.js";
+import { initTracker, getCurrentWeekDates } from "./tracker.js";
 import { initSettings } from "./settings.js";
 import { initStats, getStatsContext, cleanupStats } from "./stats.js";
 import {
@@ -36,25 +36,14 @@ import {
 
 /**
  * getTrackerWeekDates
- * Reads the currently displayed week from the tracker module.
+ * Reads the currently displayed week directly from the tracker module's
+ * state, instead of reverse-engineering it from the nav label text (which
+ * silently stamped the current year and broke across a year boundary, and
+ * fell back to "now" whenever the tracker view wasn't rendered).
  * Returns null if the tracker hasn't rendered yet.
  */
 function getTrackerWeekDates() {
-	/* The tracker stores weekDates in its module scope, but we can
-     infer it from the displayed date label in the nav */
-	const dateLabel = document.getElementById("current-date");
-	if (!dateLabel) return null;
-
-	/* Parse "Week of Monday, Apr 27" or similar */
-	const text = dateLabel.textContent.trim();
-	const match = text.match(/Week of (.+)/);
-	if (!match) return null;
-
-	/* Try to parse the date from the label */
-	const parsed = new Date(match[1] + ", " + new Date().getFullYear());
-	if (isNaN(parsed.getTime())) return null;
-
-	return getWeekDates(parsed);
+	return getCurrentWeekDates();
 }
 
 /* ============================================================================

@@ -17,6 +17,7 @@ import {
 	getWeekDates,
 	formatDateISO,
 	generateExportFilename,
+	parseDate,
 } from "./utils.js";
 import {
 	getEntriesForDateRange,
@@ -514,7 +515,7 @@ export async function autoExportFullBackup(state) {
 		const weekKeys = [
 			...new Set(
 				allEntries.map((e) => {
-					const d = new Date(e.date);
+					const d = parseDate(e.date); // local-time parse; new Date() reads YYYY-MM-DD as UTC
 					return getISOWeekKey(d);
 				}),
 			),
@@ -772,7 +773,7 @@ export async function autoExportAllWeeks(state) {
 		if (!firstDate) return 0;
 
 		const now = new Date();
-		const d = new Date(firstDate);
+		const d = parseDate(firstDate); // local-time parse; new Date() reads YYYY-MM-DD as UTC
 
 		/* Rewind to Monday of the first week */
 		const dayOfWeek = d.getDay();

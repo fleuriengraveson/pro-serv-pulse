@@ -287,7 +287,15 @@ document.addEventListener("click", (e) => {
 async function syncWeekAfterChange(refDate) {
 	try {
 		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState, refDate ? new Date(refDate) : new Date());
+		// refDate may be a "YYYY-MM-DD" string (e.g. newEntry.date) or a Date already.
+		// new Date("YYYY-MM-DD") parses as UTC and can roll back a Monday entry
+		// into the previous local day/week — use parseDate for strings instead.
+		const resolvedDate = refDate
+			? typeof refDate === "string"
+				? parseDate(refDate)
+				: refDate
+			: new Date();
+		await autoExportWeek(appState, resolvedDate);
 	} catch (e) {
 		/* sync not available, ignore */
 	}
@@ -296,6 +304,15 @@ async function syncWeekAfterChange(refDate) {
 /* ============================================================================
  * INITIALIZATION
  * ========================================================================= */
+
+/**
+ * getCurrentWeekDates
+ * Returns the Mon-Fri dates for the week currently displayed in the tracker,
+ * or null if the tracker hasn't initialized yet.
+ */
+export function getCurrentWeekDates() {
+	return weekDates.length ? weekDates : null;
+}
 
 /**
  * initTracker
