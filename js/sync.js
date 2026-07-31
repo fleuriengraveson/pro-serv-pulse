@@ -271,6 +271,49 @@ export async function getSyncStatus(purpose = "export") {
 	};
 }
 
+/* ============================================================================
+ * FULL BACKUP DEBOUNCE
+ * --------------------------------------------------------------------------
+ * autoExportWeek() used to call autoExportFullBackup() on every save, which
+ * re-reads every entry ever and rewrites the whole backup file each time —
+ * heavy churn on a Drive-synced folder. Coalesce automatic full-backup
+ * rewrites to at most once per FULL_BACKUP_DEBOUNCE_MS. A trailing flush on
+ * tab hide/close still fires so a save right before closing isn't lost —
+ * autoExportFullBackup's own atomic write (createWritable + close) is
+ * untouched, so the file itself is never left partially written.
+ * ========================================================================= */
+const FULL_BACKUP_DEBOUNCE_MS = 20000; // coalesce to at most once per 20s
+let fullBackupTimer = null;
+let fullBackupPendingState = null;
+
+function scheduleFullBackup(state) {
+	fullBackupPendingState = state;
+	if (fullBackupTimer) return; // a flush is already scheduled
+	fullBackupTimer = setTimeout(() => {
+		fullBackupTimer = null;
+		const stateToFlush = fullBackupPendingState;
+		fullBackupPendingState = null;
+		if (stateToFlush) autoExportFullBackup(stateToFlush);
+	}, FULL_BACKUP_DEBOUNCE_MS);
+}
+
+/* Flush immediately when the tab is closing/hiding, so a debounced write
+ * isn't dropped by a crash or tab close before the timer fires. */
+function flushPendingFullBackup() {
+	if (fullBackupTimer) {
+		clearTimeout(fullBackupTimer);
+		fullBackupTimer = null;
+	}
+	const stateToFlush = fullBackupPendingState;
+	fullBackupPendingState = null;
+	if (stateToFlush) autoExportFullBackup(stateToFlush);
+}
+
+document.addEventListener("visibilitychange", () => {
+	if (document.visibilityState === "hidden") flushPendingFullBackup();
+});
+window.addEventListener("beforeunload", flushPendingFullBackup);
+
 /**
  * checkForBackup
  * Read-only inspection of the sync folder: looks for this user's backup
@@ -425,8 +468,9 @@ export async function autoExportWeek(state, refDate = new Date()) {
 
 		console.log(`Auto-exported ${filename} to sync folder`);
 
-		/* Also update the full backup */
-		await autoExportFullBackup(state);
+		/* Also update the full backup — debounced so heavy edit bursts
+		 * (range fills, batch deletes) don't rewrite it on every save. */
+		scheduleFullBackup(state);
 
 		return true;
 	} catch (err) {

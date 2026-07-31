@@ -274,6 +274,26 @@ document.addEventListener("click", (e) => {
 });
 
 /* ============================================================================
+ * SYNC HELPER
+ * --------------------------------------------------------------------------
+ * Centralized "save/delete then sync" step. Every handler that mutates
+ * entries, day meta, ticket stats, or notes must call this immediately
+ * after its local write completes. Having ONE place that calls
+ * autoExportWeek means a new or edited handler can't quietly forget to
+ * wire up sync — it just calls this instead of hand-rolling the import.
+ *
+ * @param {Date|string} [refDate] - Date within the week to export; defaults to today.
+ */
+async function syncWeekAfterChange(refDate) {
+	try {
+		const { autoExportWeek } = await import("./sync.js");
+		await autoExportWeek(appState, refDate ? new Date(refDate) : new Date());
+	} catch (e) {
+		/* sync not available, ignore */
+	}
+}
+
+/* ============================================================================
  * INITIALIZATION
  * ========================================================================= */
 
@@ -908,12 +928,7 @@ function renderTicketCounters(container, stats) {
 			renderTicketCounters(container, current);
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
 		});
 	});
 
@@ -949,12 +964,7 @@ function renderTicketCounters(container, stats) {
 			renderTicketCounters(container, current);
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
 		});
 	});
 }
@@ -1458,12 +1468,7 @@ async function showEditDropdown(
 		markHasData();
 
 		/* Auto-export to sync folder if connected */
-		try {
-			const { autoExportWeek } = await import("./sync.js");
-			await autoExportWeek(appState, new Date(newEntry.date));
-		} catch (e) {
-			/* sync not available, ignore */
-		}
+		await syncWeekAfterChange(newEntry.date);
 
 		closeDropdown();
 		if (onSaveCallback) {
@@ -1480,13 +1485,9 @@ async function showEditDropdown(
 			await deleteEntry(date || formatDateISO(currentDate), slot);
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
 			closeDropdown();
+
 			if (onSaveCallback) {
 				await onSaveCallback();
 			} else {
@@ -1611,12 +1612,7 @@ function attachEventListeners() {
 			await saveDayMeta(dateStr, { onQueue: newOnQueue });
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
 
 			/* Re-render to update the visual indicator */
 			await renderTracker();
@@ -1796,34 +1792,37 @@ function attachWeekEventListeners() {
 			setActiveView("day");
 			renderTracker();
 		});
-
-		/* Right-click on filled blocks to copy in week view */
-		document
-			.querySelectorAll(".week-block.time-block-filled")
-			.forEach((block) => {
-				block.addEventListener("contextmenu", async (e) => {
-					e.preventDefault();
-					const slot = block.dataset.slot;
-					const date = block.dataset.date;
-					const dayEntries = await getEntriesForDate(date);
-					const entry = dayEntries.find((ent) => ent.timeSlot === slot);
-					if (entry) {
-						clipboard = {
-							category: entry.category,
-							subCategory: entry.subCategory || "",
-							billable: entry.billable || false,
-							merchant: entry.merchant || "",
-							urgent: entry.urgent || false,
-							onboarding: entry.onboarding || false,
-							ticketLink: entry.ticketLink || "",
-							formerPOS: entry.formerPOS || "",
-							notes: entry.notes || "",
-						};
-						updateClipboardIndicator();
-					}
-				});
-			});
 	});
+
+	/* Right-click on filled blocks to copy in week view — attached once
+	 * per render, outside the .week-block loop above, so listeners don't
+	 * stack up on every filled block each time this function runs. */
+	document
+		.querySelectorAll(".week-block.time-block-filled")
+		.forEach((block) => {
+			block.addEventListener("contextmenu", async (e) => {
+				e.preventDefault();
+				const slot = block.dataset.slot;
+				const date = block.dataset.date;
+				const dayEntries = await getEntriesForDate(date);
+				const entry = dayEntries.find((ent) => ent.timeSlot === slot);
+				if (entry) {
+					clipboard = {
+						category: entry.category,
+						subCategory: entry.subCategory || "",
+						billable: entry.billable || false,
+						merchant: entry.merchant || "",
+						urgent: entry.urgent || false,
+						onboarding: entry.onboarding || false,
+						ticketLink: entry.ticketLink || "",
+						formerPOS: entry.formerPOS || "",
+						notes: entry.notes || "",
+					};
+					updateClipboardIndicator();
+				}
+			});
+		});
+
 	/* Tooltip positioning — flip below if near top of grid */
 	document
 		.querySelectorAll(".week-block.time-block-filled")
@@ -1869,12 +1868,7 @@ function attachWeekEventListeners() {
 			await saveDayMeta(dateStr, { onQueue: newOnQueue });
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
 
 			/* Re-render to update the visual indicator */
 			await renderWeekView();
@@ -1948,12 +1942,7 @@ async function pasteBlock(date, slot) {
 	markHasData();
 
 	/* Auto-export to sync folder if connected */
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState, new Date(date));
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+	await syncWeekAfterChange(date);
 }
 
 /**
@@ -1992,6 +1981,9 @@ async function fillRange(fromSlot, toSlot, date) {
 		});
 	}
 	await saveMultipleEntries(batch);
+
+	/* Auto-export to sync folder if connected */
+	await syncWeekAfterChange(date);
 }
 
 /**
@@ -2626,13 +2618,9 @@ async function showOOOPopover(dateStr, chipEl) {
 			notes: "",
 		}));
 		await saveMultipleEntries(batch);
+
 		/* Auto-export to sync folder if connected */
-		try {
-			const { autoExportWeek } = await import("./sync.js");
-			await autoExportWeek(appState);
-		} catch (e) {
-			/* sync not available, ignore */
-		}
+		await syncWeekAfterChange();
 
 		closeOOOPopover();
 		await renderTracker();
@@ -2650,6 +2638,9 @@ async function showOOOPopover(dateStr, chipEl) {
 			if (keysToDelete.length > 0) {
 				await deleteMultipleEntries(keysToDelete);
 				markHasData();
+
+				/* Auto-export to sync folder if connected */
+				await syncWeekAfterChange(dateStr);
 			}
 			closeOOOPopover();
 			await renderTracker();
@@ -2672,6 +2663,9 @@ async function showOOOPopover(dateStr, chipEl) {
 			if (keysToDelete.length > 0) {
 				await deleteMultipleEntries(keysToDelete);
 				markHasData();
+
+				/* Auto-export to sync folder if connected */
+				await syncWeekAfterChange(dateStr);
 			}
 			closeOOOPopover();
 			await renderTracker();
@@ -2861,13 +2855,8 @@ async function renderOwnNotes(weekKey) {
 			await saveWeeklyNotes(weekKey, notesData);
 
 			/* Auto-export to sync folder if connected */
-			try {
-				const { autoExportWeek } = await import("./sync.js");
-				const { default: appStateRef } = { default: appState };
-				await autoExportWeek(appState);
-			} catch (e) {
-				/* sync not available, ignore */
-			}
+			await syncWeekAfterChange();
+
 			if (statusEl) {
 				statusEl.textContent = "Saved";
 				statusEl.style.color = "var(--positive)";
@@ -3118,14 +3107,8 @@ async function fillLunch() {
 		markHasData();
 	}
 
-	/* Re-render to show the filled lunch blocks */
 	/* Auto-export to sync folder if connected */
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState);
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+	await syncWeekAfterChange();
 
 	await renderTracker();
 }
@@ -3191,12 +3174,7 @@ async function fillLunchWeek() {
 	}
 
 	/* Auto-export to sync folder if connected */
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState);
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+	await syncWeekAfterChange();
 
 	await renderWeekView();
 }
@@ -3222,12 +3200,7 @@ async function clearAutoLunchDay() {
 	}
 
 	/* Auto-export to sync folder if connected */
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState);
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+	await syncWeekAfterChange();
 
 	await renderTracker();
 }
@@ -3254,12 +3227,7 @@ async function clearAutoLunchWeek() {
 	}
 
 	/* Auto-export to sync folder if connected */
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		await autoExportWeek(appState);
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+	await syncWeekAfterChange();
 
 	await renderWeekView();
 }
