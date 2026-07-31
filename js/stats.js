@@ -328,7 +328,15 @@ function getPeriodRange() {
 		}
 
 		default:
-			return getPeriodRange.call({ ...this, currentPeriod: "weekly" });
+			/* `this` is undefined in an ES module, so the old .call() override
+			 * was dead code — it always just fell through to the weekly case
+			 * anyway. The weekly case doesn't depend on `this`, so return it
+			 * directly. */
+			return {
+				startDate: formatDateISO(getWeekDates(d)[0]),
+				endDate: formatDateISO(getWeekDates(d)[4]),
+				label: `Week of ${formatDateDisplay(getWeekDates(d)[0])}`,
+			};
 	}
 }
 
@@ -473,7 +481,7 @@ async function getHistoricalWeeklyData(numWeeks = 8) {
  * @param {Array} history       - Historical weekly data from getHistoricalWeeklyData
  * @returns {Array<Object>} Array of { type, icon, message } objects
  */
-function generateInsights(currentStats, history) {
+function generateInsights(currentStats, history, expectedHours) {
 	const insights = [];
 
 	/* Need at least 3 weeks of history WITH data for meaningful comparisons */
@@ -494,9 +502,11 @@ function generateInsights(currentStats, history) {
 	const tierMap = appState.tierMap || {};
 
 	/* --- Compliance check --- */
-	/* Calculate expected hours accounting for OOO */
-	const oooDates = getOOODatesFromEntries(currentStats.entries || []);
-	const adjustedExpected = (5 - oooDates.size) * TARGETS.dailyTrackableHours;
+	/* Use the same time-aware expected-hours basis as the top metrics card
+	 * (getExpectedHours, computed by the caller and passed in here) instead
+	 * of recomputing a naive 5-day expectation — otherwise the insights
+	 * panel and the top metrics card can disagree mid-week. */
+	const adjustedExpected = expectedHours;
 	const trackedPercent =
 		adjustedExpected > 0 ? (currentStats.tracked / adjustedExpected) * 100 : 0;
 
@@ -628,13 +638,7 @@ async function renderStats() {
 			range.endDate,
 		);
 		entries = filterEntriesUpToNow(allEntries);
-		console.log("Team data:", {
-			selectedMember,
-			range,
-			allEntriesCount: allEntries.length,
-			filteredCount: entries.length,
-			hasMemberNames: entries.length > 0 ? entries[0].memberName : "no entries",
-		});
+		/* Debug logging removed — was firing on every render. */
 	} else if (
 		appState.settings.role === "manager" &&
 		selectedMember !== "self"
@@ -1881,10 +1885,16 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 function renderOutsourcingCandidates(entries) {
 	const byCategory = aggregateByCategory(entries);
 
+	/* Full-time-equivalent denominator scales to the number of working days
+	 * in the currently-selected period (e.g. ~5 for weekly, ~21 for
+	 * monthly) instead of a fixed 40-hour week — a fixed 40 badly
+	 * undercounts FTEs once the period is longer than a week. */
+	const fteHoursDenominator = getDaysInPeriod() * TARGETS.dailyTrackableHours;
+
 	/* Sort categories by hours descending, exclude lunch and OOO */
 	const sorted = Object.entries(byCategory)
 		.filter(([id]) => id !== "lunch" && id !== "ooo")
-		.filter(([, hours]) => hours / 40 >= 0.75)
+		.filter(([, hours]) => hours / fteHoursDenominator >= 0.75)
 		.sort((a, b) => b[1] - a[1])
 		.slice(0, 3);
 
@@ -1917,7 +1927,7 @@ function renderOutsourcingCandidates(entries) {
 					: tier === 3
 						? "Tier 3"
 						: "";
-		const fte = (hours / 40).toFixed(1);
+		const fte = (hours / fteHoursDenominator).toFixed(1);
 
 		/* Count how many members contribute to this category */
 		const contributors = Object.entries(byMember)
@@ -3289,7 +3299,10 @@ export async function getStatsContext() {
 	const flaggedPOS =
 		Object.keys(byPOS).length > 0 &&
 		(selectedMember !== "self" || appState.settings.enableFormerPOS)
-			? detectDisproportionate(byPOS, 25, 4)
+			? /* Use the same 15% threshold as the on-screen dashboard
+				 * (renderStats' detectDisproportionate(byPOS) call) so the
+				 * exported report flags the same items as the screen. */
+				detectDisproportionate(byPOS, 15, 4)
 			: [];
 
 	/* Build byMember for team reports */
