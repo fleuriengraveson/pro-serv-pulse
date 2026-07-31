@@ -723,6 +723,33 @@ export async function getAllTeamDayMeta(startDate, endDate) {
  * ========================================================================= */
 
 /**
+ * isFullBackupFile
+ * Detects whether parsed JSON came from the "Full backup" export
+ * (exportAllData) rather than a weekly or sync-folder personal export.
+ * exportAllData() always includes every one of these keys, even as
+ * empty arrays. Weekly/personal exports never include `teamData` and
+ * use different shapes (`weekKey`, `allEntries`).
+ *
+ * @param {Object} data - Parsed JSON from an uploaded backup file
+ * @returns {boolean}
+ */
+export function isFullBackupFile(data) {
+	if (!data || typeof data !== "object") return false;
+	const requiredKeys = [
+		"entries",
+		"settings",
+		"tierMap",
+		"weeklyNotes",
+		"teamData",
+		"ticketStats",
+		"dayMeta",
+	];
+	const hasAllKeys = requiredKeys.every((key) => key in data);
+	const looksLikeSyncFormat = "weekKey" in data || "allEntries" in data;
+	return hasAllKeys && !looksLikeSyncFormat;
+}
+
+/**
  * restoreFromBackup
  * Replaces all local data with data from a backup file.
  * Runs in a transaction to ensure atomicity — either everything
@@ -736,6 +763,17 @@ export async function getAllTeamDayMeta(startDate, endDate) {
  *   - teamData {Array}      Team data records (manager only)
  */
 export async function restoreFromBackup(backupData) {
+	/* Refuse partial/weekly files here — this function clears every
+	 * table first, so restoring anything less than a full export would
+	 * silently delete teamData, ticketStats, and dayMeta. Use
+	 * restoreFromPersonalBackup (via "Restore from sync folder") for
+	 * weekly or personal-only files instead. */
+	if (!isFullBackupFile(backupData)) {
+		throw new Error(
+			"This file isn't a full backup — it's missing teamData/ticketStats/dayMeta or in the wrong format. Restoring it here would delete data not present in the file. Use 'Restore from sync folder' for weekly exports instead.",
+		);
+	}
+
 	await db.transaction(
 		"rw",
 		[
@@ -1008,41 +1046,34 @@ export async function restoreFromPersonalBackup(backupData) {
 
 	/* Build a lookup of existing local [date+timeSlot] pairs, so we skip
 	 * any backup entry that would duplicate something already logged
-	 * locally since the wipe (local wins — it's newer). */
+	 * locally since the wipe (local wins — it's newer). This Set is
+	 * updated as we insert below, so entries that collide with EACH
+	 * OTHER within the same backup (e.g. overlapping weekly files) are
+	 * also caught, not just collisions with pre-existing local data. */
 	const existingEntries = await db.entries.toArray();
 	const existingKeys = new Set(
 		existingEntries.map((e) => `${e.date}|${e.timeSlot}`),
 	);
 
-	/* Restore settings if present */
-	if (backupData.settings) {
-		const restoredSettings = backupData.settings.value || backupData.settings;
-		await db.settings.put({
-			key: "user",
-			value: {
-				...DEFAULT_USER_SETTINGS,
-				...restoredSettings,
-			},
-		});
-	}
-
-	/* Restore tier map if present */
-	if (backupData.tierMap) {
-		const restoredTierMap = backupData.tierMap.value || backupData.tierMap;
-		await db.tierMap.put({
-			key: "tiers",
-			value: {
-				...DEFAULT_TIER_MAP,
-				...restoredTierMap,
-			},
-		});
-	}
-
-	/* Restore settings/tier map from weekly backup bundles as well */
-	if (backupData.weeks?.length && !backupData.settings) {
-		for (const week of backupData.weeks) {
-			if (week.settings) {
-				const restoredSettings = week.settings.value || week.settings;
+	/* Wrap the whole restore in a transaction so a failure partway
+	 * through (e.g. an unexpected ConstraintError) rolls back cleanly
+	 * instead of leaving a half-merged database. Matches the atomicity
+	 * restoreFromBackup already has. */
+	await db.transaction(
+		"rw",
+		[
+			db.entries,
+			db.settings,
+			db.tierMap,
+			db.weeklyNotes,
+			db.ticketStats,
+			db.dayMeta,
+		],
+		async () => {
+			/* Restore settings if present */
+			if (backupData.settings) {
+				const restoredSettings =
+					backupData.settings.value || backupData.settings;
 				await db.settings.put({
 					key: "user",
 					value: {
@@ -1050,15 +1081,11 @@ export async function restoreFromPersonalBackup(backupData) {
 						...restoredSettings,
 					},
 				});
-				break;
 			}
-		}
-	}
 
-	if (backupData.weeks?.length && !backupData.tierMap) {
-		for (const week of backupData.weeks) {
-			if (week.tierMap) {
-				const restoredTierMap = week.tierMap.value || week.tierMap;
+			/* Restore tier map if present */
+			if (backupData.tierMap) {
+				const restoredTierMap = backupData.tierMap.value || backupData.tierMap;
 				await db.tierMap.put({
 					key: "tiers",
 					value: {
@@ -1066,75 +1093,119 @@ export async function restoreFromPersonalBackup(backupData) {
 						...restoredTierMap,
 					},
 				});
-				break;
 			}
-		}
-	}
 
-	/* Restore entries — from weekly files or full backup format */
-	if (backupData.weeks) {
-		/* Multi-week format */
-		for (const week of backupData.weeks) {
-			if (week.entries) {
-				for (const entry of week.entries) {
+			/* Restore settings/tier map from weekly backup bundles as well */
+			if (backupData.weeks?.length && !backupData.settings) {
+				for (const week of backupData.weeks) {
+					if (week.settings) {
+						const restoredSettings = week.settings.value || week.settings;
+						await db.settings.put({
+							key: "user",
+							value: {
+								...DEFAULT_USER_SETTINGS,
+								...restoredSettings,
+							},
+						});
+						break;
+					}
+				}
+			}
+
+			if (backupData.weeks?.length && !backupData.tierMap) {
+				for (const week of backupData.weeks) {
+					if (week.tierMap) {
+						const restoredTierMap = week.tierMap.value || week.tierMap;
+						await db.tierMap.put({
+							key: "tiers",
+							value: {
+								...DEFAULT_TIER_MAP,
+								...restoredTierMap,
+							},
+						});
+						break;
+					}
+				}
+			}
+
+			/* Restore entries — from weekly files or full backup format */
+			if (backupData.weeks) {
+				/* Multi-week format */
+				for (const week of backupData.weeks) {
+					if (week.entries) {
+						for (const entry of week.entries) {
+							const key = `${entry.date}|${entry.timeSlot}`;
+							if (existingKeys.has(key))
+								continue; /* local entry already covers this slot */
+							/* Never trust an id carried over from another device —
+							 * a stale id can coincidentally match an unrelated
+							 * local row and silently overwrite it. Let Dexie
+							 * assign a fresh one; the unique [date+timeSlot]
+							 * index still guards against real duplicates. */
+							const { id, ...safeEntry } = entry;
+							await db.entries.put(safeEntry);
+							existingKeys.add(key);
+							entryCount++;
+						}
+					}
+
+					if (week.weeklyNotes) {
+						await db.weeklyNotes.put({
+							weekKey: week.weekKey,
+							...week.weeklyNotes,
+						});
+						notesCount++;
+					}
+
+					if (week.ticketStats) {
+						for (const stat of week.ticketStats) {
+							await db.ticketStats.put(stat);
+							ticketCount++;
+						}
+					}
+
+					if (week.dayMeta) {
+						for (const meta of week.dayMeta) {
+							await db.dayMeta.put(meta);
+						}
+					}
+				}
+			} else if (backupData.allEntries) {
+				/* Full backup format */
+				for (const entry of backupData.allEntries) {
 					const key = `${entry.date}|${entry.timeSlot}`;
-					if (existingKeys.has(key))
-						continue; /* local entry already covers this slot */
-					await db.entries.put(entry);
+					if (existingKeys.has(key)) continue;
+					/* Same id-stripping guard as above — allEntries comes
+					 * straight from the source device's db.entries.toArray()
+					 * and still carries that device's ids. */
+					const { id, ...safeEntry } = entry;
+					await db.entries.put(safeEntry);
+					existingKeys.add(key);
 					entryCount++;
 				}
-			}
 
-			if (week.weeklyNotes) {
-				await db.weeklyNotes.put({
-					weekKey: week.weekKey,
-					...week.weeklyNotes,
-				});
-				notesCount++;
-			}
+				if (backupData.allNotes) {
+					for (const note of backupData.allNotes) {
+						await db.weeklyNotes.put(note);
+						notesCount++;
+					}
+				}
 
-			if (week.ticketStats) {
-				for (const stat of week.ticketStats) {
-					await db.ticketStats.put(stat);
-					ticketCount++;
+				if (backupData.allTicketStats) {
+					for (const stat of backupData.allTicketStats) {
+						await db.ticketStats.put(stat);
+						ticketCount++;
+					}
+				}
+
+				if (backupData.allDayMeta) {
+					for (const meta of backupData.allDayMeta) {
+						await db.dayMeta.put(meta);
+					}
 				}
 			}
-
-			if (week.dayMeta) {
-				for (const meta of week.dayMeta) {
-					await db.dayMeta.put(meta);
-				}
-			}
-		}
-	} else if (backupData.allEntries) {
-		/* Full backup format */
-		for (const entry of backupData.allEntries) {
-			const key = `${entry.date}|${entry.timeSlot}`;
-			if (existingKeys.has(key)) continue;
-			await db.entries.put(entry);
-			entryCount++;
-		}
-
-		if (backupData.allNotes) {
-			for (const note of backupData.allNotes) {
-				await db.weeklyNotes.put(note);
-				notesCount++;
-			}
-		}
-
-		if (backupData.allTicketStats) {
-			for (const stat of backupData.allTicketStats) {
-				await db.ticketStats.put(stat);
-				ticketCount++;
-			}
-		}
-
-		if (backupData.allDayMeta) {
-			for (const meta of backupData.allDayMeta) {
-				await db.dayMeta.put(meta);
-			}
-		}
-	}
+		},
+	);
 
 	return { entries: entryCount, notes: notesCount, tickets: ticketCount };
 }

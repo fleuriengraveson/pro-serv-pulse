@@ -583,7 +583,7 @@ async function attachSettingsListeners() {
 			/* Confirm before overwriting all data */
 			if (
 				!confirm(
-					"This will replace ALL your local data with the backup file. Are you sure?",
+					"This will replace ALL your local data — including team data, ticket stats, and day metadata — with the contents of the backup file. Only files from the 'Full backup' export are accepted. Are you sure?",
 				)
 			) {
 				e.target.value = "";
@@ -961,7 +961,7 @@ async function attachSettingsListeners() {
 		?.addEventListener("click", async () => {
 			if (
 				!confirm(
-					"This will restore your data from the sync folder backup. Continue?",
+					"This will MERGE the sync folder backup into your local data. Any slot you've already logged locally is kept as-is — only missing entries are added from the backup. Continue?",
 				)
 			)
 				return;
