@@ -140,6 +140,9 @@ export function getChartColors() {
 				onboarding: "#63d9d1",
 				research_sync: "#63d98b",
 				troubleshooting: "#80d963",
+				lunch: "#8A8490",
+				ooo: "#7A8CA3",
+				other: "#847E8A",
 			},
 			/* Tier colors */
 			tier1: { hex: "#B794F4", bg: "rgba(183,148,244,0.15)" },

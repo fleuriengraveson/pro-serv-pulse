@@ -647,8 +647,9 @@ export function detectDisproportionate(
 
 	entries.forEach(([name, hours]) => {
 		if (hours < minHours) return;
-		const pct = Math.round((hours / total) * 100);
-		if (pct >= pctThreshold) {
+		const rawPct = (hours / total) * 100;
+		if (rawPct >= pctThreshold) {
+			const pct = Math.round(rawPct);
 			flagged.push({
 				name,
 				hours,
