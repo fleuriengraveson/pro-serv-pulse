@@ -57,6 +57,7 @@ import {
 	detectDisproportionate,
 	calculateMean,
 	calculateStdDev,
+	escapeHtml,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
 import { showNotesPanel } from "./tracker.js";
@@ -796,7 +797,7 @@ async function renderStats() {
               ${teamMembers
 								.map(
 									(m) => `
-                <option value="${m.name}" ${selectedMember === m.name ? "selected" : ""}>${m.name}</option>
+                <option value="${escapeHtml(m.name)}" ${selectedMember === m.name ? "selected" : ""}>${escapeHtml(m.name)}</option>
               `,
 								)
 								.join("")}
@@ -1208,7 +1209,7 @@ async function renderStats() {
 						.map(
 							(m) => `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 0;">
-              <span style="font-size: 13px; font-weight: 500;">${m.name}</span>
+              <span style="font-size: 13px; font-weight: 500;">${escapeHtml(m.name)}</span>
               <span style="font-size: 12px; color: var(--text-muted);">${m.hours} hrs (${m.percentage}%)</span>
             </div>
             <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">${m.reason}</div>
@@ -1230,7 +1231,7 @@ async function renderStats() {
 						.map(
 							(p) => `
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 0;">
-              <span style="font-size: 13px; font-weight: 500;">${p.name}</span>
+              <span style="font-size: 13px; font-weight: 500;">${escapeHtml(p.name)}</span>
               <span style="font-size: 12px; color: var(--text-muted);">${p.hours} hrs (${p.percentage}%)</span>
             </div>
             <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">${p.reason}</div>
@@ -1496,19 +1497,21 @@ async function renderTeamComplianceTable(teamEntries) {
 				: r.compliancePct >= 42
 					? "var(--warning)"
 					: "var(--danger)";
-		const initials = r.name
-			.split(" ")
-			.map((n) => n[0])
-			.join("")
-			.toUpperCase()
-			.slice(0, 2);
+		const initials = escapeHtml(
+			r.name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2),
+		);
 
 		html += `
-        <tr style="border-bottom: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${r.name}">
+        <tr style="border-bottom: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${escapeHtml(r.name)}">
           <td style="padding: 8px 6px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <div style="width: 26px; height: 26px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-              <span style="font-weight: 500; color: var(--accent-text);">${r.name}</span>
+              <span style="font-weight: 500; color: var(--accent-text);">${escapeHtml(r.name)}</span>
             </div>
           </td>
           <td style="text-align: right; padding: 8px 6px;">${r.tracked} hrs</td>
@@ -1687,13 +1690,14 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 
 	/* Add concentration alerts */
 	concentrationAlerts.forEach((a) => {
+		const safeName = escapeHtml(a.name);
 		let msg;
 		if (a.hasBoth) {
-			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`;
+			msg = `<strong>Concentration:</strong> ${safeName} — ${a.catLabel} is ${a.pct}% of their time (${a.multiple}× team median)`;
 		} else if (a.hasPersonal) {
-			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} is ${a.pct}% of their tracked time`;
+			msg = `<strong>Concentration:</strong> ${safeName} — ${a.catLabel} is ${a.pct}% of their tracked time`;
 		} else {
-			msg = `<strong>Concentration:</strong> ${a.name} — ${a.catLabel} at ${a.multiple}× the team median`;
+			msg = `<strong>Concentration:</strong> ${safeName} — ${a.catLabel} at ${a.multiple}× the team median`;
 		}
 		alerts.push({ type: "concentration", message: msg });
 	});
@@ -1712,7 +1716,7 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 			if (pctOfCategory >= 60) {
 				alerts.push({
 					type: "info",
-					message: `<strong>Coverage risk:</strong> ${p.name} handles ${pctOfCategory}% of all ${catLabel} — only ${participants.length} ${participants.length === 1 ? "person does" : "people do"} this (${catTotal}h total)`,
+					message: `<strong>Coverage risk:</strong> ${escapeHtml(p.name)} handles ${pctOfCategory}% of all ${catLabel} — only ${participants.length} ${participants.length === 1 ? "person does" : "people do"} this (${catTotal}h total)`,
 				});
 			}
 		}
@@ -2077,23 +2081,25 @@ function renderCategoryHeatmap(entries, queueDaysByMember = {}) {
   `;
 
 	members.forEach((name) => {
-		const initials = name
-			.split(" ")
-			.map((n) => n[0])
-			.join("")
-			.toUpperCase()
-			.slice(0, 2);
+		const initials = escapeHtml(
+			name
+				.split(" ")
+				.map((n) => n[0])
+				.join("")
+				.toUpperCase()
+				.slice(0, 2),
+		);
 		const memberTotal = Object.values(byMember[name] || {}).reduce(
 			(sum, h) => sum + h,
 			0,
 		);
 
 		html += `
-      <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${name}">
+      <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${escapeHtml(name)}">
         <td style="padding: 6px 8px;">
           <div style="display: flex; align-items: center; gap: 6px;">
             <div style="width: 22px; height: 22px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-            <span style="font-weight: 500; font-size: 11px; color: var(--accent-text);">${name}</span>
+            <span style="font-weight: 500; font-size: 11px; color: var(--accent-text);">${escapeHtml(name)}</span>
             ${queueDaysByMember[name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[name]}d</span>` : ""}
           </div>
         </td>
@@ -2222,19 +2228,21 @@ function renderTicketOverview(ticketStats, queueDaysByMember = {}) {
 						? "var(--positive)"
 						: "var(--text-muted)";
 			const netPrefix = r.net > 0 ? "+" : "";
-			const initials = r.name
-				.split(" ")
-				.map((n) => n[0])
-				.join("")
-				.toUpperCase()
-				.slice(0, 2);
+			const initials = escapeHtml(
+				r.name
+					.split(" ")
+					.map((n) => n[0])
+					.join("")
+					.toUpperCase()
+					.slice(0, 2),
+			);
 
 			html += `
-        <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${r.name}">
+        <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${escapeHtml(r.name)}">
           <td style="padding: 6px 8px;">
             <div style="display: flex; align-items: center; gap: 6px;">
               <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-              <span style="font-weight: 500; color: var(--text-primary);">${r.name}</span>
+              <span style="font-weight: 500; color: var(--text-primary);">${escapeHtml(r.name)}</span>
               ${queueDaysByMember[r.name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[r.name]}d</span>` : ""}
             </div>
           </td>
@@ -2354,7 +2362,7 @@ function renderTeamMerchantTable(entries) {
 		html += `
       <div>
         <div class="flex items-center gap-2 text-xs">
-          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
+          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${escapeHtml(name)}</span>
           <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
   <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
 </div>
@@ -2364,7 +2372,7 @@ function renderTeamMerchantTable(entries) {
         <div style="display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; padding-left: 120px;">
           ${memberList
 						.map(([member, hrs]) => {
-							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${member} ${hrs}h</span>`;
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${escapeHtml(member)} ${hrs}h</span>`;
 						})
 						.join("")}
         </div>
@@ -2432,7 +2440,7 @@ function renderTeamPOSTable(entries) {
 		html += `
       <div>
         <div class="flex items-center gap-2 text-xs">
-          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${name}</span>
+          <span class="text-stone-500 w-28 truncate" style="font-weight: 500;">${escapeHtml(name)}</span>
           <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
   <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
 </div>
@@ -2443,7 +2451,7 @@ function renderTeamPOSTable(entries) {
           <span style="font-size: 9px; color: var(--text-placeholder);">${merchantCount} merchant${merchantCount > 1 ? "s" : ""}</span>
           ${memberList
 						.map(([member, hrs]) => {
-							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${member} ${hrs}h</span>`;
+							return `<span style="font-size: 9px; color: var(--text-muted); background: var(--bg-surface); padding: 1px 5px; border-radius: 3px;">${escapeHtml(member)} ${hrs}h</span>`;
 						})
 						.join("")}
         </div>
@@ -2520,7 +2528,7 @@ function renderMerchantTable(byMerchant, total) {
 		const barWidth = Math.round((hours / maxHours) * 100);
 		html += `
       <div class="flex items-center gap-2 text-xs">
-        <span class="text-stone-500 w-28 truncate">${name}</span>
+        <span class="text-stone-500 w-28 truncate">${escapeHtml(name)}</span>
         <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
   <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
 </div>
@@ -2565,7 +2573,7 @@ function renderPOSTable(byPOS, total) {
 		const barWidth = Math.round((hours / maxHours) * 100);
 		html += `
       <div class="flex items-center gap-2 text-xs">
-        <span class="text-stone-500 w-28 truncate">${name}</span>
+        <span class="text-stone-500 w-28 truncate">${escapeHtml(name)}</span>
         <div class="flex-1 h-2 rounded-full overflow-hidden" style="background: var(--progress-track);">
   <div class="h-full rounded-full" style="width: ${barWidth}%; background: var(--accent);"></div>
 </div>

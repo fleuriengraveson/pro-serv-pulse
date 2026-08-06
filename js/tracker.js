@@ -53,6 +53,8 @@ import {
 	countOOOHours,
 	countOOODays,
 	isOnboardingEntry,
+	escapeHtml,
+	sanitizeUrl,
 } from "./utils.js";
 import { markHasData } from "./app.js";
 
@@ -516,12 +518,12 @@ function renderTimeBlock(slot) {
         <div class="flex-1 time-block-filled cat-${entry.category} rounded-md px-3 py-2 my-0.5 flex items-center gap-2 min-h-[40px]"
              data-slot="${slot}" style="position: relative;">
           <span class="text-xs font-medium ${isLunch ? "text-stone-400" : "text-stone-700"}">${label}</span>
-          ${entry.merchant || entry.subCategory ? `<span class="text-xs text-stone-400">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
+          ${entry.merchant || entry.subCategory ? `<span class="text-xs text-stone-400">${escapeHtml([entry.merchant, entry.subCategory].filter(Boolean).join(" — "))}</span>` : ""}
           <div class="ml-auto flex items-center gap-2">
             ${entry.urgent ? '<span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>' : ""}
             ${entry.billable ? '<span class="text-[10px] font-medium text-emerald-500">$</span>' : ""}
 			${isOnboardingEntry(entry) ? '<span class="text-[10px]" style="font-weight: 700; color: #7c3aed;">O</span>' : ""}
-            ${entry.ticketLink ? `<a href="${entry.ticketLink}" target="_blank" rel="noopener" class="text-[10px] text-blue-400 hover:underline" onclick="event.stopPropagation();">#${entry.ticketLink.split("/").pop()}</a>` : ""}
+            ${entry.ticketLink && sanitizeUrl(entry.ticketLink) ? `<a href="${escapeHtml(sanitizeUrl(entry.ticketLink))}" target="_blank" rel="noopener" class="text-[10px] text-blue-400 hover:underline" onclick="event.stopPropagation();">#${escapeHtml(entry.ticketLink.split("/").pop())}</a>` : entry.ticketLink ? `<span class="text-[10px] text-stone-400">#${escapeHtml(entry.ticketLink.split("/").pop())}</span>` : ""}
           </div>
           ${
 						entry.category !== "lunch" && entry.category !== "ooo"
@@ -531,11 +533,11 @@ function renderTimeBlock(slot) {
               <div class="w-2 h-2 rounded-sm" style="background: var(${cat ? cat.cssVar : "--cat-other-border"})"></div>
               ${label}
             </div>
-            ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${entry.subCategory}</span></div>` : ""}
-            ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${entry.merchant}</span></div>` : ""}
-            ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${entry.formerPOS}</span></div>` : ""}
-            ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
-            ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
+            ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${escapeHtml(entry.subCategory)}</span></div>` : ""}
+            ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${escapeHtml(entry.merchant)}</span></div>` : ""}
+            ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+            ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${escapeHtml(entry.ticketLink.split("/").pop())}</span></div>` : ""}
+            ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${escapeHtml(entry.notes)}</span></div>` : ""}
             <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
 			<div class="tooltip-row"><span class="tooltip-label">Onboarding</span><span class="tooltip-value"${isOnboardingEntry(entry) ? ' style="color: #7c3aed;"' : ""}>${isOnboardingEntry(entry) ? "Yes" : "No"}</span></div>
             ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
@@ -2023,7 +2025,7 @@ function updateClipboardIndicator() {
     <div class="flex items-center gap-2">
       <div class="w-2 h-2 rounded-sm" style="background: var(${cat.cssVar}) || "var(--cat-other-border)"}"></div>
       <span class="text-xs font-medium text-chronos-700">Copied: ${label}</span>
-      ${clipboard.subCategory ? `<span class="text-xs text-chronos-400">— ${clipboard.subCategory}</span>` : ""}
+      ${clipboard.subCategory ? `<span class="text-xs text-chronos-400">— ${escapeHtml(clipboard.subCategory)}</span>` : ""}
     </div>
     <button id="clipboard-clear" class="text-xs text-chronos-400 hover:text-chronos-600">
       Clear (Esc)
@@ -2224,7 +2226,7 @@ async function renderWeekView() {
                     <div class="flex-1 week-block time-block-filled cat-${entry.category} cursor-pointer relative group"
                         data-slot="${slot}" data-date="${dateStr}" style="position: relative;">
                       <span class="week-block-label">${cat?.label || ""}</span>
-                      ${entry.merchant || entry.subCategory ? `<span class="week-block-sub">${[entry.merchant, entry.subCategory].filter(Boolean).join(" — ")}</span>` : ""}
+                      ${entry.merchant || entry.subCategory ? `<span class="week-block-sub">${escapeHtml([entry.merchant, entry.subCategory].filter(Boolean).join(" — "))}</span>` : ""}
                       <div class="absolute top-0.5 right-1 flex items-center gap-1">
                         ${entry.billable ? '<span class="text-[8px] text-emerald-500">$</span>' : ""}
 						${isOnboardingEntry(entry) ? '<span class="text-[8px]" style="font-weight: 700; color: #7c3aed;">O</span>' : ""}
@@ -2238,11 +2240,11 @@ async function renderWeekView() {
                           <div class="w-2 h-2 rounded-sm" style="background: var(${cat ? cat.cssVar : "--cat-other-border"})"></div>
                           ${cat?.label || entry.category}
                         </div>
-                        ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${entry.subCategory}</span></div>` : ""}
-                        ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${entry.merchant}</span></div>` : ""}
-                        ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${entry.formerPOS}</span></div>` : ""}
-                        ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${entry.ticketLink.split("/").pop()}</span></div>` : ""}
-                        ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${entry.notes}</span></div>` : ""}
+                        ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${escapeHtml(entry.subCategory)}</span></div>` : ""}
+                        ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${escapeHtml(entry.merchant)}</span></div>` : ""}
+                        ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+                        ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${escapeHtml(entry.ticketLink.split("/").pop())}</span></div>` : ""}
+                        ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${escapeHtml(entry.notes)}</span></div>` : ""}
                         <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
 						<div class="tooltip-row"><span class="tooltip-label">Onboarding</span><span class="tooltip-value"${isOnboardingEntry(entry) ? ' style="color: #7c3aed;"' : ""}>${isOnboardingEntry(entry) ? "Yes" : "No"}</span></div>
                         ${entry.urgent ? `<div class="tooltip-row"><span class="tooltip-label">Urgent</span><span class="tooltip-value" style="color: var(--danger);">Yes</span></div>` : ""}
@@ -2343,7 +2345,7 @@ function showWeekPopover(entry, blockEl) {
 		html += `
       <div class="week-popover-row">
         <span class="week-popover-label">Sub-category</span>
-        <span class="week-popover-value">${entry.subCategory}</span>
+        <span class="week-popover-value">${escapeHtml(entry.subCategory)}</span>
       </div>
     `;
 	}
@@ -2351,7 +2353,7 @@ function showWeekPopover(entry, blockEl) {
 		html += `
       <div class="week-popover-row">
         <span class="week-popover-label">Merchant</span>
-        <span class="week-popover-value">${entry.merchant}</span>
+        <span class="week-popover-value">${escapeHtml(entry.merchant)}</span>
       </div>
     `;
 	}
@@ -2359,7 +2361,7 @@ function showWeekPopover(entry, blockEl) {
 		html += `
       <div class="week-popover-row">
         <span class="week-popover-label">Ticket</span>
-        <span class="week-popover-value text-blue-500">${entry.ticketLink}</span>
+        <span class="week-popover-value text-blue-500">${escapeHtml(entry.ticketLink)}</span>
       </div>
     `;
 	}
@@ -2367,7 +2369,7 @@ function showWeekPopover(entry, blockEl) {
 		html += `
       <div class="week-popover-row">
         <span class="week-popover-label">Notes</span>
-        <span class="week-popover-value">${entry.notes}</span>
+        <span class="week-popover-value">${escapeHtml(entry.notes)}</span>
       </div>
     `;
 	}
@@ -2760,7 +2762,7 @@ export async function showNotesPanel(
 		panelContent = await renderAllTeamNotes(weekKey);
 	} else if (isManager && statsVisible && selectedMember !== "self") {
 		/* Specific team member notes — read only */
-		panelTitle = `${selectedMember}'s notes`;
+		panelTitle = `${escapeHtml(selectedMember)}'s notes`;
 		panelContent = await renderTeamMemberNotes(selectedMember, weekKey);
 	} else {
 		/* Own notes — editable */
@@ -2927,7 +2929,7 @@ async function renderTeamMemberNotes(name, weekKey) {
 
 	return `
     <div class="notes-banner">
-      Read-only — these are ${name}'s notes for this week.
+      Read-only — these are ${escapeHtml(name)}'s notes for this week.
     </div>
     <div class="notes-panel-body">
       ${sections
@@ -2936,7 +2938,7 @@ async function renderTeamMemberNotes(name, weekKey) {
 					return `
           <div style="margin-bottom: 16px;">
             <div class="notes-field-label">${s.label}</div>
-            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 10px 12px; margin-top: 4px; white-space: pre-wrap;">${s.value}</div>
+            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 10px 12px; margin-top: 4px; white-space: pre-wrap;">${escapeHtml(s.value)}</div>
           </div>
         `;
 				})
@@ -3023,19 +3025,21 @@ async function renderAllTeamNotes(weekKey) {
     `;
 
 		entries.forEach((entry) => {
-			const initials = entry.name
-				.split(" ")
-				.map((n) => n[0])
-				.join("")
-				.toUpperCase()
-				.slice(0, 2);
+			const initials = escapeHtml(
+				entry.name
+					.split(" ")
+					.map((n) => n[0])
+					.join("")
+					.toUpperCase()
+					.slice(0, 2),
+			);
 
 			html += `
         <div style="display: flex; gap: 10px; margin-bottom: 10px; padding-left: 4px;">
           <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 500; color: var(--accent-text); flex-shrink: 0; margin-top: 2px;">${initials}</div>
           <div style="flex: 1;">
-            <div style="font-size: 11px; font-weight: 500; color: var(--accent-text); margin-bottom: 2px;">${entry.name}</div>
-            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap;">${entry.text}</div>
+            <div style="font-size: 11px; font-weight: 500; color: var(--accent-text); margin-bottom: 2px;">${escapeHtml(entry.name)}</div>
+            <div style="font-size: 13px; color: var(--text-primary); line-height: 1.6; background: var(--bg-surface); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap;">${escapeHtml(entry.text)}</div>
           </div>
         </div>
       `;

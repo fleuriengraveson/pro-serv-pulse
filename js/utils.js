@@ -864,3 +864,49 @@ export async function hashString(str) {
 		.map((b) => b.toString(16).padStart(2, "0"))
 		.join("");
 }
+
+/* ============================================================================
+ * HTML SAFETY HELPERS
+ * --------------------------------------------------------------------------
+ * Pulse has no backend/auth: each user's free-text fields (member name,
+ * merchant, former POS, notes, ticket link, etc.) arrive from OTHER people's
+ * JSON files via the shared sync folder. Those values get interpolated into
+ * innerHTML/attributes throughout tracker.js and stats.js, so they must be
+ * escaped at render time. This does not change what is stored — only how
+ * it is displayed.
+ * ========================================================================= */
+
+/**
+ * escapeHtml
+ * Escapes the characters that matter for both HTML text nodes and
+ * HTML attribute values (& < > " '), so untrusted strings can be safely
+ * interpolated into innerHTML template literals.
+ *
+ * @param {*} str - Value to escape (non-strings are coerced; null/undefined → "")
+ * @returns {string} Escaped, render-safe string
+ */
+export function escapeHtml(str) {
+	if (str === null || str === undefined) return "";
+	return String(str)
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+/**
+ * sanitizeUrl
+ * Validates a user-supplied URL before it's ever placed into an href
+ * attribute. Only allows http:// and https:// schemes — rejects
+ * javascript:, data:, vbscript:, etc. Returns "" for anything unsafe or
+ * empty, so callers can fall back to rendering the value as plain text.
+ *
+ * @param {string} url - Raw, untrusted URL string
+ * @returns {string} The URL if it's http(s), otherwise ""
+ */
+export function sanitizeUrl(url) {
+	if (!url) return "";
+	const trimmed = String(url).trim();
+	return /^https?:\/\//i.test(trimmed) ? trimmed : "";
+}
