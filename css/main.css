@@ -1497,6 +1497,85 @@ body {
 }
 
 /* ============================================================================
+ * OOO OVERRIDE UI — compliance table pill and context menu
+ * ========================================================================= */
+
+.ooo-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 9px;
+	font-weight: 500;
+	white-space: nowrap;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--bg-surface);
+	color: var(--text-secondary);
+}
+
+.ooo-pill-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	border: none;
+	cursor: pointer;
+	font-size: 9px;
+	line-height: 1;
+	padding: 0;
+}
+
+.ooo-pill-check {
+	background: var(--positive-bg);
+	color: var(--positive-text);
+}
+
+.ooo-pill-check:hover {
+	background: var(--positive);
+	color: var(--text-inverse);
+}
+
+.ooo-pill-x {
+	background: var(--danger-bg);
+	color: var(--danger-text);
+}
+
+.ooo-pill-x:hover {
+	background: var(--danger);
+	color: var(--text-inverse);
+}
+
+.ooo-context-menu {
+	position: fixed;
+	z-index: 1000;
+	background: var(--bg-dropdown);
+	border: 1px solid var(--border-default);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 4px;
+	min-width: 120px;
+}
+
+.ooo-context-menu-item {
+	display: block;
+	width: 100%;
+	text-align: left;
+	background: none;
+	border: none;
+	padding: 6px 10px;
+	font-size: 12px;
+	color: var(--text-primary);
+	cursor: pointer;
+	border-radius: 4px;
+}
+
+.ooo-context-menu-item:hover {
+	background: var(--bg-surface-hover);
+}
+
+/* ============================================================================
  * TAILWIND DARK MODE OVERRIDES
  * --------------------------------------------------------------------------
  * Override Tailwind utility classes when dark mode is active.

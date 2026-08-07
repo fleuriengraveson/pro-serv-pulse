@@ -135,6 +135,31 @@ export function getWeekDateRange(date) {
 	};
 }
 
+/**
+ * getMondayFromISOWeekKey
+ * Given an ISO week key like '2026-W32', returns the Monday of that week
+ * as a local-time Date — the inverse of getISOWeekKey. Used to turn a
+ * stored OOO-override week key back into real calendar dates.
+ *
+ * @param {string} weekKey - e.g. '2026-W32'
+ * @returns {Date} Monday of that week, local time
+ */
+export function getMondayFromISOWeekKey(weekKey) {
+	const [yearStr, weekStr] = weekKey.split("-W");
+	const year = Number(yearStr);
+	const week = Number(weekStr);
+
+	/* ISO 8601: week 1 is the week containing Jan 4. Find that week's
+	 * Monday, then step forward (week - 1) weeks. */
+	const jan4 = new Date(year, 0, 4);
+	const jan4DayOfWeek = jan4.getDay() || 7; // Sun(0) -> 7, so Mon=1..Sun=7
+	const week1Monday = new Date(year, 0, 4 - (jan4DayOfWeek - 1));
+
+	const monday = new Date(week1Monday);
+	monday.setDate(week1Monday.getDate() + (week - 1) * 7);
+	return monday;
+}
+
 /* ============================================================================
  * FISCAL YEAR HELPERS
  * ========================================================================= */

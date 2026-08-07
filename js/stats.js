@@ -58,6 +58,7 @@ import {
 	calculateMean,
 	calculateStdDev,
 	escapeHtml,
+	getMondayFromISOWeekKey,
 } from "./utils.js";
 import { getChartColors, isDark } from "./theme.js";
 import { showNotesPanel } from "./tracker.js";
@@ -86,6 +87,7 @@ let lastImportedAt = null; // Date of the most recent successful import (used by
 const TEAM_REFRESH_MS = 60000; // how often to re-check the sync folder while stats is open (60s)
 let selectedMember = "all"; // 'all', a member name, or 'self'
 let teamMembers = []; // Cached list of imported team members
+let oooOverrides = {}; // Manager-set OOO ledger: { [name]: { [weekKey]: { status, setBy, setAt } } }
 
 /* Period filter options */
 const PERIODS = [
@@ -118,6 +120,7 @@ export async function initStats(state) {
 			if (importStatus.connected && importStatus.hasPermission) {
 				const result = await autoImportTeamData();
 				lastImportedAt = new Date(); // record freshness so the header label shows on first render
+				await loadOOOOverrides();
 				if (result.imported > 0 || result.updated > 0) {
 					console.log(
 						`Auto-imported: ${result.imported} new, ${result.updated} updated`,
@@ -178,10 +181,16 @@ async function refreshTeamData(forceRender = false) {
 
 		const result = await autoImportTeamData();
 		lastImportedAt = new Date();
+		const oooChanged = await loadOOOOverrides();
 
 		/* Redraw when data changed, OR when a manual refresh forces it so the
 		 * "Updated HH:MM" label always reflects the click even on no-change days. */
-		if (forceRender || result.imported > 0 || result.updated > 0) {
+		if (
+			forceRender ||
+			result.imported > 0 ||
+			result.updated > 0 ||
+			oooChanged
+		) {
 			teamMembers = await getTeamMemberList();
 			await renderStats();
 		}
@@ -235,6 +244,179 @@ function stopTeamAutoRefresh() {
  */
 export function cleanupStats() {
 	stopTeamAutoRefresh();
+}
+
+/* ============================================================================
+ * OOO OVERRIDES (manager-set, shared across all managers)
+ * --------------------------------------------------------------------------
+ * A manager can mark a team member OOO for a week that's gone unlogged past
+ * Tuesday noon, or dismiss the prompt if hours are still expected. Both
+ * persist to a shared file (see sync.js) so every manager sees the same
+ * resolution. Real per-day self-logged OOO entries are untouched by any of
+ * this — it's a separate ledger, never written into anyone's own data.
+ * ========================================================================= */
+
+/**
+ * loadOOOOverrides
+ * Re-reads the shared OOO ledger, auto-clears any "ooo" entry whose week now
+ * has real tracked hours (the person wasn't actually OOO after all), and
+ * refreshes the in-memory cache used by rendering and expected-hours math.
+ *
+ * @returns {Promise<boolean>} true if the ledger changed since last load
+ */
+async function loadOOOOverrides() {
+	try {
+		const { readOOOOverrides, clearOOOOverride } = await import("./sync.js");
+		const shared = await readOOOOverrides();
+
+		for (const [name, weeks] of Object.entries(shared)) {
+			for (const [weekKey, record] of Object.entries(weeks)) {
+				if (record.status !== "ooo") continue;
+				const monday = getMondayFromISOWeekKey(weekKey);
+				const friday = new Date(monday);
+				friday.setDate(monday.getDate() + 4);
+				const weekEntries = await getTeamMemberData(
+					name,
+					formatDateISO(monday),
+					formatDateISO(friday),
+				);
+				if (countTrackedHours(weekEntries) > 0) {
+					await clearOOOOverride(name, weekKey);
+					delete shared[name][weekKey];
+				}
+			}
+			if (Object.keys(shared[name]).length === 0) delete shared[name];
+		}
+
+		const changed = JSON.stringify(shared) !== JSON.stringify(oooOverrides);
+		oooOverrides = shared;
+		return changed;
+	} catch (e) {
+		console.warn("OOO override refresh failed:", e.message);
+		return false;
+	}
+}
+
+/**
+ * isPastTuesdayNoon
+ * True once it's local Tuesday 12:00 PM or later, for the week identified
+ * by weekKey.
+ */
+function isPastTuesdayNoon(weekKey) {
+	const monday = getMondayFromISOWeekKey(weekKey);
+	const tuesdayNoon = new Date(monday);
+	tuesdayNoon.setDate(monday.getDate() + 1);
+	tuesdayNoon.setHours(12, 0, 0, 0);
+	return new Date() >= tuesdayNoon;
+}
+
+/**
+ * countOOOWeeksInRange
+ * Counts how many of a member's "ooo" weeks fall within a date range —
+ * drives the "N weeks OOO" summary pill on non-weekly period views.
+ */
+function countOOOWeeksInRange(name, startDate, endDate) {
+	const memberOverrides = oooOverrides[name];
+	if (!memberOverrides) return 0;
+
+	let count = 0;
+	for (const [weekKey, record] of Object.entries(memberOverrides)) {
+		if (record.status !== "ooo") continue;
+		const mondayStr = formatDateISO(getMondayFromISOWeekKey(weekKey));
+		if (mondayStr >= startDate && mondayStr <= endDate) count++;
+	}
+	return count;
+}
+
+/**
+ * markMemberOOO / dismissOOOPill / clearMemberOOO
+ * The three ways a manager resolves (or undoes) an OOO prompt. Each writes
+ * to the shared file first — on failure (e.g. write permission denied) the
+ * cache and UI are left untouched and the manager is told, rather than
+ * silently losing the click.
+ */
+async function markMemberOOO(name, weekKey) {
+	const { writeOOOOverride } = await import("./sync.js");
+	const managerName = appState.settings.name || "Manager";
+	const ok = await writeOOOOverride(name, weekKey, "ooo", managerName);
+	if (!ok) {
+		alert("Couldn't save — check that the sync folder still has write access.");
+		return;
+	}
+	if (!oooOverrides[name]) oooOverrides[name] = {};
+	oooOverrides[name][weekKey] = {
+		status: "ooo",
+		setBy: managerName,
+		setAt: new Date().toISOString(),
+	};
+	await renderStats();
+}
+
+async function dismissOOOPill(name, weekKey) {
+	const { writeOOOOverride } = await import("./sync.js");
+	const managerName = appState.settings.name || "Manager";
+	const ok = await writeOOOOverride(name, weekKey, "dismissed", managerName);
+	if (!ok) {
+		alert("Couldn't save — check that the sync folder still has write access.");
+		return;
+	}
+	if (!oooOverrides[name]) oooOverrides[name] = {};
+	oooOverrides[name][weekKey] = {
+		status: "dismissed",
+		setBy: managerName,
+		setAt: new Date().toISOString(),
+	};
+	await renderStats();
+}
+
+async function clearMemberOOO(name, weekKey) {
+	const { clearOOOOverride } = await import("./sync.js");
+	const ok = await clearOOOOverride(name, weekKey);
+	if (!ok) {
+		alert(
+			"Couldn't clear — check that the sync folder still has write access.",
+		);
+		return;
+	}
+	if (oooOverrides[name]) {
+		delete oooOverrides[name][weekKey];
+		if (Object.keys(oooOverrides[name]).length === 0) delete oooOverrides[name];
+	}
+	await renderStats();
+}
+
+/**
+ * showOOOContextMenu / hideOOOContextMenu
+ * A minimal custom right-click menu for "Clear OOO" — only ever attached to
+ * a compliance-table row that's currently dimmed for the displayed week.
+ */
+function hideOOOContextMenu() {
+	document.getElementById("ooo-context-menu")?.remove();
+	document.removeEventListener("click", hideOOOContextMenu);
+}
+
+function showOOOContextMenu(x, y, name, weekKey) {
+	hideOOOContextMenu();
+
+	const menu = document.createElement("div");
+	menu.id = "ooo-context-menu";
+	menu.className = "ooo-context-menu";
+	menu.style.left = `${x}px`;
+	menu.style.top = `${y}px`;
+	menu.innerHTML = `<button type="button" class="ooo-context-menu-item" data-member="${escapeHtml(name)}" data-week-key="${weekKey}">Clear OOO</button>`;
+	document.body.appendChild(menu);
+
+	menu
+		.querySelector(".ooo-context-menu-item")
+		.addEventListener("click", async (e) => {
+			hideOOOContextMenu();
+			await clearMemberOOO(
+				e.currentTarget.dataset.member,
+				e.currentTarget.dataset.weekKey,
+			);
+		});
+
+	setTimeout(() => document.addEventListener("click", hideOOOContextMenu), 0);
 }
 
 /* ============================================================================
@@ -1490,13 +1672,34 @@ async function renderTeamComplianceTable(teamEntries) {
       <tbody>
   `;
 
+	const isWeeklyView = currentPeriod === "weekly";
+	const currentWeekKey = getISOWeekKey(periodDate);
+
 	rows.forEach((r) => {
+		const override = oooOverrides[r.name]?.[currentWeekKey];
+		const isDimmed = isWeeklyView && override?.status === "ooo";
+		const showOOOPill =
+			isWeeklyView &&
+			!override &&
+			r.tracked === 0 &&
+			isPastTuesdayNoon(currentWeekKey);
+		const oooWeeksInRange = isWeeklyView
+			? 0
+			: countOOOWeeksInRange(r.name, range.startDate, range.endDate);
+
 		const complianceColor =
 			r.compliancePct >= 60
 				? "var(--positive)"
 				: r.compliancePct >= 42
 					? "var(--warning)"
 					: "var(--danger)";
+
+		let rowBg = "";
+		if (!isDimmed) {
+			if (r.compliancePct < 42) rowBg = "background: var(--danger-bg);";
+			else if (r.compliancePct < 60) rowBg = "background: var(--warning-bg);";
+		}
+
 		const initials = escapeHtml(
 			r.name
 				.split(" ")
@@ -1507,11 +1710,23 @@ async function renderTeamComplianceTable(teamEntries) {
 		);
 
 		html += `
-        <tr style="border-bottom: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${escapeHtml(r.name)}">
+        <tr style="border-bottom: 0.5px solid var(--border-default); ${rowBg} ${isDimmed ? "opacity: 0.5;" : ""}" class="team-compliance-row" data-member="${escapeHtml(r.name)}" data-week-key="${currentWeekKey}" data-ooo-dimmed="${isDimmed ? "true" : "false"}">
           <td style="padding: 8px 6px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div style="width: 26px; height: 26px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: var(--accent-text);">${initials}</div>
-              <span style="font-weight: 500; color: var(--accent-text);">${escapeHtml(r.name)}</span>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <div style="width: 26px; height: 26px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: var(--accent-text); flex-shrink: 0;">${initials}</div>
+              <span class="compliance-name-link" data-member="${escapeHtml(r.name)}" style="font-weight: 500; color: var(--accent-text); cursor: pointer;">${escapeHtml(r.name)}</span>
+              ${oooWeeksInRange > 0 ? `<span class="queue-pill" style="background: var(--bg-surface); color: var(--text-secondary);">${oooWeeksInRange} week${oooWeeksInRange > 1 ? "s" : ""} OOO</span>` : ""}
+              ${
+								showOOOPill
+									? `
+                <span class="ooo-pill">
+                  OOO this week?
+                  <button type="button" class="ooo-pill-btn ooo-pill-check" data-action="ooo-mark" data-member="${escapeHtml(r.name)}" data-week-key="${currentWeekKey}" title="Mark OOO for the week">✓</button>
+                  <button type="button" class="ooo-pill-btn ooo-pill-x" data-action="ooo-dismiss" data-member="${escapeHtml(r.name)}" data-week-key="${currentWeekKey}" title="Not OOO — hours expected">✕</button>
+                </span>
+              `
+									: ""
+							}
             </div>
           </td>
           <td style="text-align: right; padding: 8px 6px;">${r.tracked} hrs</td>
@@ -1550,8 +1765,8 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 	const tierMap = appState.tierMap || {};
 
 	/* Same roster-driven approach as renderTeamComplianceTable: start from
-	 * the full team roster so a zero-hours member still shows up as a
-	 * "Below target" alert rather than vanishing entirely. */
+	 * the full team roster so a zero-hours member is still counted in the
+	 * workload/specialization checks below rather than vanishing entirely. */
 	const byMember = {};
 	teamMembers.forEach((m) => {
 		byMember[m.name] = [];
@@ -1561,31 +1776,6 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 		if (!byMember[name]) byMember[name] = [];
 		byMember[name].push(e);
 	});
-
-	/* Check compliance per member */
-	const belowTarget = [];
-	for (const [name, memberEntries] of Object.entries(byMember)) {
-		const tracked = countTrackedHours(memberEntries);
-		/* Same consolidated helper as the compliance table — clamps to
-		 * this member's true join date rather than their first entry
-		 * within THIS period's memberEntries. */
-		const memberExpected = await getExpectedHours(name, memberEntries);
-		const compliancePct =
-			memberExpected > 0 ? Math.round((tracked / memberExpected) * 100) : 0;
-		if (compliancePct < TARGETS.compliancePercent) {
-			belowTarget.push({ name, compliancePct });
-		}
-	}
-
-	if (belowTarget.length > 0) {
-		const names = belowTarget
-			.map((m) => `${m.name} (${m.compliancePct}%)`)
-			.join(", ");
-		alerts.push({
-			type: "flag",
-			message: `<strong>Below target:</strong> ${names}`,
-		});
-	}
 
 	/* ================================================================
 	 * WORKLOAD & SPECIALIZATION ALERTS
@@ -2662,6 +2852,23 @@ async function getExpectedHours(name, entries = []) {
 	const effectiveStart =
 		joinDate && joinDate > range.startDate ? joinDate : range.startDate;
 
+	/* Manager-marked OOO weeks drop out of expected hours entirely, same as
+	 * a real self-logged full-OOO week. Only applies to team members. */
+	if (name !== "self" && oooOverrides[name]) {
+		for (const [weekKey, record] of Object.entries(oooOverrides[name])) {
+			if (record.status !== "ooo") continue;
+			const monday = getMondayFromISOWeekKey(weekKey);
+			for (let i = 0; i < 5; i++) {
+				const day = new Date(monday);
+				day.setDate(monday.getDate() + i);
+				const dateStr = formatDateISO(day);
+				if (dateStr >= effectiveStart && dateStr <= range.endDate) {
+					oooDates.add(dateStr);
+				}
+			}
+		}
+	}
+
 	return countExpectedHoursUpToNow(
 		effectiveStart,
 		range.endDate,
@@ -3193,7 +3400,7 @@ function attachStatsListeners() {
 			renderStats();
 		});
 
-	/* Clickable team member names in compliance table */
+	/* Clickable team member names in the heatmap/ticket tables (unchanged) */
 	document.querySelectorAll(".team-member-row").forEach((row) => {
 		row.addEventListener("click", () => {
 			selectedMember = row.dataset.member;
@@ -3202,6 +3409,48 @@ function attachStatsListeners() {
 			renderStats();
 		});
 	});
+
+	/* Compliance table: only the name navigates now — the row itself also
+	 * hosts the OOO pill buttons and right-click menu, so it can't be a
+	 * single click target anymore. */
+	document.querySelectorAll(".compliance-name-link").forEach((el) => {
+		el.addEventListener("click", () => {
+			selectedMember = el.dataset.member;
+			const select = document.getElementById("team-member-select");
+			if (select) select.value = selectedMember;
+			renderStats();
+		});
+	});
+
+	/* OOO pill buttons: checkmark marks the week OOO, X dismisses the pill
+	 * for that week only (no lasting effect beyond not asking again). */
+	document.querySelectorAll(".ooo-pill-btn").forEach((btn) => {
+		btn.addEventListener("click", async (e) => {
+			e.stopPropagation();
+			const { member, weekKey, action } = e.currentTarget.dataset;
+			if (action === "ooo-mark") {
+				await markMemberOOO(member, weekKey);
+			} else {
+				await dismissOOOPill(member, weekKey);
+			}
+		});
+	});
+
+	/* Right-click "Clear OOO" — only wired on rows currently dimmed for the
+	 * displayed week, so it never appears anywhere else. */
+	document
+		.querySelectorAll('.team-compliance-row[data-ooo-dimmed="true"]')
+		.forEach((row) => {
+			row.addEventListener("contextmenu", (e) => {
+				e.preventDefault();
+				showOOOContextMenu(
+					e.pageX,
+					e.pageY,
+					row.dataset.member,
+					row.dataset.weekKey,
+				);
+			});
+		});
 
 	/* Notes button */
 	document.getElementById("stats-notes-btn")?.addEventListener("click", () => {

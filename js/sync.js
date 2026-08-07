@@ -863,6 +863,145 @@ export async function autoExportAllWeeks(state) {
 }
 
 /* ============================================================================
+ * OOO OVERRIDES (MANAGER-SET, SHARED ACROSS ALL MANAGERS)
+ * --------------------------------------------------------------------------
+ * Lives in its own file in the same shared folder used for team import.
+ * Kept completely separate from each contributor's own weekly export so a
+ * manager's OOO call can never alter anyone's actual tracked-hours data.
+ * ========================================================================= */
+
+const OOO_OVERRIDES_FILENAME = "_pulse-ooo-overrides.json";
+
+/**
+ * readOOOOverrides
+ * Reads the shared OOO overrides file from the import folder.
+ * Returns {} if the folder isn't connected or the file doesn't exist yet.
+ *
+ * @returns {Promise<Object>} { [name]: { [weekKey]: { status, setBy, setAt } } }
+ */
+export async function readOOOOverrides() {
+	try {
+		const handle = await loadHandle("import");
+		if (!handle) return {};
+
+		const hasPermission = await verifyPermission(handle, false);
+		if (!hasPermission) return {};
+
+		const fileHandle = await handle.getFileHandle(OOO_OVERRIDES_FILENAME, {
+			create: false,
+		});
+		const file = await fileHandle.getFile();
+		return JSON.parse(await file.text());
+	} catch (err) {
+		/* Most common case: file doesn't exist yet — normal until the first
+		 * override is ever written. */
+		return {};
+	}
+}
+
+/**
+ * writeOOOOverride
+ * Adds or updates a single member+week override in the shared file.
+ * Re-reads the file immediately before writing to minimize (not fully
+ * eliminate) the chance of clobbering a different manager's concurrent edit.
+ *
+ * @param {string} name    - Team member's name
+ * @param {string} weekKey - ISO week key, e.g. '2026-W32'
+ * @param {string} status  - 'ooo' or 'dismissed'
+ * @param {string} setBy   - Name of the manager making the change
+ * @returns {Promise<boolean>} true on success
+ */
+export async function writeOOOOverride(name, weekKey, status, setBy) {
+	try {
+		const handle = await loadHandle("import");
+		if (!handle) return false;
+
+		/* Writing requires escalating this normally-read-only handle to
+		 * readwrite. The browser will prompt the first time in a session. */
+		const hasPermission = await verifyPermission(handle, true);
+		if (!hasPermission) return false;
+
+		let current = {};
+		try {
+			const existingHandle = await handle.getFileHandle(
+				OOO_OVERRIDES_FILENAME,
+				{ create: false },
+			);
+			const file = await existingHandle.getFile();
+			current = JSON.parse(await file.text());
+		} catch {
+			current = {};
+		}
+
+		if (!current[name]) current[name] = {};
+		current[name][weekKey] = {
+			status,
+			setBy,
+			setAt: new Date().toISOString(),
+		};
+
+		const fileHandle = await handle.getFileHandle(OOO_OVERRIDES_FILENAME, {
+			create: true,
+		});
+		const writable = await fileHandle.createWritable();
+		await writable.write(JSON.stringify(current, null, 2));
+		await writable.close();
+		return true;
+	} catch (err) {
+		console.warn("Failed to write OOO override:", err.message);
+		return false;
+	}
+}
+
+/**
+ * clearOOOOverride
+ * Removes a single member+week override from the shared file — used by the
+ * manager's right-click "Clear OOO" and by the automatic re-activation when
+ * a member later logs real hours for a week that was marked OOO.
+ *
+ * @param {string} name    - Team member's name
+ * @param {string} weekKey - ISO week key, e.g. '2026-W32'
+ * @returns {Promise<boolean>} true on success
+ */
+export async function clearOOOOverride(name, weekKey) {
+	try {
+		const handle = await loadHandle("import");
+		if (!handle) return false;
+
+		const hasPermission = await verifyPermission(handle, true);
+		if (!hasPermission) return false;
+
+		let current = {};
+		try {
+			const existingHandle = await handle.getFileHandle(
+				OOO_OVERRIDES_FILENAME,
+				{ create: false },
+			);
+			const file = await existingHandle.getFile();
+			current = JSON.parse(await file.text());
+		} catch {
+			return true; /* nothing to clear */
+		}
+
+		if (current[name]) {
+			delete current[name][weekKey];
+			if (Object.keys(current[name]).length === 0) delete current[name];
+		}
+
+		const fileHandle = await handle.getFileHandle(OOO_OVERRIDES_FILENAME, {
+			create: true,
+		});
+		const writable = await fileHandle.createWritable();
+		await writable.write(JSON.stringify(current, null, 2));
+		await writable.close();
+		return true;
+	} catch (err) {
+		console.warn("Failed to clear OOO override:", err.message);
+		return false;
+	}
+}
+
+/* ============================================================================
  * AUTO-IMPORT (MANAGERS)
  * --------------------------------------------------------------------------
  * Scans the connected folder for all JSON files and imports them.
@@ -892,8 +1031,10 @@ export async function autoImportTeamData() {
 
 		/* Iterate through all files in the folder */
 		for await (const [name, entry] of handle.entries()) {
-			/* Only process .json files */
+			/* Only process .json files, and skip the OOO overrides ledger —
+			 * it's a manager-only file, not a contributor export. */
 			if (entry.kind !== "file" || !name.endsWith(".json")) continue;
+			if (name === OOO_OVERRIDES_FILENAME) continue;
 
 			try {
 				const file = await entry.getFile();
