@@ -6,7 +6,7 @@
  *   - Vertical time grid with 30-minute blocks
  *   - Click-to-assign category dropdown
  *   - Inline detail editing (sub-category, billable, merchant, etc.)
- *   - Drag-to-fill for multiple blocks
+ *   - Copy/paste for filling blocks
  *   - Right sidebar with daily/weekly summary stats
  *
  * This module is initialized by app.js when the tracker view is active.
@@ -71,8 +71,6 @@ let appState = null; // Reference to the global app state
 let activeDropdown = null; // Currently open edit dropdown element
 let weekDates = []; // Mon-Fri dates for the current week
 let clipboard = null; // Stores the copied entry data (without date/timeSlot)
-let isShiftDown = false; // Tracks if Shift key is held for range fill
-let lastClickedSlot = null; // The last block clicked — used as range fill anchor
 let activeView = localStorage.getItem("chronos-tracker-view") || "day";
 if (activeView === "notes") activeView = "day";
 
@@ -92,8 +90,6 @@ document.addEventListener("keydown", (e) => {
 		tag === "TEXTAREA" ||
 		tag === "SELECT" ||
 		e.target.isContentEditable;
-
-	if (e.key === "Shift") isShiftDown = true;
 
 	if (e.key === "Escape") {
 		if (activeDropdown) {
@@ -241,9 +237,6 @@ document.addEventListener("keydown", (e) => {
 			}
 		}
 	}
-});
-document.addEventListener("keyup", (e) => {
-	if (e.key === "Shift") isShiftDown = false;
 });
 
 /* Global click-outside handler — runs once, handles both views */
@@ -1674,13 +1667,6 @@ function attachEventListeners() {
 				 * (needed for week view where blocks span multiple days) */
 				const date = block.dataset.date || formatDateISO(currentDate);
 
-				/* SHIFT+CLICK: Range fill from last clicked block */
-				if (isShiftDown && lastClickedSlot && entries[lastClickedSlot]) {
-					await fillRange(lastClickedSlot, slot, date);
-					await renderTracker();
-					return;
-				}
-
 				/* CLIPBOARD PASTE: If clipboard has data and block is empty, paste */
 				if (clipboard && !entries[slot]) {
 					await pasteBlock(date, slot);
@@ -1939,7 +1925,6 @@ function copyBlock(slot) {
 		notes: entry.notes || "",
 	};
 
-	lastClickedSlot = slot;
 	updateClipboardIndicator();
 }
 
@@ -1959,47 +1944,6 @@ async function pasteBlock(date, slot) {
 		...clipboard,
 	});
 	markHasData();
-
-	/* Auto-export to sync folder if connected */
-	await syncWeekAfterChange(date);
-}
-
-/**
- * fillRange
- * Fills all blocks between two time slots (inclusive) on the current day
- * with the data from the anchor block. Used for shift+click.
- *
- * @param {string} fromSlot - Start time slot
- * @param {string} toSlot   - End time slot
- * @param {string} date     - The date to fill on
- */
-async function fillRange(fromSlot, toSlot, date) {
-	const source = entries[fromSlot];
-	if (!source) return;
-
-	const fromIdx = timeSlots.indexOf(fromSlot);
-	const toIdx = timeSlots.indexOf(toSlot);
-	const startIdx = Math.min(fromIdx, toIdx);
-	const endIdx = Math.max(fromIdx, toIdx);
-
-	/* Build the full batch first, then write it in one atomic transaction */
-	const batch = [];
-	for (let i = startIdx; i <= endIdx; i++) {
-		batch.push({
-			date,
-			timeSlot: timeSlots[i],
-			category: source.category,
-			subCategory: source.subCategory || "",
-			billable: source.billable || false,
-			merchant: source.merchant || "",
-			urgent: source.urgent || false,
-			onboarding: source.onboarding || false,
-			ticketLink: source.ticketLink || "",
-			formerPOS: source.formerPOS || "",
-			notes: source.notes || "",
-		});
-	}
-	await saveMultipleEntries(batch);
 
 	/* Auto-export to sync folder if connected */
 	await syncWeekAfterChange(date);
