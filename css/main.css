@@ -65,14 +65,14 @@
 
 	/* Category block colors — pastel rainbow palette */
 	/* admin_internal — soft yellow */
-	--cat-admin-internal-border: #dfd87c;
-	--cat-admin-internal-bg: rgba(223, 216, 124, 0.16);
+	--cat-admin-internal-border: #dfd97c;
+	--cat-admin-internal-bg: rgba(223, 217, 124, 0.16);
 	--cat-admin-internal-text: #7b751e;
 
 	/* admin_merchant — deeper yellow (same hue, distinguishable from admin_internal) */
-	--cat-admin-merchant-border: #e5db76;
-	--cat-admin-merchant-bg: rgba(229, 219, 118, 0.16);
-	--cat-admin-merchant-text: #817718;
+	--cat-admin-merchant-border: #dfd97c;
+	--cat-admin-merchant-bg: rgba(223, 217, 124, 0.16);
+	--cat-admin-merchant-text: #7b751e;
 
 	/* analytics — orange */
 	--cat-analytics-border: #e8ad73;
@@ -95,33 +95,38 @@
 	--cat-hardware-text: #5f2083;
 
 	/* internal_tools → --cat-tools-* — indigo/blue-purple */
-	--cat-tools-border: #7c85df;
-	--cat-tools-bg: rgba(124, 133, 223, 0.16);
-	--cat-tools-text: #202983;
+	--cat-tools-border: #81da9d;
+	--cat-tools-bg: rgba(129, 218, 157, 0.16);
+	--cat-tools-text: #23763d;
 
-	/* meeting_internal → --cat-meeting-int-* — blue */
-	--cat-meeting-int-border: #7cabdf;
-	--cat-meeting-int-bg: rgba(124, 171, 223, 0.16);
-	--cat-meeting-int-text: #204f83;
+	/* external_tools → --cat-external-tools- */
+	--cat-external-tools-border: #79e29c;
+	--cat-external-tools-bg: rgba(121, 226, 156, 0.16);
+	--cat-external-tools-text: #1b7e3c;
 
-	/* meeting_merchant → --cat-meeting-merch-* — deeper blue (same hue, distinguishable from meeting_internal) */
-	--cat-meeting-merch-border: #76aae5;
-	--cat-meeting-merch-bg: rgba(118, 170, 229, 0.16);
-	--cat-meeting-merch-text: #1a4e89;
+	/* meeting_internal → --cat-meeting-int- */
+	--cat-meeting-int-border: #7c87df;
+	--cat-meeting-int-bg: rgba(124, 135, 223, 0.16);
+	--cat-meeting-int-text: #1e287b;
+
+	/* meeting_merchant → --cat-meeting-merch- */
+	--cat-meeting-merch-border: #7883e2;
+	--cat-meeting-merch-bg: rgba(120, 131, 226, 0.16);
+	--cat-meeting-merch-text: #1b247e;
 
 	--cat-onboarding-border: #7cdfd8;
 	--cat-onboarding-bg: rgba(124, 223, 216, 0.16);
 	--cat-onboarding-text: #20837d;
 
 	/* research_sync → --cat-research-* — green-teal */
-	--cat-research-border: #7cdf9e;
-	--cat-research-bg: rgba(124, 223, 158, 0.16);
-	--cat-research-text: #208342;
+	--cat-research-border: #7cdfd8;
+	--cat-research-bg: rgba(124, 223, 216, 0.16);
+	--cat-research-text: #20837d;
 
 	/* troubleshooting — green */
-	--cat-troubleshooting-border: #94df7c;
-	--cat-troubleshooting-bg: rgba(148, 223, 124, 0.16);
-	--cat-troubleshooting-text: #398320;
+	--cat-troubleshooting-border: #b6df7c;
+	--cat-troubleshooting-bg: rgba(182, 223, 124, 0.16);
+	--cat-troubleshooting-text: #547b1e;
 
 	--cat-lunch-border: #c8c4c0;
 	--cat-lunch-bg: #efefef;
@@ -200,12 +205,12 @@
 	/* admin_internal */
 	--cat-admin-internal-border: #d9d163;
 	--cat-admin-internal-bg: rgba(217, 209, 99, 0.1);
-	--cat-admin-internal-text: #efecbd;
+	--cat-admin-internal-text: #f0edc1;
 
 	/* admin_merchant */
-	--cat-admin-merchant-border: #e0d45c;
-	--cat-admin-merchant-bg: rgba(224, 212, 92, 0.1);
-	--cat-admin-merchant-text: #f2edba;
+	--cat-admin-merchant-border: #d9d163;
+	--cat-admin-merchant-bg: rgba(217, 209, 99, 0.1);
+	--cat-admin-merchant-text: #f0edc1;
 
 	/* analytics */
 	--cat-analytics-border: #e49e59;
@@ -232,6 +237,11 @@
 	--cat-tools-bg: rgba(99, 110, 217, 0.1);
 	--cat-tools-text: #bdc2ef;
 
+	/* external_tools → --cat-external-tools-* */
+	--cat-external-tools-border: #63d9d1;
+	--cat-external-tools-bg: rgba(99, 217, 209, 0.1);
+	--cat-external-tools-text: #bdefec;
+
 	/* meeting_internal → --cat-meeting-int-* */
 	--cat-meeting-int-border: #639bd9;
 	--cat-meeting-int-bg: rgba(99, 155, 217, 0.1);
@@ -247,14 +257,14 @@
 	--cat-onboarding-text: #bdefec;
 
 	/* research_sync → --cat-research-* */
-	--cat-research-border: #63d98b;
-	--cat-research-bg: rgba(99, 217, 139, 0.1);
-	--cat-research-text: #bdefce;
+	--cat-research-border: #63d9d1;
+	--cat-research-bg: rgba(99, 217, 209, 0.1);
+	--cat-research-text: #bdefec;
 
 	/* troubleshooting */
-	--cat-troubleshooting-border: #80d963;
-	--cat-troubleshooting-bg: rgba(128, 217, 99, 0.1);
-	--cat-troubleshooting-text: #caefbd;
+	--cat-troubleshooting-border: #a8d963;
+	--cat-troubleshooting-bg: rgba(168, 217, 99, 0.1);
+	--cat-troubleshooting-text: #ddf0c1;
 
 	--cat-lunch-border: #8d857c;
 	--cat-lunch-bg: rgba(141, 133, 124, 0.12);
@@ -398,6 +408,11 @@ body {
 	border-left-color: var(--cat-tools-border);
 	background-color: var(--cat-tools-bg);
 	color: var(--cat-tools-text);
+}
+.cat-external_tools {
+	border-left-color: var(--cat-external-tools-border);
+	background-color: var(--cat-external-tools-bg);
+	color: var(--cat-external-tools-text);
 }
 .cat-meeting_internal {
 	border-left-color: var(--cat-meeting-int-border);

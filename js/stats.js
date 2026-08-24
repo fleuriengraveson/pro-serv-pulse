@@ -2230,16 +2230,18 @@ function renderCategoryHeatmap(entries, queueDaysByMember = {}) {
 	/* Short category labels for column headers */
 	function shortLabel(label) {
 		const map = {
-			"Admin — Internal": "Admin int",
-			"Admin — Merchant": "Admin merch",
+			"Admin — Internal": "Int. Admin",
+			"Admin — Merchant": "Ext. Admin",
 			"Analytics Support": "Analytics",
 			"API / Technical Scoping": "API",
 			"Data Migration / Cleaning": "Migration",
 			"Hardware Support": "Hardware",
-			"Internal Tools Dev": "Tools",
-			"Live Meeting — Internal": "Mtg int",
-			"Live Meeting — Merchant": "Mtg merch",
+			"Live Meeting — Internal": "Int. Mtg",
+			"Live Meeting — Merchant": "Ext. Mtg",
+			"Onboarding Support": "Onboarding",
 			"Research / Product Sync": "Research",
+			"Tools Dev — Internal": "Int. Tools",
+			"Tools Dev — Merchant": "Ext. Tools",
 			Other: "Other",
 		};
 		return map[label] || label;
