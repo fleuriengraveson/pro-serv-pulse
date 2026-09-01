@@ -1134,6 +1134,141 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+ * WORK VOLUME TABLE (STATS PAGE)
+ * --------------------------------------------------------------------------
+ * Eight numeric columns across three groups. The name column absorbs all
+ * slack width so the figures stay clustered instead of spreading across
+ * the full page, and vertical rules separate the groups.
+ * ------------------------------------------------------------------------- */
+
+/* Fixed layout: every column's width comes from the <colgroup> and
+   nothing else. The auto algorithm was letting rows disagree about
+   where column boundaries sat; fixed makes that impossible. */
+.wv-table {
+	width: 100%;
+	min-width: 620px;
+	border-collapse: collapse;
+	font-size: 11px;
+	table-layout: fixed;
+}
+
+/* No width in the colgroup — this column takes whatever's left over,
+   pushing the figures into a block on the right */
+.wv-table .wv-name-col {
+	text-align: left;
+	padding: 7px 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.wv-table .wv-num {
+	text-align: right;
+	white-space: nowrap;
+	padding: 7px 14px;
+}
+
+/* First column of each group carries the divider */
+.wv-table .wv-group-start {
+	border-left: 0.5px solid var(--border-default);
+}
+
+.wv-table .wv-group-head {
+	text-align: center;
+	font-size: 9px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-placeholder);
+	padding: 0 10px 5px;
+}
+
+.wv-table .wv-col-head {
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--text-muted);
+	padding-bottom: 7px;
+}
+
+.wv-table thead tr:last-child th {
+	border-bottom: 0.5px solid var(--border-default);
+}
+
+.wv-table tbody tr {
+	border-top: 0.5px solid var(--border-subtle);
+}
+.wv-table tbody tr:first-child {
+	border-top: none;
+}
+
+/* Rows drill into that person's stats — make that visible.
+ * display is pinned because something else in the cascade was setting
+ * display:flex on .team-member-row, which turned the cells into flex
+ * items and broke column alignment against the rest of the table. */
+.wv-table tr.wv-row {
+	display: table-row;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+}
+.wv-table tr.wv-row > td {
+	display: table-cell;
+}
+.wv-row:hover {
+	background: var(--bg-surface);
+}
+
+.wv-zero {
+	color: var(--text-placeholder);
+}
+
+.wv-total-row {
+	border-top: 1px solid var(--border-default) !important;
+}
+.wv-total-row td {
+	font-weight: 600;
+	padding-top: 8px;
+}
+
+/* Single-person summary — same grouping, laid out as figures */
+.wv-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 24px;
+}
+.wv-summary-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding-left: 24px;
+	border-left: 0.5px solid var(--border-default);
+}
+.wv-summary-group:first-child {
+	padding-left: 0;
+	border-left: none;
+}
+.wv-summary-label {
+	font-size: 9px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--text-placeholder);
+}
+.wv-summary-values {
+	display: flex;
+	gap: 24px;
+}
+.wv-stat-label {
+	font-size: 10px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+.wv-stat-value {
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--text-primary);
+	line-height: 1.2;
+}
+
+/* ----------------------------------------------------------------------------
  * PROGRESS BAR
  * --------------------------------------------------------------------------
  * Horizontal progress bar used for tracking compliance.

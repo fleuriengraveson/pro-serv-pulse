@@ -26,6 +26,7 @@ import {
 	getTeamMemberNotes,
 	getAllTeamTicketStats,
 	getTeamMemberTicketStats,
+	getTicketStatsForRange,
 	getAllTeamDayMeta,
 } from "./db.js";
 import {
@@ -839,18 +840,24 @@ async function renderStats() {
 		entries = filterEntriesUpToNow(allEntries);
 	}
 
-	/* Load ticket stats for the period */
+	/* Load work volume stats for the period. Contributors (and managers
+	 * viewing "My stats") now load their own records too — previously
+	 * only team data was fetched, so the person entering the counts was
+	 * the only one who never saw them summarised. */
 	let ticketStats = [];
-	if (appState.settings.role === "manager") {
-		if (selectedMember === "all") {
-			ticketStats = await getAllTeamTicketStats(range.startDate, range.endDate);
-		} else if (selectedMember !== "self") {
-			ticketStats = await getTeamMemberTicketStats(
-				selectedMember,
-				range.startDate,
-				range.endDate,
-			);
-		}
+	if (appState.settings.role === "manager" && selectedMember === "all") {
+		ticketStats = await getAllTeamTicketStats(range.startDate, range.endDate);
+	} else if (
+		appState.settings.role === "manager" &&
+		selectedMember !== "self"
+	) {
+		ticketStats = await getTeamMemberTicketStats(
+			selectedMember,
+			range.startDate,
+			range.endDate,
+		);
+	} else {
+		ticketStats = await getTicketStatsForRange(range.startDate, range.endDate);
 	}
 
 	/* Load queue day data for the period (all-team view only)
@@ -1304,20 +1311,6 @@ async function renderStats() {
 		})()}
 
 	<!-- ================================================================
-      TICKET QUEUE
-      ================================================================ -->
-    ${(() => {
-			const ticketHtml = renderTicketOverview(ticketStats, queueDaysByMember);
-			return ticketHtml
-				? `
-    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
-      ${ticketHtml}
-    </div>
-      `
-				: "";
-		})()}
-
-    <!-- ================================================================
       CATEGORY HEATMAP
       ================================================================ -->
     ${(() => {
@@ -1330,11 +1323,29 @@ async function renderStats() {
       `
 				: "";
 		})()}
-    `
+        `
 			: ""
 	}
 
-	
+	<!-- ================================================================
+      WORK VOLUME
+      Sits outside the all-team block so contributors and managers
+      viewing a single person see it too.
+      ================================================================ -->
+    ${(() => {
+			const workVolumeHtml = renderWorkVolume(
+				ticketStats,
+				entries,
+				queueDaysByMember,
+			);
+			return workVolumeHtml
+				? `
+    <div class="mb-6 p-4 rounded-xl border border-stone-100 bg-white">
+      ${workVolumeHtml}
+    </div>
+      `
+				: "";
+		})()}
 
     <!-- ================================================================
       ROW 2: Hours by area + Urgent / Disproportionate flags
@@ -2349,77 +2360,208 @@ function renderCategoryHeatmap(entries, queueDaysByMember = {}) {
 }
 
 /**
- * renderTicketOverview
- * Shows ticket queue data for the team or individual member.
- * Displays current queue, new tickets, closed tickets, and net change.
+ * renderWorkVolume
+ * Shows counts of work produced — tickets, analytics reports and merchant
+ * tools — for the team, a single member, or the current user.
+ *
+ * Ticket and merchant tool counts come from the ticketStats records.
+ * Analytics reports live on individual entries, so they're summed from
+ * the entries array instead.
+ *
+ * @param {Array<Object>} ticketStats - Work volume records for the period
+ * @param {Array<Object>} entries - Time entries for the period
+ * @param {Object} queueDaysByMember - memberName → count of queue-duty days
+ * @returns {string} HTML string, or "" if there's nothing to show
  */
-function renderTicketOverview(ticketStats, queueDaysByMember = {}) {
-	if (!ticketStats || ticketStats.length === 0) return "";
+function renderWorkVolume(ticketStats, entries, queueDaysByMember = {}) {
+	const stats = ticketStats || [];
+
+	/* Sum analytics reports from entries, keeping per-member attribution
+	 * for the team table. Entries in single-person views have no
+	 * memberName, which is fine — those views only use the total. */
+	const analyticsByMember = {};
+	let analyticsTotal = 0;
+	(entries || []).forEach((e) => {
+		const count = e.analyticsCount || 0;
+		if (!count) return;
+		analyticsTotal += count;
+		if (e.memberName) {
+			analyticsByMember[e.memberName] =
+				(analyticsByMember[e.memberName] || 0) + count;
+		}
+	});
+
+	if (stats.length === 0 && analyticsTotal === 0) return "";
+
+	/* Own view respects the optional-field toggles — a section you've
+	 * turned off shouldn't reappear here. Team views always show every
+	 * column; a member who doesn't track something just reads zero. */
+	const isSelf = selectedMember === "self";
+	const showAnalytics = !isSelf || appState.settings.enableAnalytics;
+	const showMerchantTools = !isSelf || appState.settings.enableMerchantTools;
+
+	const helpText =
+		"Counts of work produced, separate from hours tracked. <strong>Queue</strong> is the open ticket count at the end of the period; <strong>New</strong>, <strong>Closed</strong> and <strong>Net</strong> are totals across it. <strong>Red net</strong> = queue growing, <strong>green net</strong> = queue shrinking.";
+
+	const netColorFor = (n) =>
+		n > 0 ? "var(--danger)" : n < 0 ? "var(--positive)" : "var(--text-muted)";
+
+	/* Column definitions, shared by the header and body so they can't
+	 * drift out of sync as columns are toggled. */
+	/* width feeds the <colgroup> — wide enough for the header label, since
+	 * fixed layout won't grow a column to fit its contents. */
+	const columns = [
+		{
+			key: "currentQueue",
+			label: "Queue",
+			group: "Tickets",
+			bold: true,
+			width: 84,
+		},
+		{ key: "totalNew", label: "New", group: "Tickets", width: 74 },
+		{ key: "totalClosed", label: "Closed", group: "Tickets", width: 84 },
+		{ key: "net", label: "Net", group: "Tickets", isNet: true, width: 74 },
+	];
+	if (showAnalytics) {
+		columns.push({
+			key: "analytics",
+			label: "Reports",
+			group: "Analytics",
+			width: 90,
+		});
+	}
+	if (showMerchantTools) {
+		columns.push(
+			{
+				key: "customisations",
+				label: "Customisations",
+				group: "Merchant tools",
+				width: 124,
+			},
+			{
+				key: "templates",
+				label: "Templates",
+				group: "Merchant tools",
+				width: 100,
+			},
+			{ key: "otherTools", label: "Other", group: "Merchant tools", width: 84 },
+		);
+	}
+
+	/* Flag the first column of each group so it can carry the divider,
+	 * and collapse the list into header groups: [{ label, span }] */
+	const groups = [];
+	let prevGroup = null;
+	columns.forEach((col) => {
+		col.groupStart = col.group !== prevGroup;
+		prevGroup = col.group;
+		const last = groups[groups.length - 1];
+		if (last && last.label === col.group) last.span++;
+		else groups.push({ label: col.group, span: 1 });
+	});
+
+	/* Totals for one person from their slice of the records */
+	const summarise = (memberStats, analytics) => {
+		const sorted = [...memberStats].sort((a, b) =>
+			a.date.localeCompare(b.date),
+		);
+		const last = sorted[sorted.length - 1];
+		const totalNew = memberStats.reduce((s, r) => s + (r.newTickets || 0), 0);
+		const totalClosed = memberStats.reduce(
+			(s, r) => s + (r.closedTickets || 0),
+			0,
+		);
+		return {
+			currentQueue: last
+				? (last.queueSize || 0) +
+					(last.newTickets || 0) -
+					(last.closedTickets || 0)
+				: 0,
+			totalNew,
+			totalClosed,
+			net: totalNew - totalClosed,
+			analytics,
+			customisations: memberStats.reduce(
+				(s, r) => s + (r.customisations || 0),
+				0,
+			),
+			templates: memberStats.reduce((s, r) => s + (r.templates || 0), 0),
+			otherTools: memberStats.reduce((s, r) => s + (r.otherTools || 0), 0),
+		};
+	};
 
 	const isAllTeam =
 		appState.settings.role === "manager" && selectedMember === "all";
 
 	if (isAllTeam) {
-		/* Group by member */
+		/* Group records by member, then fold in anyone who logged analytics
+		 * reports but has no ticket records at all. */
 		const byMember = {};
-		ticketStats.forEach((s) => {
+		stats.forEach((s) => {
 			if (!byMember[s.memberName]) byMember[s.memberName] = [];
 			byMember[s.memberName].push(s);
 		});
+		Object.keys(analyticsByMember).forEach((name) => {
+			if (!byMember[name]) byMember[name] = [];
+		});
 
 		const rows = Object.entries(byMember)
-			.map(([name, stats]) => {
-				/* Sort by date to find first and last */
-				const sorted = stats.sort((a, b) => a.date.localeCompare(b.date));
-				const first = sorted[0];
-				const last = sorted[sorted.length - 1];
-
-				/* Starting queue = first day's base queue size */
-				const startQueue = first.queueSize;
-				/* Total new and closed across all days */
-				const totalNew = stats.reduce((sum, s) => sum + (s.newTickets || 0), 0);
-				const totalClosed = stats.reduce(
-					(sum, s) => sum + (s.closedTickets || 0),
-					0,
-				);
-				/* Current queue = last day's computed queue */
-				const currentQueue =
-					last.queueSize + last.newTickets - last.closedTickets;
-				const net = totalNew - totalClosed;
-
-				return { name, startQueue, currentQueue, totalNew, totalClosed, net };
-			})
+			.map(([name, memberStats]) => ({
+				name,
+				...summarise(memberStats, analyticsByMember[name] || 0),
+			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 
-		/* Team totals */
-		const teamNew = rows.reduce((s, r) => s + r.totalNew, 0);
-		const teamClosed = rows.reduce((s, r) => s + r.totalClosed, 0);
-		const teamQueue = rows.reduce((s, r) => s + r.currentQueue, 0);
-		const teamNet = teamNew - teamClosed;
+		/* Team totals — queue sums across members, everything else adds up */
+		const totals = {};
+		columns.forEach((col) => {
+			totals[col.key] = rows.reduce((s, r) => s + (r[col.key] || 0), 0);
+		});
+
+		/* Renders one numeric cell, shared by member rows and the total row */
+		const numCell = (col, val, isTotal) => {
+			const cls = `wv-num${col.groupStart ? " wv-group-start" : ""}`;
+			if (col.isNet) {
+				const prefix = val > 0 ? "+" : "";
+				return `<td class="${cls}" style="font-weight: ${isTotal ? "600" : "500"}; color: ${netColorFor(val)};">${prefix}${val}</td>`;
+			}
+			/* Zeros read as clutter across eight columns — dim them */
+			const zero = !isTotal && val === 0 ? " wv-zero" : "";
+			const weight = col.bold ? (isTotal ? "600" : "500") : "400";
+			return `<td class="${cls}${zero}" style="font-weight: ${weight};">${val}</td>`;
+		};
 
 		let html = `
-      <div class="text-sm font-medium mb-3">Ticket queue <span class="info-bubble" data-help="Each member's open ticket count, new tickets received, tickets closed, and net change. <strong>Red net</strong> = queue growing. <strong>Green net</strong> = queue shrinking.">i</span></div>
-      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+      <div class="text-sm font-medium mb-3">Work volume <span class="info-bubble" data-help="${helpText}">i</span></div>
+      <div style="overflow-x: auto;">
+        <table class="wv-table">
+        <colgroup>
+          <col />
+          ${columns.map((c) => `<col style="width: ${c.width}px;" />`).join("")}
+        </colgroup>
         <thead>
           <tr>
-            <th style="text-align: left; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Name</th>
-            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Queue</th>
-            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">New</th>
-            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Closed</th>
-            <th style="text-align: right; padding: 6px 8px; font-weight: 500; color: var(--text-muted); font-size: 10px;">Net</th>
+            <th rowspan="2" class="wv-name-col" style="font-weight: 500; color: var(--text-muted); font-size: 10px; vertical-align: bottom;">Name</th>
+            ${groups
+							.map(
+								(g, i) =>
+									`<th colspan="${g.span}" class="wv-group-head${i > 0 ? " wv-group-start" : ""}">${g.label}</th>`,
+							)
+							.join("")}
+          </tr>
+          <tr>
+            ${columns
+							.map(
+								(c) =>
+									`<th class="wv-num wv-col-head${c.groupStart ? " wv-group-start" : ""}">${c.label}</th>`,
+							)
+							.join("")}
           </tr>
         </thead>
         <tbody>
     `;
 
 		rows.forEach((r) => {
-			const netColor =
-				r.net > 0
-					? "var(--danger)"
-					: r.net < 0
-						? "var(--positive)"
-						: "var(--text-muted)";
-			const netPrefix = r.net > 0 ? "+" : "";
 			const initials = escapeHtml(
 				r.name
 					.split(" ")
@@ -2430,87 +2572,93 @@ function renderTicketOverview(ticketStats, queueDaysByMember = {}) {
 			);
 
 			html += `
-        <tr style="border-top: 0.5px solid var(--border-default); cursor: pointer;" class="team-member-row" data-member="${escapeHtml(r.name)}">
-          <td style="padding: 6px 8px;">
+        <tr class="team-member-row wv-row" data-member="${escapeHtml(r.name)}">
+          <td class="wv-name-col">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text);">${initials}</div>
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text); flex-shrink: 0;">${initials}</div>
               <span style="font-weight: 500; color: var(--text-primary);">${escapeHtml(r.name)}</span>
               ${queueDaysByMember[r.name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[r.name]}d</span>` : ""}
             </div>
           </td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${r.currentQueue}</td>
-          <td style="text-align: right; padding: 6px 8px;">${r.totalNew}</td>
-          <td style="text-align: right; padding: 6px 8px;">${r.totalClosed}</td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 500; color: ${netColor};">${netPrefix}${r.net}</td>
+          ${columns.map((col) => numCell(col, r[col.key] || 0, false)).join("")}
         </tr>
       `;
 		});
 
-		/* Team totals row */
-		const teamNetColor =
-			teamNet > 0
-				? "var(--danger)"
-				: teamNet < 0
-					? "var(--positive)"
-					: "var(--text-muted)";
-		const teamNetPrefix = teamNet > 0 ? "+" : "";
-
 		html += `
-        <tr style="border-top: 1px solid var(--border-default);">
-          <td style="padding: 6px 8px; font-weight: 500; color: var(--text-muted);">Team total</td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 600;">${teamQueue}</td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${teamNew}</td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 500;">${teamClosed}</td>
-          <td style="text-align: right; padding: 6px 8px; font-weight: 600; color: ${teamNetColor};">${teamNetPrefix}${teamNet}</td>
+        <tr class="wv-total-row">
+          <td class="wv-name-col" style="font-weight: 500; color: var(--text-muted);">Team total</td>
+          ${columns
+						.map((col) => numCell(col, totals[col.key] || 0, true))
+						.join("")}
         </tr>
-      </tbody></table>
+      </tbody></table></div>
     `;
 
 		return html;
-	} else {
-		/* Individual member view — summary card */
-		const sorted = ticketStats.sort((a, b) => a.date.localeCompare(b.date));
-		const last = sorted[sorted.length - 1];
-		const totalNew = ticketStats.reduce(
-			(sum, s) => sum + (s.newTickets || 0),
-			0,
-		);
-		const totalClosed = ticketStats.reduce(
-			(sum, s) => sum + (s.closedTickets || 0),
-			0,
-		);
-		const currentQueue = last.queueSize + last.newTickets - last.closedTickets;
-		const net = totalNew - totalClosed;
-		const netColor =
-			net > 0
-				? "var(--danger)"
-				: net < 0
-					? "var(--positive)"
-					: "var(--text-muted)";
-		const netPrefix = net > 0 ? "+" : "";
+	}
 
-		return `
-      <div class="text-sm font-medium mb-3">Ticket queue</div>
-      <div style="display: flex; gap: 16px;">
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted);">Current queue</div>
-          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${currentQueue}</div>
+	/* Single person — same grouping, laid out as figures rather than a table */
+	const s = summarise(stats, analyticsTotal);
+
+	const summaryGroups = [
+		{
+			label: "Tickets",
+			items: [
+				{ label: "Current queue", value: s.currentQueue },
+				{ label: "New", value: s.totalNew },
+				{ label: "Closed", value: s.totalClosed },
+				{
+					label: "Net",
+					value: `${s.net > 0 ? "+" : ""}${s.net}`,
+					color: netColorFor(s.net),
+				},
+			],
+		},
+	];
+	if (showAnalytics) {
+		summaryGroups.push({
+			label: "Analytics",
+			items: [{ label: "Reports", value: s.analytics }],
+		});
+	}
+	if (showMerchantTools) {
+		summaryGroups.push({
+			label: "Merchant tools",
+			items: [
+				{ label: "Customisations", value: s.customisations },
+				{ label: "Templates", value: s.templates },
+				{ label: "Other", value: s.otherTools },
+			],
+		});
+	}
+
+	return `
+      <div class="text-sm font-medium mb-3">Work volume <span class="info-bubble" data-help="${helpText}">i</span></div>
+      <div class="wv-summary">
+        ${summaryGroups
+					.map(
+						(g) => `
+        <div class="wv-summary-group">
+          <div class="wv-summary-label">${g.label}</div>
+          <div class="wv-summary-values">
+            ${g.items
+							.map(
+								(b) => `
+            <div>
+              <div class="wv-stat-label">${b.label}</div>
+              <div class="wv-stat-value"${b.color ? ` style="color: ${b.color};"` : ""}>${b.value}</div>
+            </div>
+            `,
+							)
+							.join("")}
+          </div>
         </div>
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted);">New</div>
-          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalNew}</div>
-        </div>
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted);">Closed</div>
-          <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalClosed}</div>
-        </div>
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted);">Net</div>
-          <div style="font-size: 20px; font-weight: 600; color: ${netColor};">${netPrefix}${net}</div>
-        </div>
+        `,
+					)
+					.join("")}
       </div>
     `;
-	}
 }
 
 /**
