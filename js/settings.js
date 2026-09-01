@@ -6,7 +6,7 @@
  *   - Role (contributor / manager)
  *   - Work hours (start and end times)
  *   - Lunch time and duration
- *   - Optional field toggles (merchant, former POS)
+ *   - Optional field toggles (merchant, former POS, analytics, merchant tools)
  *   - Tier mappings (manager only)
  *
  * Settings are persisted in IndexedDB and applied immediately.
@@ -141,7 +141,7 @@ async function renderSettings() {
         OPTIONAL FIELDS SECTION
         ================================================================ -->
       <div class="mb-8">
-        <h3 class="...">Optional fields <span class="info-bubble" data-help="Toggle which fields appear in the time block editor. <strong>Merchant</strong> tracks which customer you're working on. <strong>Former POS</strong> tracks the merchant's previous point-of-sale system (only needed if you are doing migrations).">i</span></h3>
+                <h3 class="...">Optional fields <span class="info-bubble" data-help="Toggle which fields and counters appear in the tracker. <strong>Merchant</strong> tracks which customer you're working on. <strong>Former POS</strong> tracks the merchant's previous point-of-sale system (only needed if you are doing migrations). <strong>Analytics reports</strong> adds a report counter to Analytics Support blocks. <strong>Merchant tools</strong> adds counters for customisations, templates and other tools to the sidebar.">i</span></h3>
         <div class="space-y-3 bg-white rounded-xl border border-stone-200 p-5">
 
           <!-- Merchant toggle -->
@@ -155,7 +155,7 @@ async function renderSettings() {
                    class="w-4 h-4 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
           </label>
 
-          <!-- Former POS toggle -->
+                    <!-- Former POS toggle -->
           <label class="flex items-center justify-between cursor-pointer border-t border-stone-100 pt-3">
             <div>
               <span class="text-sm font-medium text-stone-600">Former POS tracking</span>
@@ -163,6 +163,28 @@ async function renderSettings() {
             </div>
             <input type="checkbox" id="setting-formerpos"
                    ${settings.enableFormerPOS ? "checked" : ""}
+                   class="w-4 h-4 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
+          </label>
+
+          <!-- Analytics report toggle -->
+          <label class="flex items-center justify-between cursor-pointer border-t border-stone-100 pt-3">
+            <div>
+              <span class="text-sm font-medium text-stone-600">Analytics report tracking</span>
+              <p class="text-xs text-stone-400">Count reports on Analytics Support blocks, with a weekly total in the sidebar.</p>
+            </div>
+            <input type="checkbox" id="setting-analytics"
+                   ${settings.enableAnalytics ? "checked" : ""}
+                   class="w-4 h-4 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
+          </label>
+
+          <!-- Merchant tools toggle -->
+          <label class="flex items-center justify-between cursor-pointer border-t border-stone-100 pt-3">
+            <div>
+              <span class="text-sm font-medium text-stone-600">Merchant tools tracking</span>
+              <p class="text-xs text-stone-400">Count customisations, templates and other merchant tools in the sidebar.</p>
+            </div>
+            <input type="checkbox" id="setting-merchant-tools"
+                   ${settings.enableMerchantTools ? "checked" : ""}
                    class="w-4 h-4 rounded border-stone-300 text-chronos-500 focus:ring-chronos-300" />
           </label>
 
@@ -476,6 +498,10 @@ async function attachSettingsListeners() {
 			container.querySelector("#setting-merchant")?.checked || false;
 		settings.enableFormerPOS =
 			container.querySelector("#setting-formerpos")?.checked || false;
+		settings.enableAnalytics =
+			container.querySelector("#setting-analytics")?.checked || false;
+		settings.enableMerchantTools =
+			container.querySelector("#setting-merchant-tools")?.checked || false;
 
 		/* Persist to IndexedDB */
 		await saveUserSettings(settings);

@@ -1061,11 +1061,19 @@ export async function autoImportTeamData() {
 					for (const week of data.weeks) {
 						const weekData = {
 							...data,
+							/* Don't carry the whole multi-week payload into each
+							 * week's record — the spread above copies `weeks`,
+							 * so every stored week held a full copy of every
+							 * other week. */
+							weeks: undefined,
 							weekKey: week.weekKey,
 							startDate: week.startDate,
 							endDate: week.endDate,
 							entries: week.entries,
 							weeklyNotes: week.weeklyNotes,
+							/* ticketStats was never read here, so work volume
+							 * from multi-week files was silently discarded. */
+							ticketStats: week.ticketStats || [],
 							dayMeta: week.dayMeta || [],
 						};
 						const isNew = await importTeamMemberData(

@@ -19,6 +19,7 @@ import {
 	migrateZendeskToAdmin,
 	migrateAdminSplit,
 	getTicketStatsForRange,
+	getDayMetaForRange,
 } from "./db.js";
 import { initTracker, getCurrentWeekDates } from "./tracker.js";
 import { initSettings } from "./settings.js";
@@ -856,6 +857,12 @@ async function exportCurrentWeek() {
 				}
 			: null,
 		ticketStats: await getTicketStatsForExport(startDate, endDate),
+		/* dayMeta was missing here — the manual weekly download dropped
+		 * queue duty flags that autoExportWeek writes. */
+		dayMeta: (await getDayMetaForRange(startDate, endDate)).map((m) => ({
+			date: m.date,
+			onQueue: m.onQueue || false,
+		})),
 		tierMap: state.tierMap,
 	};
 
@@ -928,6 +935,14 @@ async function exportAllWeeks() {
 							customerMeetings: notes.customerMeetings || "",
 						}
 					: null,
+				/* ticketStats and dayMeta were both missing here — a manager
+				 * importing an "all weeks" file got zero work volume data and
+				 * no queue duty flags for any week. */
+				ticketStats: await getTicketStatsForExport(startDate, endDate),
+				dayMeta: (await getDayMetaForRange(startDate, endDate)).map((m) => ({
+					date: m.date,
+					onQueue: m.onQueue || false,
+				})),
 			});
 		}
 
