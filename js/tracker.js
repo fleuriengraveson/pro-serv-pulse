@@ -530,7 +530,8 @@ function renderTimeBlock(slot) {
             </div>
             ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${escapeHtml(entry.subCategory)}</span></div>` : ""}
             ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${escapeHtml(entry.merchant)}</span></div>` : ""}
-            ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+                        ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+            ${entry.analyticsCount ? `<div class="tooltip-row"><span class="tooltip-label">Reports</span><span class="tooltip-value">${entry.analyticsCount}</span></div>` : ""}
             ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${escapeHtml(entry.ticketLink.split("/").pop())}</span></div>` : ""}
             ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${escapeHtml(entry.notes)}</span></div>` : ""}
             <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
@@ -1347,39 +1348,60 @@ async function showEditDropdown(
                  placeholder="URL or ticket number..." />
         </div>
 
-        <!-- Merchant + Former POS (side by side) -->
-        ${
-					appState.settings.enableMerchant || appState.settings.enableFormerPOS
-						? `
-        <div class="field-row">
-          ${
-						appState.settings.enableMerchant
-							? `
+                        <!-- Merchant / Former POS / Analytics -->
+        ${(() => {
+					const showMerchant = appState.settings.enableMerchant;
+					const showPOS = appState.settings.enableFormerPOS;
+					const showAnalytics = appState.settings.enableAnalytics;
+					if (!showMerchant && !showPOS && !showAnalytics) return "";
+
+					const merchantField = `
           <div class="field-group">
             <label class="field-label">Merchant</label>
             <input type="text" id="edit-merchant" autocomplete="off"
                    value="${entry.merchant || ""}"
                    placeholder="Merchant name..." />
-          </div>
-          `
-							: ""
-					}
-          ${
-						appState.settings.enableFormerPOS
-							? `
+          </div>`;
+
+					const posField = `
           <div class="field-group">
             <label class="field-label">Former POS</label>
             <input type="text" id="edit-formerpos" autocomplete="off"
                    value="${entry.formerPOS || ""}"
                    placeholder="Former POS..." />
-          </div>
-          `
-							: ""
-					}
+          </div>`;
+
+					/* Hidden until Analytics Support is the selected category */
+					const analyticsField = `
+          <div class="field-group field-group-stepper" id="analytics-field"
+               style="display: ${entry.category === "analytics" ? "flex" : "none"};">
+            <label class="field-label">Reports</label>
+            <div class="stepper-controls">
+              <button type="button" class="stepper-btn" data-action="decrement">−</button>
+              <input type="number" id="edit-analytics-count" class="stepper-input"
+                     value="${entry.analyticsCount || 0}" />
+              <button type="button" class="stepper-btn" data-action="increment">+</button>
+            </div>
+          </div>`;
+
+					/* All three in one row squeezes the merchant name box down to
+					 * something unreadable, so merchant takes its own row and the
+					 * stepper pairs with Former POS. On non-analytics blocks the
+					 * stepper is display:none, so Former POS flexes to full width
+					 * and the row doesn't look half-empty. */
+					if (showAnalytics && showMerchant && showPOS) {
+						return `
+        <div class="field-row">${merchantField}
         </div>
-        `
-						: ""
-				}
+        <div class="field-row">${posField}${analyticsField}
+        </div>`;
+					}
+
+					/* Two or fewer fields fit comfortably side by side */
+					return `
+        <div class="field-row">${showMerchant ? merchantField : ""}${showPOS ? posField : ""}${showAnalytics ? analyticsField : ""}
+        </div>`;
+				})()}
 
         <!-- Notes (full width) -->
         <div class="field-group">
@@ -1569,6 +1591,25 @@ async function showEditDropdown(
 	const posInput = dropdown.querySelector("#edit-formerpos");
 	if (posInput) attachAutocomplete(posInput, "formerPOS");
 
+	/* Analytics report stepper — +/- adjust the input, which is also
+	 * directly editable. Value is read on save. */
+	const analyticsInput = dropdown.querySelector("#edit-analytics-count");
+	if (analyticsInput) {
+		dropdown.querySelectorAll(".stepper-btn").forEach((btn) => {
+			btn.addEventListener("click", (e) => {
+				e.preventDefault();
+				const delta = btn.dataset.action === "increment" ? 1 : -1;
+				const current = Math.max(0, parseInt(analyticsInput.value) || 0);
+				analyticsInput.value = Math.max(0, current + delta);
+			});
+		});
+
+		/* Clamp manual edits */
+		analyticsInput.addEventListener("change", () => {
+			analyticsInput.value = Math.max(0, parseInt(analyticsInput.value) || 0);
+		});
+	}
+
 	/* --- Dropdown event listeners --- */
 
 	/* Category selection: highlight the clicked option */
@@ -1582,6 +1623,14 @@ async function showEditDropdown(
 			opt.classList.add("selected");
 			selectedCategory = opt.dataset.category;
 			console.log("Category selected:", selectedCategory);
+
+			/* Analytics report count only applies to Analytics Support work */
+			const analyticsField = dropdown.querySelector("#analytics-field");
+			if (analyticsField) {
+				analyticsField.style.display =
+					selectedCategory === "analytics" ? "flex" : "none";
+			}
+
 			/* Hide warning if it was showing */
 			const warning = dropdown.querySelector("#edit-warning");
 			if (warning) warning.style.display = "none";
@@ -1612,6 +1661,22 @@ async function showEditDropdown(
 			ticketLink: dropdown.querySelector("#edit-ticket")?.value.trim() || "",
 			merchant: dropdown.querySelector("#edit-merchant")?.value.trim() || "",
 			formerPOS: dropdown.querySelector("#edit-formerpos")?.value.trim() || "",
+			/* Only Analytics Support blocks carry a report count. If the
+			 * category was switched away, the count is cleared — a count on
+			 * a non-analytics block would be invisible and uneditable.
+			 * If the setting is off entirely, preserve whatever was already
+			 * stored rather than silently zeroing someone else's data. */
+			analyticsCount:
+				selectedCategory !== "analytics"
+					? 0
+					: dropdown.querySelector("#edit-analytics-count")
+						? Math.max(
+								0,
+								parseInt(
+									dropdown.querySelector("#edit-analytics-count").value,
+								) || 0,
+							)
+						: entry.analyticsCount || 0,
 			notes: dropdown.querySelector("#edit-notes")?.value.trim() || "",
 		};
 
@@ -2325,7 +2390,8 @@ async function renderWeekView() {
                         </div>
                         ${entry.subCategory ? `<div class="tooltip-row"><span class="tooltip-label">Sub-category</span><span class="tooltip-value">${escapeHtml(entry.subCategory)}</span></div>` : ""}
                         ${entry.merchant ? `<div class="tooltip-row"><span class="tooltip-label">Merchant</span><span class="tooltip-value">${escapeHtml(entry.merchant)}</span></div>` : ""}
-                        ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+                                                ${entry.formerPOS ? `<div class="tooltip-row"><span class="tooltip-label">Former POS</span><span class="tooltip-value">${escapeHtml(entry.formerPOS)}</span></div>` : ""}
+                        ${entry.analyticsCount ? `<div class="tooltip-row"><span class="tooltip-label">Reports</span><span class="tooltip-value">${entry.analyticsCount}</span></div>` : ""}
                         ${entry.ticketLink ? `<div class="tooltip-row"><span class="tooltip-label">Ticket</span><span class="tooltip-value">#${escapeHtml(entry.ticketLink.split("/").pop())}</span></div>` : ""}
                         ${entry.notes ? `<div class="tooltip-row"><span class="tooltip-label">Notes</span><span class="tooltip-value">${escapeHtml(entry.notes)}</span></div>` : ""}
                         <div class="tooltip-row"><span class="tooltip-label">Billable</span><span class="tooltip-value">${entry.billable ? "Yes" : "No"}</span></div>
@@ -2445,6 +2511,14 @@ function showWeekPopover(entry, blockEl) {
       <div class="week-popover-row">
         <span class="week-popover-label">Ticket</span>
         <span class="week-popover-value text-blue-500">${escapeHtml(entry.ticketLink)}</span>
+      </div>
+    `;
+	}
+	if (entry.analyticsCount) {
+		html += `
+      <div class="week-popover-row">
+        <span class="week-popover-label">Reports</span>
+        <span class="week-popover-value">${entry.analyticsCount}</span>
       </div>
     `;
 	}

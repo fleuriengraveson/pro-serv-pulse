@@ -671,6 +671,59 @@ body {
 .detail-panel .field-row > .field-group {
 	flex: 1;
 }
+
+/* The analytics stepper is a fixed-width control — everything else in
+   the row flexes around it. */
+.detail-panel .field-row > .field-group-stepper {
+	flex: 0 0 auto;
+	width: 108px;
+}
+
+.stepper-controls {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.stepper-btn {
+	width: 26px;
+	height: 32px;
+	flex-shrink: 0;
+	border-radius: 8px;
+	border: 0.5px solid var(--border-default);
+	background: var(--bg-input);
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: inherit;
+	transition: all 0.1s ease;
+}
+.stepper-btn:hover {
+	color: var(--accent-text);
+	border-color: var(--accent-text-light);
+}
+.detail-panel input.stepper-input {
+	width: 100%;
+	min-width: 0;
+	text-align: center;
+	padding: 7px 0;
+	font-size: 13px;
+	font-weight: 500;
+	border: 0.5px solid var(--border-default);
+	border-radius: 8px;
+	background: var(--bg-input);
+	color: var(--text-primary);
+	font-family: inherit;
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+.detail-panel input.stepper-input::-webkit-inner-spin-button,
+.detail-panel input.stepper-input::-webkit-outer-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
 .detail-panel label.field-label {
 	font-size: 12px;
 	color: var(--text-secondary);
