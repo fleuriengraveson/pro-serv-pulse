@@ -855,12 +855,17 @@ export async function exportAllData() {
 	};
 }
 
+/* Merchant tool counter fields. British spelling is deliberate and is
+ * part of the on-disk data contract — do not "fix" to -ize. */
+const MERCHANT_TOOL_FIELDS = ["customisations", "templates", "otherTools"];
+
 /**
  * getTicketStats
- * Returns the ticket stats for a given date.
+ * Returns the work volume stats for a given date.
  *
  * @param {string} date - 'YYYY-MM-DD'
- * @returns {Promise<Object|null>} { date, queueSize, newTickets, closedTickets }
+ * @returns {Promise<Object|null>} { date, queueSize, newTickets, closedTickets,
+ *                                   customisations, templates, otherTools }
  */
 export async function getTicketStats(date) {
 	return (await db.ticketStats.get(date)) || null;
@@ -868,10 +873,14 @@ export async function getTicketStats(date) {
 
 /**
  * saveTicketStats
- * Saves or updates ticket stats for a given date.
+ * Saves or updates work volume stats for a given date.
+ * Merchant tool counts default to 0 so older records (which predate
+ * these fields) round-trip through this function without becoming
+ * undefined.
  *
  * @param {string} date - 'YYYY-MM-DD'
- * @param {Object} stats - { queueSize, newTickets, closedTickets }
+ * @param {Object} stats - { queueSize, newTickets, closedTickets,
+ *                           customisations, templates, otherTools }
  */
 export async function saveTicketStats(date, stats) {
 	await db.ticketStats.put({
@@ -879,12 +888,15 @@ export async function saveTicketStats(date, stats) {
 		queueSize: stats.queueSize,
 		newTickets: stats.newTickets,
 		closedTickets: stats.closedTickets,
+		customisations: stats.customisations || 0,
+		templates: stats.templates || 0,
+		otherTools: stats.otherTools || 0,
 	});
 }
 
 /**
  * getTicketStatsForRange
- * Returns all ticket stats records within a date range.
+ * Returns all work volume records within a date range.
  *
  * @param {string} startDate - 'YYYY-MM-DD'
  * @param {string} endDate - 'YYYY-MM-DD'
@@ -899,13 +911,152 @@ export async function getTicketStatsForRange(startDate, endDate) {
 
 /**
  * getMostRecentTicketStats
- * Returns the most recent ticket stats record (for carrying forward queue size).
+ * Returns the most recent record overall (for carrying forward queue size).
  *
  * @returns {Promise<Object|null>}
  */
 export async function getMostRecentTicketStats() {
 	const all = await db.ticketStats.orderBy("date").reverse().limit(1).toArray();
 	return all.length > 0 ? all[0] : null;
+}
+
+/**
+ * getMostRecentTicketStatsBefore
+ * Returns the most recent record STRICTLY BEFORE a given date.
+ *
+ * getMostRecentTicketStats looks at the whole table, which is wrong when
+ * creating a record for a past day — it would carry the queue backwards
+ * from the future. Any code creating a record for a specific date should
+ * use this instead.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @returns {Promise<Object|null>}
+ */
+export async function getMostRecentTicketStatsBefore(date) {
+	const all = await db.ticketStats
+		.where("date")
+		.below(date)
+		.reverse()
+		.limit(1)
+		.toArray();
+	return all.length > 0 ? all[0] : null;
+}
+
+/**
+ * ensureTicketStatsForDate
+ * Returns the existing record for a date, or builds an unsaved skeleton
+ * with the queue carried forward from the previous record.
+ *
+ * Merchant tool counts always start at 0 — they are per-day counts of
+ * work completed, not a running balance, so they must never carry.
+ *
+ * @param {string} date - 'YYYY-MM-DD'
+ * @returns {Promise<Object>}
+ */
+export async function ensureTicketStatsForDate(date) {
+	const existing = await getTicketStats(date);
+	if (existing) {
+		/* Backfill the newer fields on older records so callers can
+		 * treat every record as having the full shape. */
+		return {
+			customisations: 0,
+			templates: 0,
+			otherTools: 0,
+			...existing,
+		};
+	}
+
+	const prev = await getMostRecentTicketStatsBefore(date);
+	return {
+		date,
+		queueSize: prev
+			? (prev.queueSize || 0) +
+				(prev.newTickets || 0) -
+				(prev.closedTickets || 0)
+			: 0,
+		newTickets: 0,
+		closedTickets: 0,
+		customisations: 0,
+		templates: 0,
+		otherTools: 0,
+	};
+}
+
+/**
+ * getMerchantToolTotals
+ * Sums each merchant tool counter across a date range. Used by the
+ * tracker sidebar (current week) and the stats grid (selected period).
+ *
+ * @param {string} startDate - 'YYYY-MM-DD'
+ * @param {string} endDate - 'YYYY-MM-DD'
+ * @returns {Promise<Object>} { customisations, templates, otherTools }
+ */
+export async function getMerchantToolTotals(startDate, endDate) {
+	const stats = await getTicketStatsForRange(startDate, endDate);
+	return stats.reduce(
+		(acc, s) => ({
+			customisations: acc.customisations + (s.customisations || 0),
+			templates: acc.templates + (s.templates || 0),
+			otherTools: acc.otherTools + (s.otherTools || 0),
+		}),
+		{ customisations: 0, templates: 0, otherTools: 0 },
+	);
+}
+
+/**
+ * incrementMerchantTool
+ * Adds one to a merchant tool counter on a specific date (always "today"
+ * in practice). Creates the day's record if it doesn't exist, carrying
+ * the ticket queue forward so the queue chain isn't broken by someone
+ * logging a tool before touching tickets.
+ *
+ * @param {string} date  - 'YYYY-MM-DD'
+ * @param {string} field - one of MERCHANT_TOOL_FIELDS
+ * @returns {Promise<Object>} The saved record
+ */
+export async function incrementMerchantTool(date, field) {
+	if (!MERCHANT_TOOL_FIELDS.includes(field)) {
+		throw new Error(`incrementMerchantTool: unknown field "${field}"`);
+	}
+
+	/* Read-then-write in one transaction so rapid clicks can't
+	 * interleave and lose a count. */
+	return await db.transaction("rw", db.ticketStats, async () => {
+		const record = await ensureTicketStatsForDate(date);
+		record[field] = (record[field] || 0) + 1;
+		await saveTicketStats(date, record);
+		return record;
+	});
+}
+
+/**
+ * decrementMerchantTool
+ * Removes one from a merchant tool counter, taking it from the most
+ * recent day within the range that has a non-zero count. This lets a
+ * user correct a miscount from earlier in the week without having to
+ * navigate back to that day, and can never push a day negative.
+ *
+ * @param {string} startDate - 'YYYY-MM-DD' (usually Monday of this week)
+ * @param {string} endDate   - 'YYYY-MM-DD' (usually Friday of this week)
+ * @param {string} field     - one of MERCHANT_TOOL_FIELDS
+ * @returns {Promise<Object|null>} The saved record, or null if nothing to remove
+ */
+export async function decrementMerchantTool(startDate, endDate, field) {
+	if (!MERCHANT_TOOL_FIELDS.includes(field)) {
+		throw new Error(`decrementMerchantTool: unknown field "${field}"`);
+	}
+
+	return await db.transaction("rw", db.ticketStats, async () => {
+		const stats = await getTicketStatsForRange(startDate, endDate);
+		stats.sort((a, b) => b.date.localeCompare(a.date));
+
+		const target = stats.find((s) => (s[field] || 0) > 0);
+		if (!target) return null;
+
+		target[field] = target[field] - 1;
+		await saveTicketStats(target.date, target);
+		return target;
+	});
 }
 
 /* ============================================================================

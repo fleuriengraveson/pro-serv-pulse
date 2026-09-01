@@ -475,10 +475,7 @@ body {
 	border-left-color: var(--border-strong);
 	cursor: pointer;
 }
-.time-block-selecting {
-	background-color: var(--accent-light) !important;
-	border-left-color: var(--accent) !important;
-}
+
 .time-block-filled:hover {
 	filter: brightness(0.97);
 	cursor: pointer;

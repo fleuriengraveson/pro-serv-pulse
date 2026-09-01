@@ -412,6 +412,7 @@ export async function autoExportWeek(state, refDate = new Date()) {
 				onboarding: e.onboarding || false,
 				ticketLink: e.ticketLink || "",
 				formerPOS: e.formerPOS || "",
+				analyticsCount: e.analyticsCount || 0,
 				notes: e.notes || "",
 			})),
 			ticketStats: (await getTicketStatsForRange(startDate, endDate)).map(
@@ -420,6 +421,9 @@ export async function autoExportWeek(state, refDate = new Date()) {
 					queueSize: s.queueSize,
 					newTickets: s.newTickets,
 					closedTickets: s.closedTickets,
+					customisations: s.customisations || 0,
+					templates: s.templates || 0,
+					otherTools: s.otherTools || 0,
 				}),
 			),
 			/* Per-day metadata (queue duty flags) for this week */
@@ -809,8 +813,12 @@ export async function autoExportAllWeeks(state) {
 						billable: e.billable || false,
 						merchant: e.merchant || "",
 						urgent: e.urgent || false,
+						/* onboarding was missing here — backfilled weeks were
+						 * silently losing the flag that autoExportWeek writes. */
+						onboarding: e.onboarding || false,
 						ticketLink: e.ticketLink || "",
 						formerPOS: e.formerPOS || "",
+						analyticsCount: e.analyticsCount || 0,
 						notes: e.notes || "",
 					})),
 					ticketStats: await (async () => {
@@ -820,6 +828,9 @@ export async function autoExportAllWeeks(state) {
 							queueSize: s.queueSize,
 							newTickets: s.newTickets,
 							closedTickets: s.closedTickets,
+							customisations: s.customisations || 0,
+							templates: s.templates || 0,
+							otherTools: s.otherTools || 0,
 						}));
 					})(),
 					/* Per-day metadata (queue duty flags) for this week */

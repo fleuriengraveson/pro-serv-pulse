@@ -844,6 +844,7 @@ async function exportCurrentWeek() {
 			onboarding: e.onboarding || false,
 			ticketLink: e.ticketLink || "",
 			formerPOS: e.formerPOS || "",
+			analyticsCount: e.analyticsCount || 0,
 			notes: e.notes || "",
 		})),
 		weeklyNotes: notes
@@ -916,6 +917,7 @@ async function exportAllWeeks() {
 					onboarding: e.onboarding || false,
 					ticketLink: e.ticketLink || "",
 					formerPOS: e.formerPOS || "",
+					analyticsCount: e.analyticsCount || 0,
 					notes: e.notes || "",
 				})),
 				weeklyNotes: notes
@@ -1588,6 +1590,9 @@ async function getTicketStatsForExport(startDate, endDate) {
 		queueSize: s.queueSize,
 		newTickets: s.newTickets,
 		closedTickets: s.closedTickets,
+		customisations: s.customisations || 0,
+		templates: s.templates || 0,
+		otherTools: s.otherTools || 0,
 	}));
 }
 

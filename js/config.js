@@ -248,6 +248,8 @@ export const DEFAULT_USER_SETTINGS = {
 	lunchBlocks: TIME_DEFAULTS.lunchBlocks,
 	enableMerchant: false,
 	enableFormerPOS: false,
+	enableAnalytics: false,
+	enableMerchantTools: false,
 	hiddenCategories: [],
 	backupFolderHandle: null, // File System Access API handle
 	backupFrequency: "daily", // 'daily' or 'weekly'
