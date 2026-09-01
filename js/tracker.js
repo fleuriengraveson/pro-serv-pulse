@@ -27,9 +27,11 @@ import {
 	getLastEntryForMerchant,
 	getAllTeamNotesForWeek,
 	getTeamMemberNotes,
-	getTicketStats,
 	saveTicketStats,
-	getMostRecentTicketStats,
+	ensureTicketStatsForDate,
+	getMerchantToolTotals,
+	incrementMerchantTool,
+	decrementMerchantTool,
 	getDayMeta,
 	saveDayMeta,
 	getDayMetaForRange,
@@ -467,7 +469,7 @@ async function renderTracker() {
 
 	/* Attach event listeners after rendering */
 	attachEventListeners();
-	await loadTicketTracker();
+	await loadWorkVolume();
 
 	/* Re-show clipboard indicator if clipboard is active */
 	if (clipboard) updateClipboardIndicator();
@@ -748,12 +750,36 @@ function renderSidebar(stats) {
       <button id="btn-notes" class="sidebar-btn sidebar-btn-notes">Notes (N)</button>
     </div>
 
-    <!-- Ticket queue tracker -->
-    <div class="stat-card" id="ticket-tracker">
-      <div class="stat-card-label">Ticket queue <span class="info-bubble" data-help="<strong>In queue:</strong> Your current open ticket count. Updates automatically when you add new or closed tickets.<br><br><strong>New today:</strong> Tickets received today. Tap + when a new one comes in.<br><br><strong>Closed today:</strong> Tickets resolved today. Tap + when you close one.<br><br>If the queue number doesn't match Zendesk, just edit in-queue directly.">i</span></div>
-      <div id="ticket-counters" style="margin-top: 8px;">
-        <!-- Populated by loadTicketTracker -->
+        <!-- Work volume -->
+    <div class="stat-card" id="work-volume">
+      <div class="stat-card-label">Work volume <span class="info-bubble" data-help="Counts of what you produced, separate from hours tracked.<br><br><strong>Tickets</strong> are counted per day.<br><br><strong>Merchant tools</strong> and <strong>Analytics</strong> show a running total for the current week and reset each Monday — past weeks stay visible on the stats page.">i</span></div>
+
+      <div class="wv-section-label">Tickets <span class="info-bubble" data-help="<strong>In queue:</strong> Your current open ticket count. Updates automatically when you add new or closed tickets.<br><br><strong>New today:</strong> Tickets received today. Tap + when a new one comes in.<br><br><strong>Closed today:</strong> Tickets resolved today. Tap + when you close one.<br><br>If the queue number doesn't match Zendesk, just edit in-queue directly.">i</span></div>
+      <div id="ticket-counters">
+        <!-- Populated by loadWorkVolume -->
       </div>
+
+      ${
+				appState.settings.enableMerchantTools
+					? `
+      <div class="wv-section-label">Merchant tools <span class="wv-scope">this week</span> <span class="info-bubble" data-help="Tools you've built or delivered for merchants this week. Tap + when you finish one.<br><br>The total covers the <strong>current week only</strong> and resets each Monday, even if you're viewing another day. <strong>−</strong> removes the most recent one you logged this week.">i</span></div>
+      <div id="merchant-tool-counters">
+        <!-- Populated by loadWorkVolume -->
+      </div>
+      `
+					: ""
+			}
+
+      ${
+				appState.settings.enableAnalytics
+					? `
+      <div class="wv-section-label">Analytics <span class="wv-scope">this week</span> <span class="info-bubble" data-help="Total analytics reports recorded on your Analytics Support blocks this week. Read-only here — set the count on the block itself. Resets each Monday.">i</span></div>
+      <div id="analytics-total">
+        <!-- Populated by loadWorkVolume -->
+      </div>
+      `
+					: ""
+			}
     </div>
 
     <!-- Daily tracked hours -->
@@ -810,34 +836,100 @@ function renderSidebar(stats) {
 }
 
 /**
- * loadTicketTracker
- * Loads ticket stats for the current date and renders the counters.
- * If no stats exist for today, carries forward the previous day's queue.
+ * getWorkVolumeWeekRange
+ * Monday–Sunday of the CURRENT real week, regardless of which day the
+ * tracker is displaying. Merchant tool and analytics totals are always
+ * "this week" so the number doesn't shift as you browse history.
+ *
+ * The range runs to Sunday rather than Friday so a count logged over a
+ * weekend isn't orphaned outside the week it belongs to.
+ *
+ * @returns {{startDate: string, endDate: string}}
  */
-async function loadTicketTracker() {
+function getWorkVolumeWeekRange() {
+	const monday = getWeekDates(new Date())[0];
+	const sunday = new Date(monday);
+	sunday.setDate(sunday.getDate() + 6);
+	return {
+		startDate: formatDateISO(monday),
+		endDate: formatDateISO(sunday),
+	};
+}
+
+/**
+ * loadWorkVolume
+ * Populates all three sections of the Work volume card. Sections whose
+ * setting is off simply have no container in the DOM, so their loader
+ * returns early.
+ */
+async function loadWorkVolume() {
+	await loadTicketCounters();
+	await loadMerchantToolCounters();
+	await loadAnalyticsTotal();
+}
+
+/**
+ * renderCounterRow
+ * Shared markup for one labelled counter row.
+ *
+ * @param {string} field  - data-field value
+ * @param {string} label  - Row label
+ * @param {number} value  - Displayed number
+ * @param {Object} [opts] - { readOnly: boolean }
+ * @returns {string} HTML string
+ */
+function renderCounterRow(field, label, value, opts = {}) {
+	if (opts.readOnly) {
+		return `
+    <div class="wv-row">
+      <span class="wv-row-label">${label}</span>
+      <span class="wv-readonly">${value}</span>
+    </div>
+  `;
+	}
+
+	return `
+    <div class="wv-row">
+      <span class="wv-row-label">${label}</span>
+      <div class="wv-controls">
+        <button class="wv-btn" data-action="decrement" data-field="${field}">−</button>
+        <input type="number" class="wv-input" id="wv-${field}"
+               data-field="${field}" value="${value}" />
+        <button class="wv-btn" data-action="increment" data-field="${field}">+</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * hideNumberSpinners
+ * Strips the native up/down arrows from number inputs in a container.
+ */
+function hideNumberSpinners(container) {
+	container.querySelectorAll('input[type="number"]').forEach((input) => {
+		input.style.webkitAppearance = "none";
+		input.style.margin = "0";
+	});
+}
+
+/* ----------------------------------------------------------------------------
+ * TICKETS — scoped to the day currently being viewed
+ * ------------------------------------------------------------------------- */
+
+/**
+ * loadTicketCounters
+ * Loads ticket stats for the displayed date and renders the counters.
+ *
+ * This no longer writes a record just because you looked at a day.
+ * ensureTicketStatsForDate derives the carried-forward queue on read,
+ * so browsing to a day you didn't work no longer leaves a row behind.
+ */
+async function loadTicketCounters() {
 	const container = document.getElementById("ticket-counters");
 	if (!container) return;
 
 	const dateStr = formatDateISO(currentDate);
-	let stats = await getTicketStats(dateStr);
-
-	if (!stats) {
-		/* No stats for today — carry forward the most recent queue size */
-		const prev = await getMostRecentTicketStats();
-		stats = {
-			date: dateStr,
-			queueSize: prev
-				? prev.queueSize + prev.newTickets - prev.closedTickets
-				: 0,
-			newTickets: 0,
-			closedTickets: 0,
-		};
-		/* Only auto-save if we have a previous record to carry forward */
-		if (prev) {
-			await saveTicketStats(dateStr, stats);
-		}
-	}
-
+	const stats = await ensureTicketStatsForDate(dateStr);
 	renderTicketCounters(container, stats);
 }
 
@@ -846,138 +938,185 @@ async function loadTicketTracker() {
  * Renders the three ticket counter rows with +/- buttons.
  *
  * @param {HTMLElement} container - The container element
- * @param {Object} stats - { queueSize, newTickets, closedTickets }
+ * @param {Object} stats - A full ticket stats record
  */
 function renderTicketCounters(container, stats) {
 	const dateStr = formatDateISO(currentDate);
-	const currentQueue = stats.queueSize + stats.newTickets - stats.closedTickets;
+	const currentQueue =
+		(stats.queueSize || 0) +
+		(stats.newTickets || 0) -
+		(stats.closedTickets || 0);
 
 	const rows = [
-		{ id: "queue", label: "In queue", value: currentQueue, editable: true },
-		{ id: "new", label: "New today", value: stats.newTickets, editable: true },
-		{
-			id: "closed",
-			label: "Closed today",
-			value: stats.closedTickets,
-			editable: true,
-		},
+		{ id: "queue", label: "In queue", value: currentQueue },
+		{ id: "new", label: "New today", value: stats.newTickets || 0 },
+		{ id: "closed", label: "Closed today", value: stats.closedTickets || 0 },
 	];
 
 	container.innerHTML = rows
-		.map(
-			(row) => `
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 0;">
-      <span style="font-size: 11px; color: var(--text-secondary); width: 72px;">${row.label}</span>
-      <div style="display: flex; align-items: center; gap: 4px;">
-        <button class="ticket-btn" data-action="decrement" data-field="${row.id}" style="
-          width: 22px; height: 22px; border-radius: 6px; border: 0.5px solid var(--border-default);
-          background: none; color: var(--text-muted); cursor: pointer; font-size: 13px;
-          display: flex; align-items: center; justify-content: center; font-family: inherit;
-          transition: all 0.1s;
-        ">−</button>
-        <input type="number" id="ticket-${row.id}" value="${row.value}"
-          data-field="${row.id}"
-          style="
-            width: 40px; text-align: center; font-size: 13px; font-weight: 500;
-            color: var(--text-primary); background: var(--bg-surface);
-            border: 0.5px solid var(--border-default); border-radius: 6px;
-            padding: 2px 0; font-family: inherit;
-            -moz-appearance: textfield;
-          " />
-        <button class="ticket-btn" data-action="increment" data-field="${row.id}" style="
-          width: 22px; height: 22px; border-radius: 6px; border: 0.5px solid var(--border-default);
-          background: none; color: var(--text-muted); cursor: pointer; font-size: 13px;
-          display: flex; align-items: center; justify-content: center; font-family: inherit;
-          transition: all 0.1s;
-        ">+</button>
-      </div>
-    </div>
-  `,
-		)
+		.map((row) => renderCounterRow(row.id, row.label, row.value))
 		.join("");
 
-	/* Hide number input spinners */
-	container.querySelectorAll('input[type="number"]').forEach((input) => {
-		input.style.webkitAppearance = "none";
-		input.style.margin = "0";
-	});
+	hideNumberSpinners(container);
 
-	/* Attach +/- button listeners */
-	container.querySelectorAll(".ticket-btn").forEach((btn) => {
+	/* Applies an absolute value or a delta to one ticket field. */
+	const applyTicketChange = async (field, { delta = 0, absolute = null }) => {
+		/* Reload from the DB so rapid clicks don't work from stale data */
+		const current = await ensureTicketStatsForDate(dateStr);
+		const newCount = current.newTickets || 0;
+		const closedCount = current.closedTickets || 0;
+
+		if (field === "queue") {
+			const liveQueue = (current.queueSize || 0) + newCount - closedCount;
+			const target =
+				absolute !== null ? absolute : Math.max(0, liveQueue + delta);
+			/* Store the base queue, not the computed one */
+			current.queueSize = target - newCount + closedCount;
+		} else if (field === "new") {
+			current.newTickets =
+				absolute !== null ? absolute : Math.max(0, newCount + delta);
+		} else if (field === "closed") {
+			current.closedTickets =
+				absolute !== null ? absolute : Math.max(0, closedCount + delta);
+		}
+
+		await saveTicketStats(dateStr, current);
+		renderTicketCounters(container, current);
+
+		/* Export the week the edit landed in — not today's week, which is
+		 * what this used to do when editing a past day. */
+		await syncWeekAfterChange(dateStr);
+	};
+
+	container.querySelectorAll(".wv-btn").forEach((btn) => {
 		btn.addEventListener("click", async () => {
-			const field = btn.dataset.field;
-			const action = btn.dataset.action;
-			const delta = action === "increment" ? 1 : -1;
-
-			/* Reload current stats from DB to avoid stale data */
-			let current = await getTicketStats(dateStr);
-			if (!current) {
-				const prev = await getMostRecentTicketStats();
-				current = {
-					date: dateStr,
-					queueSize: prev
-						? prev.queueSize + prev.newTickets - prev.closedTickets
-						: 0,
-					newTickets: 0,
-					closedTickets: 0,
-				};
-			}
-
-			if (field === "queue") {
-				/* Direct queue adjustment — recalculate the base queueSize */
-				const currentQueue =
-					current.queueSize + current.newTickets - current.closedTickets;
-				const newQueue = Math.max(0, currentQueue + delta);
-				current.queueSize =
-					newQueue - current.newTickets + current.closedTickets;
-			} else if (field === "new") {
-				current.newTickets = Math.max(0, current.newTickets + delta);
-			} else if (field === "closed") {
-				current.closedTickets = Math.max(0, current.closedTickets + delta);
-			}
-
-			await saveTicketStats(dateStr, current);
-			renderTicketCounters(container, current);
-
-			/* Auto-export to sync folder if connected */
-			await syncWeekAfterChange();
+			await applyTicketChange(btn.dataset.field, {
+				delta: btn.dataset.action === "increment" ? 1 : -1,
+			});
 		});
 	});
 
-	/* Attach direct input listeners */
+	container.querySelectorAll("input").forEach((input) => {
+		input.addEventListener("change", async () => {
+			await applyTicketChange(input.dataset.field, {
+				absolute: Math.max(0, parseInt(input.value) || 0),
+			});
+		});
+	});
+}
+
+/* ----------------------------------------------------------------------------
+ * MERCHANT TOOLS — always scoped to the current real week
+ * ------------------------------------------------------------------------- */
+
+/**
+ * loadMerchantToolCounters
+ * Sums this week's merchant tool counts and renders the rows.
+ */
+async function loadMerchantToolCounters() {
+	const container = document.getElementById("merchant-tool-counters");
+	if (!container) return;
+
+	const { startDate, endDate } = getWorkVolumeWeekRange();
+	const totals = await getMerchantToolTotals(startDate, endDate);
+	renderMerchantToolCounters(container, totals);
+}
+
+/**
+ * renderMerchantToolCounters
+ * Three counter rows showing week-to-date totals.
+ *
+ * + always lands on today. − removes from the most recent day this week
+ * that has a count, so a Wednesday correction can undo Monday's entry
+ * without navigating back to it.
+ *
+ * @param {HTMLElement} container - The container element
+ * @param {Object} totals - { customisations, templates, otherTools }
+ */
+function renderMerchantToolCounters(container, totals) {
+	const rows = [
+		{ id: "customisations", label: "Customisations" },
+		{ id: "templates", label: "Templates" },
+		{ id: "otherTools", label: "Other" },
+	];
+
+	container.innerHTML = rows
+		.map((row) => renderCounterRow(row.id, row.label, totals[row.id] || 0))
+		.join("");
+
+	hideNumberSpinners(container);
+
+	const applyDelta = async (field, delta) => {
+		const { startDate, endDate } = getWorkVolumeWeekRange();
+
+		/* Cap the loop so a mistyped value can't spin for thousands of
+		 * writes. Nobody logs 200 tools in a week. */
+		const steps = Math.min(Math.abs(delta), 200);
+		const todayStr = formatDateISO(new Date());
+
+		for (let i = 0; i < steps; i++) {
+			if (delta > 0) {
+				await incrementMerchantTool(todayStr, field);
+			} else {
+				const removed = await decrementMerchantTool(startDate, endDate, field);
+				/* Nothing left anywhere in the week — stop */
+				if (!removed) break;
+			}
+		}
+
+		const updated = await getMerchantToolTotals(startDate, endDate);
+		renderMerchantToolCounters(container, updated);
+
+		/* Writes always land inside the current week */
+		await syncWeekAfterChange();
+	};
+
+	container.querySelectorAll(".wv-btn").forEach((btn) => {
+		btn.addEventListener("click", async () => {
+			await applyDelta(
+				btn.dataset.field,
+				btn.dataset.action === "increment" ? 1 : -1,
+			);
+		});
+	});
+
 	container.querySelectorAll("input").forEach((input) => {
 		input.addEventListener("change", async () => {
 			const field = input.dataset.field;
-			const val = Math.max(0, parseInt(input.value) || 0);
+			const target = Math.max(0, parseInt(input.value) || 0);
 
-			let current = await getTicketStats(dateStr);
-			if (!current) {
-				const prev = await getMostRecentTicketStats();
-				current = {
-					date: dateStr,
-					queueSize: prev
-						? prev.queueSize + prev.newTickets - prev.closedTickets
-						: 0,
-					newTickets: 0,
-					closedTickets: 0,
-				};
-			}
-
-			if (field === "queue") {
-				/* Direct queue edit — user is correcting the total */
-				current.queueSize = val - current.newTickets + current.closedTickets;
-			} else if (field === "new") {
-				current.newTickets = val;
-			} else if (field === "closed") {
-				current.closedTickets = val;
-			}
-
-			await saveTicketStats(dateStr, current);
-			renderTicketCounters(container, current);
-
-			/* Auto-export to sync folder if connected */
-			await syncWeekAfterChange();
+			/* Typing a total is just a shortcut for pressing +/- repeatedly,
+			 * so it follows exactly the same attribution rules. */
+			const { startDate, endDate } = getWorkVolumeWeekRange();
+			const current = await getMerchantToolTotals(startDate, endDate);
+			await applyDelta(field, target - (current[field] || 0));
 		});
+	});
+}
+
+/* ----------------------------------------------------------------------------
+ * ANALYTICS — derived, read-only
+ * ------------------------------------------------------------------------- */
+
+/**
+ * loadAnalyticsTotal
+ * Sums analyticsCount across this week's entries. Read-only: the value
+ * lives on individual blocks, so there'd be no sensible block for a
+ * sidebar + button to attach a new report to.
+ */
+async function loadAnalyticsTotal() {
+	const container = document.getElementById("analytics-total");
+	if (!container) return;
+
+	const { startDate, endDate } = getWorkVolumeWeekRange();
+	const weekEntries = await getEntriesForDateRange(startDate, endDate);
+	const total = weekEntries.reduce(
+		(sum, e) => sum + (e.analyticsCount || 0),
+		0,
+	);
+
+	container.innerHTML = renderCounterRow("analytics", "Reports", total, {
+		readOnly: true,
 	});
 }
 
@@ -2226,7 +2365,7 @@ async function renderWeekView() {
 
 	/* Attach week view event listeners */
 	attachWeekEventListeners();
-	await loadTicketTracker();
+	await loadWorkVolume();
 
 	const newGrid = document.querySelector(".tracker-grid");
 	if (newGrid) newGrid.scrollTop = savedScroll;

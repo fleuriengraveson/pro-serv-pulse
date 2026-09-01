@@ -974,6 +974,113 @@ body {
 }
 
 /* ----------------------------------------------------------------------------
+ * WORK VOLUME CARD
+ * --------------------------------------------------------------------------
+ * Counter rows in the tracker sidebar: tickets (per day), merchant tools
+ * and analytics (per week). Replaces the old inline-styled ticket rows.
+ * ------------------------------------------------------------------------- */
+
+.wv-section-label {
+	font-size: 10px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
+	margin-top: 10px;
+	margin-bottom: 2px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+/* First section sits directly under the card label — no extra gap */
+.wv-section-label:first-of-type {
+	margin-top: 6px;
+}
+
+/* "this week" qualifier — signals that the rows below aren't day-scoped */
+.wv-scope {
+	font-size: 9px;
+	font-weight: 400;
+	text-transform: none;
+	letter-spacing: 0;
+	color: var(--text-placeholder);
+}
+
+.wv-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 4px 0;
+}
+.wv-row-label {
+	font-size: 11px;
+	color: var(--text-secondary);
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	padding-right: 6px;
+}
+
+.wv-controls {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.wv-btn {
+	width: 22px;
+	height: 22px;
+	border-radius: 6px;
+	border: 0.5px solid var(--border-default);
+	background: none;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: inherit;
+	transition: all 0.1s ease;
+}
+.wv-btn:hover {
+	color: var(--accent-text);
+	border-color: var(--accent-border);
+}
+
+.wv-input {
+	width: 40px;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+	background: var(--bg-surface);
+	border: 0.5px solid var(--border-default);
+	border-radius: 6px;
+	padding: 2px 0;
+	font-family: inherit;
+	-moz-appearance: textfield;
+}
+.wv-input:focus {
+	outline: none;
+	border-color: var(--accent-text-light);
+}
+
+/* Read-only value (analytics) — sits where the stepper would be so the
+   numbers line up down the card */
+.wv-readonly {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-primary);
+	width: 40px;
+	text-align: center;
+	margin-right: 26px;
+	flex-shrink: 0;
+}
+
+/* ----------------------------------------------------------------------------
  * PROGRESS BAR
  * --------------------------------------------------------------------------
  * Horizontal progress bar used for tracking compliance.
