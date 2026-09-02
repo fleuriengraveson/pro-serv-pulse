@@ -803,36 +803,6 @@ function renderSidebar(stats) {
       </div>
       <div class="pace-text ${dailyPaceInfo.cls}">${dailyPaceInfo.text}</div>
     </div>
-
-    <!-- Weekly tracked hours -->
-    <div class="stat-card">
-      <div class="stat-card-label">Tracked this week <span class="info-bubble" data-help="Total tracked hours excluding OOO. Future blocks are not included. 60% is the minimum target.">i</span></div>
-      <div class="stat-card-value">
-        ${stats.weeklyTracked}
-        <span class="text-sm font-normal text-stone-400">/ ${TARGETS.weeklyTrackableHours} hrs</span>
-      </div>
-      <div class="progress-with-marker">
-        <div class="progress-fill progress-fill-good" style="width: ${weeklyBarPercent}%;"></div>
-        ${
-					weeklyMarkerPercent > 0
-						? `
-          <div class="progress-marker" style="left: ${weeklyMarkerPercent}%;"></div>
-          <div class="progress-marker-label" style="left: ${weeklyMarkerPercent}%;">${stats.weeklyTarget}h min</div>
-        `
-						: ""
-				}
-      </div>
-      <div class="pace-text ${weeklyPaceInfo.cls}">${weeklyPaceInfo.text}</div>
-    </div>
-
-    <!-- Billable today -->
-    <div class="stat-card">
-      <div class="stat-card-label">Billable today <span class="info-bubble" data-help="Hours marked as <strong>billable</strong> today. Billable work is any work done for a specific customer that does not include work that benefits other customers. For example, meetings or tickets for a merchant are billable, however working on a bug that impacts multiple merchants is not.">i</span></div>
-      <div class="stat-card-value text-emerald-600">
-        ${stats.dailyBillable}
-        <span class="text-sm font-normal text-stone-400">hrs</span>
-      </div>
-    </div>
   `;
 }
 
