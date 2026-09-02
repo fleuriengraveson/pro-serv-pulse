@@ -389,6 +389,14 @@ async function switchView(viewId) {
 	const badge = document.getElementById("view-badge");
 	badge.classList.toggle("hidden", viewId !== VIEWS.MANAGER);
 
+	/* Tracker owns its own internal scroll area (.tracker-grid) — the page
+	   itself shouldn't also scroll, or you get two scrollbars. Every other
+	   view scrolls normally at the page level. */
+	document.documentElement.classList.toggle(
+		"no-page-scroll",
+		viewId === VIEWS.TRACKER,
+	);
+
 	if (viewId === VIEWS.TRACKER) {
 		await initTracker(state);
 	} else if (viewId === VIEWS.STATS) {
