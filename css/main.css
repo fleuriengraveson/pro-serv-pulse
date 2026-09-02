@@ -631,12 +631,13 @@ body {
 .dropdown-categories {
 	width: 180px;
 	flex-shrink: 0;
-	max-height: 260px;
+	max-height: 300px;
 	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
 	gap: 1px;
 }
+
 .dropdown-option {
 	display: flex;
 	align-items: center;
