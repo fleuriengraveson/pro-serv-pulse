@@ -2450,10 +2450,17 @@ function renderWorkVolume(ticketStats, entries, queueDaysByMember = {}) {
 
 	/* Flag the first column of each group so it can carry the divider,
 	 * and collapse the list into header groups: [{ label, span }] */
+	const GROUP_CLASS = {
+		Tickets: "wv-grp-tickets",
+		Analytics: "wv-grp-analytics",
+		"Merchant tools": "wv-grp-merchant",
+	};
+
 	const groups = [];
 	let prevGroup = null;
 	columns.forEach((col) => {
 		col.groupStart = col.group !== prevGroup;
+		col.groupClass = GROUP_CLASS[col.group] || "";
 		prevGroup = col.group;
 		const last = groups[groups.length - 1];
 		if (last && last.label === col.group) last.span++;
@@ -2490,12 +2497,71 @@ function renderWorkVolume(ticketStats, entries, queueDaysByMember = {}) {
 		};
 	};
 
+	const numCell = (col, val, isTotal) => {
+		const divider = !col.groupStart ? " wv-inner-divider" : "";
+		const cls = `wv-num ${col.groupClass}${divider}`;
+		if (col.isNet) {
+			const prefix = val > 0 ? "+" : "";
+			return `<td class="${cls}" style="font-weight: ${isTotal ? "600" : "500"}; color: ${netColorFor(val)};">${prefix}${val}</td>`;
+		}
+		const zero = !isTotal && val === 0 ? " wv-zero" : "";
+		const weight = col.bold ? (isTotal ? "600" : "500") : "400";
+		return `<td class="${cls}${zero}" style="font-weight: ${weight};">${val}</td>`;
+	};
+
+	const gapCell = (tag) => `<${tag} class="wv-group-gap"></${tag}>`;
+
+	const renderRow = (name, data, isTotal, showAvatar) => `
+    <tr class="${showAvatar ? "team-member-row wv-row" : ""}"${showAvatar ? ` data-member="${escapeHtml(name)}"` : ""}>
+      <td class="wv-name-col" style="${isTotal ? "font-weight: 500; color: var(--text-muted);" : ""}">
+        ${
+					showAvatar
+						? `<div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text); flex-shrink: 0;">${escapeHtml(
+								name
+									.split(" ")
+									.map((n) => n[0])
+									.join("")
+									.toUpperCase()
+									.slice(0, 2),
+							)}</div>
+                            <span style="font-weight: 500; color: var(--text-primary);">${escapeHtml(name)}</span>
+              ${queueDaysByMember[name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[name]}d</span>` : ""}
+            </div>`
+						: escapeHtml(name)
+				}
+      </td>
+      ${columns.map((col, idx) => `${idx > 0 && col.groupStart ? gapCell("td") : ""}${numCell(col, data[col.key] || 0, isTotal)}`).join("")}
+    </tr>
+  `;
+
+	const renderTable = (rows, totalRow) => `
+      <div style="overflow-x: auto;">
+        <table class="wv-table">
+        <colgroup>
+          <col style="min-width: 150px;" />
+          ${columns.map((c, idx) => `${idx > 0 && c.groupStart ? '<col class="wv-group-gap" />' : ""}<col style="width: ${c.width}px;" />`).join("")}
+        </colgroup>
+        <thead>
+          <tr>
+            <th rowspan="2" class="wv-name-col" style="font-weight: 500; color: var(--text-muted); font-size: 10px; vertical-align: bottom;">Name</th>
+            ${groups.map((g, i) => `${i > 0 ? gapCell("th") : ""}<th colspan="${g.span}" class="wv-group-head ${GROUP_CLASS[g.label] || ""}${g.span === 1 ? " wv-solo" : ""}">${g.label}</th>`).join("")}
+          </tr>
+          <tr>
+            ${columns.map((c, idx) => `${idx > 0 && c.groupStart ? gapCell("th") : ""}<th class="wv-num wv-col-head ${c.groupClass}">${c.label}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((r) => renderRow(r.name, r, false, rows.length > 1 || !!totalRow)).join("")}
+          ${totalRow ? renderRow("Team total", totalRow, true, false) : ""}
+        </tbody></table>
+      </div>
+    `;
+
 	const isAllTeam =
 		appState.settings.role === "manager" && selectedMember === "all";
 
 	if (isAllTeam) {
-		/* Group records by member, then fold in anyone who logged analytics
-		 * reports but has no ticket records at all. */
 		const byMember = {};
 		stats.forEach((s) => {
 			if (!byMember[s.memberName]) byMember[s.memberName] = [];
@@ -2512,152 +2578,27 @@ function renderWorkVolume(ticketStats, entries, queueDaysByMember = {}) {
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name));
 
-		/* Team totals — queue sums across members, everything else adds up */
 		const totals = {};
 		columns.forEach((col) => {
 			totals[col.key] = rows.reduce((s, r) => s + (r[col.key] || 0), 0);
 		});
 
-		/* Renders one numeric cell, shared by member rows and the total row */
-		const numCell = (col, val, isTotal) => {
-			const cls = `wv-num${col.groupStart ? " wv-group-start" : ""}`;
-			if (col.isNet) {
-				const prefix = val > 0 ? "+" : "";
-				return `<td class="${cls}" style="font-weight: ${isTotal ? "600" : "500"}; color: ${netColorFor(val)};">${prefix}${val}</td>`;
-			}
-			/* Zeros read as clutter across eight columns — dim them */
-			const zero = !isTotal && val === 0 ? " wv-zero" : "";
-			const weight = col.bold ? (isTotal ? "600" : "500") : "400";
-			return `<td class="${cls}${zero}" style="font-weight: ${weight};">${val}</td>`;
-		};
-
-		let html = `
+		return `
       <div class="text-sm font-medium mb-3">Work volume <span class="info-bubble" data-help="${helpText}">i</span></div>
-      <div style="overflow-x: auto;">
-        <table class="wv-table">
-        <colgroup>
-          <col />
-          ${columns.map((c) => `<col style="width: ${c.width}px;" />`).join("")}
-        </colgroup>
-        <thead>
-          <tr>
-            <th rowspan="2" class="wv-name-col" style="font-weight: 500; color: var(--text-muted); font-size: 10px; vertical-align: bottom;">Name</th>
-            ${groups
-							.map(
-								(g, i) =>
-									`<th colspan="${g.span}" class="wv-group-head${i > 0 ? " wv-group-start" : ""}">${g.label}</th>`,
-							)
-							.join("")}
-          </tr>
-          <tr>
-            ${columns
-							.map(
-								(c) =>
-									`<th class="wv-num wv-col-head${c.groupStart ? " wv-group-start" : ""}">${c.label}</th>`,
-							)
-							.join("")}
-          </tr>
-        </thead>
-        <tbody>
+      ${renderTable(rows, totals)}
     `;
-
-		rows.forEach((r) => {
-			const initials = escapeHtml(
-				r.name
-					.split(" ")
-					.map((n) => n[0])
-					.join("")
-					.toUpperCase()
-					.slice(0, 2),
-			);
-
-			html += `
-        <tr class="team-member-row wv-row" data-member="${escapeHtml(r.name)}">
-          <td class="wv-name-col">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <div style="width: 20px; height: 20px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: var(--accent-text); flex-shrink: 0;">${initials}</div>
-              <span style="font-weight: 500; color: var(--text-primary);">${escapeHtml(r.name)}</span>
-              ${queueDaysByMember[r.name] > 0 ? `<span class="queue-pill">Queue: ${queueDaysByMember[r.name]}d</span>` : ""}
-            </div>
-          </td>
-          ${columns.map((col) => numCell(col, r[col.key] || 0, false)).join("")}
-        </tr>
-      `;
-		});
-
-		html += `
-        <tr class="wv-total-row">
-          <td class="wv-name-col" style="font-weight: 500; color: var(--text-muted);">Team total</td>
-          ${columns
-						.map((col) => numCell(col, totals[col.key] || 0, true))
-						.join("")}
-        </tr>
-      </tbody></table></div>
-    `;
-
-		return html;
 	}
 
-	/* Single person — same grouping, laid out as figures rather than a table */
+	/* Single person — same table, just one row */
 	const s = summarise(stats, analyticsTotal);
-
-	const summaryGroups = [
-		{
-			label: "Tickets",
-			items: [
-				{ label: "Current queue", value: s.currentQueue },
-				{ label: "New", value: s.totalNew },
-				{ label: "Closed", value: s.totalClosed },
-				{
-					label: "Net",
-					value: `${s.net > 0 ? "+" : ""}${s.net}`,
-					color: netColorFor(s.net),
-				},
-			],
-		},
-	];
-	if (showAnalytics) {
-		summaryGroups.push({
-			label: "Analytics",
-			items: [{ label: "Reports", value: s.analytics }],
-		});
-	}
-	if (showMerchantTools) {
-		summaryGroups.push({
-			label: "Merchant tools",
-			items: [
-				{ label: "Customisations", value: s.customisations },
-				{ label: "Templates", value: s.templates },
-				{ label: "Other", value: s.otherTools },
-			],
-		});
-	}
+	const displayName =
+		selectedMember === "self" || selectedMember === "all"
+			? appState.settings.name || "You"
+			: selectedMember;
 
 	return `
       <div class="text-sm font-medium mb-3">Work volume <span class="info-bubble" data-help="${helpText}">i</span></div>
-      <div class="wv-summary">
-        ${summaryGroups
-					.map(
-						(g) => `
-        <div class="wv-summary-group">
-          <div class="wv-summary-label">${g.label}</div>
-          <div class="wv-summary-values">
-            ${g.items
-							.map(
-								(b) => `
-            <div>
-              <div class="wv-stat-label">${b.label}</div>
-              <div class="wv-stat-value"${b.color ? ` style="color: ${b.color};"` : ""}>${b.value}</div>
-            </div>
-            `,
-							)
-							.join("")}
-          </div>
-        </div>
-        `,
-					)
-					.join("")}
-      </div>
+      ${renderTable([{ name: displayName, ...s }], null)}
     `;
 }
 

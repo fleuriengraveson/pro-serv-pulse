@@ -63,6 +63,11 @@
 	--progress-warn: #f59e0b;
 	--progress-bad: #ef4444;
 
+	/* Work volume card colors */
+	--wv-tickets: #3b82f6;
+	--wv-analytics: #f59e0b;
+	--wv-merchant: #14b8a6;
+
 	/* Category block colors — pastel rainbow palette */
 	/* admin_internal — soft yellow */
 	--cat-admin-internal-border: #dfd97c;
@@ -200,6 +205,11 @@
 	--progress-good: #48dbb4;
 	--progress-warn: #f6ad55;
 	--progress-bad: #fc8181;
+
+	/* Work volume card colors */
+	--wv-tickets: #60a5fa;
+	--wv-analytics: #fbbf24;
+	--wv-merchant: #2dd4bf;
 
 	/* Category block colors — more vibrant on dark */
 	/* admin_internal */
@@ -1162,14 +1172,15 @@ body {
 }
 
 .wv-table .wv-num {
-	text-align: right;
+	text-align: center;
 	white-space: nowrap;
 	padding: 7px 14px;
 }
 
-/* First column of each group carries the divider */
-.wv-table .wv-group-start {
-	border-left: 0.5px solid var(--border-default);
+/* Spacer column between groups — real gap, not a border */
+.wv-table .wv-group-gap {
+	width: 14px;
+	padding: 0;
 }
 
 .wv-table .wv-group-head {
@@ -1179,10 +1190,17 @@ body {
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 	color: var(--text-placeholder);
-	padding: 0 10px 5px;
+	padding: 10px 10px 5px;
+}
+
+/* Solo-column groups (Analytics) get extra breathing room since the
+   label sits directly above a single number */
+.wv-table .wv-group-head.wv-solo {
+	padding: 0 16px 5px;
 }
 
 .wv-table .wv-col-head {
+	text-align: center;
 	font-size: 10px;
 	font-weight: 500;
 	color: var(--text-muted);
@@ -1191,6 +1209,40 @@ body {
 
 .wv-table thead tr:last-child th {
 	border-bottom: 0.5px solid var(--border-default);
+}
+
+/* Per-group tint + colored bracket under the header label */
+.wv-table .wv-grp-tickets {
+	background: color-mix(in srgb, var(--wv-tickets) 6%, transparent);
+}
+.wv-table .wv-grp-analytics {
+	background: color-mix(in srgb, var(--wv-analytics) 8%, transparent);
+}
+.wv-table .wv-grp-merchant {
+	background: color-mix(in srgb, var(--wv-merchant) 6%, transparent);
+}
+
+.wv-table .wv-group-head.wv-grp-tickets {
+	border-bottom: 1.5px solid
+		color-mix(in srgb, var(--wv-tickets) 55%, transparent);
+}
+.wv-table .wv-group-head.wv-grp-analytics {
+	border-bottom: 1.5px solid
+		color-mix(in srgb, var(--wv-analytics) 55%, transparent);
+}
+.wv-table .wv-group-head.wv-grp-merchant {
+	border-bottom: 1.5px solid
+		color-mix(in srgb, var(--wv-merchant) 55%, transparent);
+}
+
+/* Light internal dividers between columns within the same group */
+.wv-table .wv-inner-divider.wv-grp-tickets {
+	border-left: 0.5px solid
+		color-mix(in srgb, var(--wv-tickets) 20%, transparent);
+}
+.wv-table .wv-inner-divider.wv-grp-merchant {
+	border-left: 0.5px solid
+		color-mix(in srgb, var(--wv-merchant) 20%, transparent);
 }
 
 .wv-table tbody tr {
@@ -1229,43 +1281,42 @@ body {
 }
 
 /* Single-person summary — same grouping, laid out as figures */
-.wv-summary {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px 24px;
-}
-.wv-summary-group {
-	display: flex;
-	flex-direction: column;
+.wv-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	align-items: start;
 	gap: 8px;
-	padding-left: 24px;
-	border-left: 0.5px solid var(--border-default);
 }
-.wv-summary-group:first-child {
-	padding-left: 0;
-	border-left: none;
+
+.wv-mini-card {
+	border-radius: 8px;
+	padding: 10px 12px;
+	background: var(--bg-surface);
 }
-.wv-summary-label {
-	font-size: 9px;
+.wv-mini-card-label {
+	font-size: 10px;
 	font-weight: 500;
 	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: var(--text-placeholder);
-}
-.wv-summary-values {
-	display: flex;
-	gap: 24px;
-}
-.wv-stat-label {
-	font-size: 10px;
+	letter-spacing: 0.05em;
 	color: var(--text-muted);
-	white-space: nowrap;
+	margin-bottom: 8px;
 }
-.wv-stat-value {
-	font-size: 20px;
-	font-weight: 600;
+.wv-mini-row {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+.wv-mini-row:last-child {
+	margin-bottom: 0;
+}
+.wv-mini-row-label {
+	font-size: 12px;
+	color: var(--text-secondary);
+}
+.wv-mini-row-value {
+	font-size: 12px;
+	font-weight: 500;
 	color: var(--text-primary);
-	line-height: 1.2;
 }
 
 /* ----------------------------------------------------------------------------
