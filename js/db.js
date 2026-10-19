@@ -93,6 +93,18 @@ db.version(4)
 		}
 	});
 
+/* Version 5: Team roster status (manager only).
+ * Keyed by member name (same key teamData uses). One record per person
+ * whose status a manager has ever changed:
+ *   { name, status: 'active'|'removed', lastDay: 'YYYY-MM-DD'|null,
+ *     setBy, setAt: ISO timestamp }
+ * This store only ADDS a table — no existing table or record is touched.
+ * Removing someone never deletes their teamData; it only changes how
+ * dashboards count them after their last working day. */
+db.version(5).stores({
+	teamRoster: "name",
+});
+
 /* ============================================================================
  * SETTINGS OPERATIONS
  * ========================================================================= */
@@ -476,12 +488,21 @@ export async function getTeamDataForPeriod(startDate, endDate) {
 
 /**
  * getTeamMemberList
- * Returns a list of unique team member names with their most recent import date.
+ * Returns a list of unique team member names with their most recent import
+ * date, plus their roster status.
  *
- * @returns {Promise<Array<Object>>} Array of { name, lastImport, weekCount }
+ * IMPORTANT: this still returns EVERY member who has imported data,
+ * including removed ones — callers decide whether to include a removed
+ * member for a given period (they should, for any period that overlaps
+ * their active time). Never filter removed members out here.
+ *
+ * @returns {Promise<Array<Object>>} Array of
+ *   { name, lastImport, weekCount, status: 'active'|'removed', lastDay }
+ *   lastDay is 'YYYY-MM-DD' for removed members, null otherwise.
  */
 export async function getTeamMemberList() {
 	const allData = await db.teamData.toArray();
+	const roster = await getTeamRoster();
 	const members = {};
 
 	allData.forEach((record) => {
@@ -495,9 +516,120 @@ export async function getTeamMemberList() {
 		}
 	});
 
-	return Object.values(members).sort((a, b) =>
-		a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-	);
+	return Object.values(members)
+		.map((m) => {
+			const r = roster[m.name];
+			const removed = r?.status === "removed";
+			return {
+				...m,
+				status: removed ? "removed" : "active",
+				lastDay: removed ? r.lastDay : null,
+			};
+		})
+		.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+}
+
+/* ============================================================================
+ * TEAM ROSTER (MANAGER ONLY)
+ * --------------------------------------------------------------------------
+ * Local mirror of the shared roster file in the sync folder. Records are
+ * never deleted: reinstating someone writes status 'active' with a newer
+ * setAt, so the newest record per person always wins when merging.
+ * ========================================================================= */
+
+const ROSTER_STATUSES = ["active", "removed"];
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * normalizeRosterRecord
+ * Validates a roster record and returns a clean copy, or null if invalid.
+ * Invalid records (bad status, missing timestamp, removed without a valid
+ * last day) are rejected rather than guessed at.
+ *
+ * @param {string} name   - Member name
+ * @param {Object} record - { status, lastDay, setBy, setAt }
+ * @returns {Object|null}
+ */
+function normalizeRosterRecord(name, record) {
+	if (!name || typeof name !== "string") return null;
+	if (!record || typeof record !== "object") return null;
+	if (!ROSTER_STATUSES.includes(record.status)) return null;
+	if (typeof record.setAt !== "string" || !record.setAt) return null;
+	if (record.status === "removed" && !ISO_DATE_RE.test(record.lastDay || "")) {
+		return null;
+	}
+	return {
+		name,
+		status: record.status,
+		lastDay: record.status === "removed" ? record.lastDay : null,
+		setBy: typeof record.setBy === "string" ? record.setBy : "",
+		setAt: record.setAt,
+	};
+}
+
+/**
+ * getTeamRoster
+ * Returns every local roster record keyed by member name.
+ *
+ * @returns {Promise<Object>} { [name]: { name, status, lastDay, setBy, setAt } }
+ */
+export async function getTeamRoster() {
+	const rows = await db.teamRoster.toArray();
+	const roster = {};
+	rows.forEach((r) => {
+		roster[r.name] = r;
+	});
+	return roster;
+}
+
+/**
+ * saveRosterRecord
+ * Saves one roster record locally. Called only AFTER the same record has
+ * been successfully written to the shared roster file, so local and shared
+ * never disagree about a change this manager made.
+ *
+ * @param {string} name   - Member name
+ * @param {Object} record - { status, lastDay, setBy, setAt }
+ * @returns {Promise<void>}
+ * @throws if the record is invalid (nothing is written)
+ */
+export async function saveRosterRecord(name, record) {
+	const clean = normalizeRosterRecord(name, record);
+	if (!clean) throw new Error(`Invalid roster record for "${name}"`);
+	await db.teamRoster.put(clean);
+}
+
+/**
+ * mergeSharedRoster
+ * Merges the shared roster file's contents into the local table.
+ * Per person, the record with the newest setAt wins. Never deletes local
+ * records, and skips any invalid record in the shared file instead of
+ * letting it overwrite good local data.
+ *
+ * Must only be called with the result of a SUCCESSFUL read of the shared
+ * file — a failed read must never be passed here as an empty object.
+ *
+ * @param {Object} shared - { [name]: { status, lastDay, setBy, setAt } }
+ * @returns {Promise<boolean>} true if anything changed locally
+ */
+export async function mergeSharedRoster(shared) {
+	if (!shared || typeof shared !== "object") return false;
+
+	return await db.transaction("rw", db.teamRoster, async () => {
+		let changed = false;
+		for (const [name, record] of Object.entries(shared)) {
+			const clean = normalizeRosterRecord(name, record);
+			if (!clean) continue;
+
+			const local = await db.teamRoster.get(name);
+			/* ISO timestamps compare correctly as strings */
+			if (local && local.setAt >= clean.setAt) continue;
+
+			await db.teamRoster.put(clean);
+			changed = true;
+		}
+		return changed;
+	});
 }
 
 /**
@@ -789,6 +921,7 @@ export async function restoreFromBackup(backupData) {
 			db.teamData,
 			db.ticketStats,
 			db.dayMeta,
+			db.teamRoster,
 		],
 		async () => {
 			/* Clear all existing data */
@@ -799,6 +932,12 @@ export async function restoreFromBackup(backupData) {
 			await db.teamData.clear();
 			await db.ticketStats.clear();
 			await db.dayMeta.clear();
+			/* Only replace the roster when the backup actually has one.
+			 * Backups made before the roster existed don't, and clearing
+			 * here would silently reinstate everyone who was removed. */
+			if (Array.isArray(backupData.teamRoster)) {
+				await db.teamRoster.clear();
+			}
 
 			/* Restore each table */
 			if (backupData.entries?.length) {
@@ -822,6 +961,9 @@ export async function restoreFromBackup(backupData) {
 			if (backupData.dayMeta?.length) {
 				await db.dayMeta.bulkAdd(backupData.dayMeta);
 			}
+			if (Array.isArray(backupData.teamRoster)) {
+				await db.teamRoster.bulkPut(backupData.teamRoster);
+			}
 		},
 	);
 }
@@ -841,6 +983,7 @@ export async function exportAllData() {
 	const teamData = await getAllTeamData();
 	const ticketStats = await db.ticketStats.toArray();
 	const dayMeta = await db.dayMeta.toArray();
+	const teamRoster = await db.teamRoster.toArray();
 
 	return {
 		exportDate: new Date().toISOString(),
@@ -852,6 +995,7 @@ export async function exportAllData() {
 		teamData,
 		ticketStats,
 		dayMeta,
+		teamRoster,
 	};
 }
 

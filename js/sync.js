@@ -29,6 +29,7 @@ import {
 	getEntryCount,
 	hasAnyData,
 	restoreFromPersonalBackup,
+	mergeSharedRoster,
 } from "./db.js";
 
 /* ============================================================================
@@ -1013,6 +1014,217 @@ export async function clearOOOOverride(name, weekKey) {
 }
 
 /* ============================================================================
+ * SHARED TEAM ROSTER (MANAGERS)
+ * --------------------------------------------------------------------------
+ * One shared file in the sync folder records which members have been
+ * removed (and their last working day), so every manager sees the same
+ * roster:
+ *   { [name]: { status: 'active'|'removed', lastDay, setBy, setAt } }
+ *
+ * Safety rules (deliberately stricter than the OOO overrides file):
+ *   - Only "file doesn't exist yet" counts as empty. Any other read or
+ *     parse failure aborts: we never write over a file we couldn't read.
+ *   - Entries are never deleted. Reinstating writes status 'active' with
+ *     a newer setAt, and the newest record per person wins.
+ *   - Conflict copies from the sync client (e.g. "_pulse-roster (1).json")
+ *     are read and merged, so a change that lost a write race isn't lost.
+ *     They are never deleted.
+ *   - Nothing here touches contributor files or teamData.
+ * Contributor export filenames can never start with this prefix
+ * (generateExportFilename strips hyphens), so there's no overlap.
+ * ========================================================================= */
+
+const ROSTER_FILENAME = "_pulse-roster.json";
+const ROSTER_FILE_PREFIX = "_pulse-roster";
+
+function isRosterFilename(name) {
+	return name.startsWith(ROSTER_FILE_PREFIX) && name.endsWith(".json");
+}
+
+function isPlainObject(value) {
+	return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * mergeRosterMaps
+ * Combines two roster maps, keeping the record with the newest setAt for
+ * each person. Records are kept as-is; validation happens in db.js.
+ *
+ * @param {Object} base     - Starting roster map (kept in full)
+ * @param {Object} incoming - Roster map to merge in
+ * @returns {Object} New combined map
+ */
+function mergeRosterMaps(base, incoming) {
+	const result = { ...base };
+	for (const [name, record] of Object.entries(incoming)) {
+		if (!isPlainObject(record) || typeof record.setAt !== "string") continue;
+		const existing = result[name];
+		const existingSetAt =
+			isPlainObject(existing) && typeof existing.setAt === "string"
+				? existing.setAt
+				: "";
+		if (record.setAt > existingSetAt) result[name] = record;
+	}
+	return result;
+}
+
+/**
+ * readRosterFile
+ * Reads and parses a single roster file.
+ *
+ * @param {FileSystemFileHandle} fileHandle
+ * @returns {Promise<{ok: true, data: Object} | {ok: false, error: string}>}
+ */
+async function readRosterFile(fileHandle) {
+	try {
+		const file = await fileHandle.getFile();
+		const data = JSON.parse(await file.text());
+		if (!isPlainObject(data)) {
+			return { ok: false, error: "unexpected format" };
+		}
+		return { ok: true, data };
+	} catch (err) {
+		return { ok: false, error: err.message };
+	}
+}
+
+/**
+ * readCombinedRoster
+ * Reads the main roster file plus any conflict copies and merges them.
+ * Returns ok:false if the main file exists but can't be read, so callers
+ * can refuse to act instead of treating a failure as "no removals".
+ *
+ * @param {FileSystemDirectoryHandle} handle - The sync folder
+ * @returns {Promise<{ok: true, data: Object} | {ok: false, error: string}>}
+ */
+async function readCombinedRoster(handle) {
+	/* Main file: missing is fine (nobody removed yet); unreadable is not. */
+	let combined = {};
+	try {
+		const mainHandle = await handle.getFileHandle(ROSTER_FILENAME, {
+			create: false,
+		});
+		const main = await readRosterFile(mainHandle);
+		if (!main.ok) {
+			return { ok: false, error: `${ROSTER_FILENAME}: ${main.error}` };
+		}
+		combined = main.data;
+	} catch (err) {
+		if (err.name !== "NotFoundError") {
+			return { ok: false, error: err.message };
+		}
+	}
+
+	/* Conflict copies: merge what we can. An unreadable copy is skipped
+	 * (and left on disk untouched) rather than blocking everything. */
+	try {
+		for await (const [name, entry] of handle.entries()) {
+			if (entry.kind !== "file") continue;
+			if (name === ROSTER_FILENAME || !isRosterFilename(name)) continue;
+			const copy = await readRosterFile(entry);
+			if (copy.ok) {
+				combined = mergeRosterMaps(combined, copy.data);
+			} else {
+				console.warn(`Skipping unreadable roster copy ${name}:`, copy.error);
+			}
+		}
+	} catch (err) {
+		return { ok: false, error: err.message };
+	}
+
+	return { ok: true, data: combined };
+}
+
+/**
+ * writeRosterStatus
+ * Sets one member's roster status in the shared file. Re-reads the file
+ * immediately before writing, refuses to write if it can't be read safely,
+ * and reads it back afterwards to confirm the change landed.
+ *
+ * On success, the caller should save the returned record locally with
+ * saveRosterRecord(name, record) so local and shared stay identical.
+ *
+ * @param {string}      name    - Team member's name (as stored in teamData)
+ * @param {string}      status  - 'removed' or 'active'
+ * @param {string|null} lastDay - 'YYYY-MM-DD' (required when removing)
+ * @param {string}      setBy   - Name of the manager making the change
+ * @returns {Promise<{ok: true, record: Object} | {ok: false, error: string}>}
+ */
+export async function writeRosterStatus(name, status, lastDay, setBy) {
+	if (writesLocked) {
+		return {
+			ok: false,
+			error:
+				"Sync is paused while a restore is pending. Try again in a moment.",
+		};
+	}
+	if (!name || typeof name !== "string") {
+		return { ok: false, error: "No team member name was given." };
+	}
+	if (status !== "removed" && status !== "active") {
+		return { ok: false, error: `Unknown roster status "${status}".` };
+	}
+	if (status === "removed" && !/^\d{4}-\d{2}-\d{2}$/.test(lastDay || "")) {
+		return { ok: false, error: "A valid last working day is required." };
+	}
+
+	try {
+		const handle = await loadHandle("import");
+		if (!handle) {
+			return { ok: false, error: "The sync folder isn't connected." };
+		}
+
+		const hasPermission = await verifyPermission(handle, true);
+		if (!hasPermission) {
+			return {
+				ok: false,
+				error: "Permission to write to the sync folder wasn't granted.",
+			};
+		}
+
+		const current = await readCombinedRoster(handle);
+		if (!current.ok) {
+			return {
+				ok: false,
+				error: `The shared roster file couldn't be read, so nothing was changed. (${current.error})`,
+			};
+		}
+
+		const record = {
+			status,
+			lastDay: status === "removed" ? lastDay : null,
+			setBy: setBy || "",
+			setAt: new Date().toISOString(),
+		};
+		const next = { ...current.data, [name]: record };
+
+		/* createWritable writes to a temporary file and only replaces the
+		 * real one on close(), so a failure mid-write leaves it intact. */
+		const fileHandle = await handle.getFileHandle(ROSTER_FILENAME, {
+			create: true,
+		});
+		const writable = await fileHandle.createWritable();
+		await writable.write(JSON.stringify(next, null, 2));
+		await writable.close();
+
+		/* Confirm the change actually landed before reporting success. */
+		const check = await readRosterFile(fileHandle);
+		if (!check.ok || check.data[name]?.setAt !== record.setAt) {
+			return {
+				ok: false,
+				error:
+					"The roster file was written but the change couldn't be confirmed. Refresh and check before trying again.",
+			};
+		}
+
+		return { ok: true, record };
+	} catch (err) {
+		console.warn("Failed to write roster status:", err.message);
+		return { ok: false, error: err.message };
+	}
+}
+
+/* ============================================================================
  * AUTO-IMPORT (MANAGERS)
  * --------------------------------------------------------------------------
  * Scans the connected folder for all JSON files and imports them.
@@ -1046,6 +1258,7 @@ export async function autoImportTeamData() {
 			 * it's a manager-only file, not a contributor export. */
 			if (entry.kind !== "file" || !name.endsWith(".json")) continue;
 			if (name === OOO_OVERRIDES_FILENAME) continue;
+			if (isRosterFilename(name)) continue;
 
 			try {
 				const file = await entry.getFile();
@@ -1103,10 +1316,28 @@ export async function autoImportTeamData() {
 			}
 		}
 
+		/* Mirror the shared roster into the local table. Only a confirmed
+		 * successful read is merged; if the file can't be read, the local
+		 * roster is left exactly as it is. */
+		let rosterChanged = false;
+		const roster = await readCombinedRoster(handle);
+		if (roster.ok) {
+			try {
+				rosterChanged = await mergeSharedRoster(roster.data);
+			} catch (err) {
+				console.warn("Roster merge failed:", err.message);
+			}
+		} else {
+			console.warn(
+				"Shared roster couldn't be read; local roster left unchanged:",
+				roster.error,
+			);
+		}
+
 		console.log(
 			`Auto-import complete: ${imported} new, ${updated} updated, ${errors} errors`,
 		);
-		return { success: true, imported, updated, errors };
+		return { success: true, imported, updated, errors, rosterChanged };
 	} catch (err) {
 		console.warn("Auto-import failed:", err.message);
 		return { success: false, imported: 0, updated: 0, errors: 0 };

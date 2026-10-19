@@ -797,13 +797,24 @@ async function attachSettingsListeners() {
 
 	/**
 	 * loadTeamMembersList
-	 * Displays the list of imported team members in settings.
+	 * Displays imported team members in settings, split into current and
+	 * former members, with Remove / Reinstate controls.
+	 *
+	 * Removing someone never deletes their data. It records their last
+	 * working day in the shared roster file (so every manager sees it),
+	 * then in the local roster table. Requires the team sync folder to be
+	 * connected, so a change can never exist on one manager's machine only.
+	 *
+	 * @param {Object|null} message - Optional { type: 'success'|'error'|'warning', text }
 	 */
-	async function loadTeamMembersList() {
+	async function loadTeamMembersList(message = null) {
 		const listEl = document.getElementById("team-members-list");
 		if (!listEl) return;
 
-		const { getTeamMemberList } = await import("./db.js");
+		const { getTeamMemberList, getTeamRoster } = await import("./db.js");
+		const { escapeHtml, formatDateISO } = await import("./utils.js");
+		const { getSyncStatus } = await import("./sync.js");
+
 		const members = await getTeamMemberList();
 
 		if (members.length === 0) {
@@ -812,34 +823,222 @@ async function attachSettingsListeners() {
 			return;
 		}
 
-		let html = `
-    <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">
-      Imported team members (${members.length})
-    </div>
-  `;
+		const roster = await getTeamRoster();
+		const importStatus = await getSyncStatus("import");
+		const canEdit = importStatus.connected;
+		const today = formatDateISO(new Date());
 
-		members.forEach((m) => {
+		const current = members.filter((m) => m.status !== "removed");
+		const former = members.filter((m) => m.status === "removed");
+
+		const btnStyle =
+			"font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 0.5px solid var(--border-default); background: var(--bg-input); color: var(--text-primary); font-family: inherit; cursor: pointer;";
+		const disabledAttr = canEdit
+			? ""
+			: 'disabled style="opacity: 0.5; cursor: not-allowed;"';
+
+		const initials = (name) =>
+			escapeHtml(
+				name
+					.split(" ")
+					.filter(Boolean)
+					.map((n) => n[0])
+					.join("")
+					.toUpperCase()
+					.slice(0, 2),
+			);
+
+		const avatar = (name, muted) => `
+          <div style="width: 28px; height: 28px; border-radius: 50%; background: ${muted ? "var(--bg-input)" : "var(--accent-light)"}; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: ${muted ? "var(--text-muted)" : "var(--accent-text)"};">
+            ${initials(name)}
+          </div>`;
+
+		let html = `<div id="team-roster-message"></div>`;
+
+		if (!canEdit) {
 			html += `
-      <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 0.5px solid var(--border-default);">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <div style="width: 28px; height: 28px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; color: var(--accent-text);">
-            ${m.name
-							.split(" ")
-							.map((n) => n[0])
-							.join("")
-							.toUpperCase()
-							.slice(0, 2)}
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+      Connect the team sync folder to remove or reinstate members, so the change is shared with every manager.
+    </div>`;
+		}
+
+		/* --- Current members --- */
+		html += `
+    <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">
+      Current team members (${current.length})
+    </div>`;
+
+		current.forEach((m) => {
+			const safeName = escapeHtml(m.name);
+			html += `
+      <div class="settings-roster-row" style="padding: 6px 0; border-top: 0.5px solid var(--border-default);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${avatar(m.name, false)}
+            <div>
+              <div style="font-size: 13px; font-weight: 500;">${safeName}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${m.weekCount} week${m.weekCount > 1 ? "s" : ""} — latest: ${escapeHtml(m.lastImport)}</div>
+            </div>
           </div>
-          <div>
-            <div style="font-size: 13px; font-weight: 500;">${m.name}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${m.weekCount} week${m.weekCount > 1 ? "s" : ""} — latest: ${m.lastImport}</div>
+          <button type="button" data-action="start-remove" data-name="${safeName}" style="${btnStyle}" ${disabledAttr}>Remove</button>
+        </div>
+        <div class="remove-form hidden" style="margin-top: 8px; padding: 10px; border: 0.5px solid var(--border-default); border-radius: 8px;">
+          <div style="font-size: 12px; color: var(--text-primary); margin-bottom: 8px;">
+            Remove <strong>${safeName}</strong> from the team? Their tracked history is kept. They'll stop counting toward expected hours after their last working day.
+          </div>
+          <label style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+            Last working day
+            <input type="date" class="remove-last-day" value="${today}"
+                   style="font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 0.5px solid var(--border-default); background: var(--bg-input); color: var(--text-primary); font-family: inherit;" />
+          </label>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button type="button" data-action="confirm-remove" data-name="${safeName}" style="${btnStyle} color: var(--danger);">Confirm removal</button>
+            <button type="button" data-action="cancel-remove" style="${btnStyle}">Cancel</button>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
 		});
 
+		/* --- Former members --- */
+		if (former.length > 0) {
+			html += `
+    <div style="font-size: 12px; font-weight: 500; color: var(--text-primary); margin: 16px 0 8px;">
+      Former team members (${former.length})
+    </div>`;
+
+			former.forEach((m) => {
+				const safeName = escapeHtml(m.name);
+				const setBy = roster[m.name]?.setBy;
+				html += `
+      <div class="settings-roster-row" style="padding: 6px 0; border-top: 0.5px solid var(--border-default);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            ${avatar(m.name, true)}
+            <div>
+              <div style="font-size: 13px; font-weight: 500; color: var(--text-muted);">${safeName}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Last day: ${escapeHtml(m.lastDay)}${setBy ? ` · Removed by ${escapeHtml(setBy)}` : ""} · ${m.weekCount} week${m.weekCount > 1 ? "s" : ""} of history kept</div>
+            </div>
+          </div>
+          <button type="button" data-action="reinstate" data-name="${safeName}" style="${btnStyle}" ${disabledAttr}>Reinstate</button>
+        </div>
+      </div>`;
+			});
+		}
+
 		listEl.innerHTML = html;
+
+		const showMessage = (msg) => {
+			const el = document.getElementById("team-roster-message");
+			if (!el) return;
+			if (!msg) {
+				el.innerHTML = "";
+				return;
+			}
+			const color =
+				msg.type === "error"
+					? "var(--danger)"
+					: msg.type === "warning"
+						? "var(--warning)"
+						: "var(--positive)";
+			el.innerHTML = `<div style="font-size: 12px; color: ${color}; margin-bottom: 8px;">${escapeHtml(msg.text)}</div>`;
+		};
+		showMessage(message);
+
+		/**
+		 * applyRosterChange
+		 * Writes to the shared roster first; only on confirmed success is
+		 * the change saved locally. On failure nothing changes anywhere.
+		 */
+		const applyRosterChange = async (name, status, lastDay, btn) => {
+			const originalLabel = btn.textContent;
+			btn.disabled = true;
+			btn.textContent = "Saving…";
+
+			const { writeRosterStatus } = await import("./sync.js");
+			const { saveRosterRecord } = await import("./db.js");
+
+			const result = await writeRosterStatus(
+				name,
+				status,
+				lastDay,
+				appState.settings.name || "",
+			);
+
+			if (!result.ok) {
+				btn.disabled = false;
+				btn.textContent = originalLabel;
+				showMessage({
+					type: "error",
+					text: `Couldn't update ${name}: ${result.error}`,
+				});
+				return;
+			}
+
+			try {
+				await saveRosterRecord(name, result.record);
+			} catch (err) {
+				/* Shared file has it; the next dashboard refresh merges it in. */
+				await loadTeamMembersList({
+					type: "warning",
+					text: `${name} was updated in the shared roster, but this browser couldn't save it locally (${err.message}). It will apply on the next dashboard refresh.`,
+				});
+				return;
+			}
+
+			await loadTeamMembersList({
+				type: "success",
+				text:
+					status === "removed"
+						? `${name} removed. Last working day: ${lastDay}. Their history is kept.`
+						: `${name} reinstated.`,
+			});
+		};
+
+		/* Assigned (not added) so re-rendering never stacks handlers */
+		listEl.onclick = async (e) => {
+			const btn = e.target.closest("button[data-action]");
+			if (!btn || btn.disabled) return;
+
+			const row = btn.closest(".settings-roster-row");
+			const name = btn.dataset.name;
+			const action = btn.dataset.action;
+
+			if (action === "start-remove") {
+				row?.querySelector(".remove-form")?.classList.remove("hidden");
+				btn.classList.add("hidden");
+				return;
+			}
+
+			if (action === "cancel-remove") {
+				row?.querySelector(".remove-form")?.classList.add("hidden");
+				row
+					?.querySelector('[data-action="start-remove"]')
+					?.classList.remove("hidden");
+				showMessage(null);
+				return;
+			}
+
+			if (action === "confirm-remove") {
+				const lastDay = row?.querySelector(".remove-last-day")?.value || "";
+				if (!/^\d{4}-\d{2}-\d{2}$/.test(lastDay)) {
+					showMessage({
+						type: "error",
+						text: "Please choose a last working day.",
+					});
+					return;
+				}
+				await applyRosterChange(name, "removed", lastDay, btn);
+				return;
+			}
+
+			if (action === "reinstate") {
+				const ok = confirm(
+					`Reinstate ${name}?\n\nThis undoes the removal: they'll count toward expected hours again for every period, including the time since their last working day.`,
+				);
+				if (!ok) return;
+				await applyRosterChange(name, "active", null, btn);
+			}
+		};
 	}
 
 	/* --- Sync folder connections --- */

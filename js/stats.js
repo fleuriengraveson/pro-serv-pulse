@@ -28,6 +28,7 @@ import {
 	getTeamMemberTicketStats,
 	getTicketStatsForRange,
 	getAllTeamDayMeta,
+	getTeamRoster,
 } from "./db.js";
 import {
 	formatDateISO,
@@ -190,7 +191,8 @@ async function refreshTeamData(forceRender = false) {
 			forceRender ||
 			result.imported > 0 ||
 			result.updated > 0 ||
-			oooChanged
+			oooChanged ||
+			result.rosterChanged
 		) {
 			teamMembers = await getTeamMemberList();
 			await renderStats();
@@ -981,9 +983,10 @@ async function renderStats() {
         <div style="border-left: 0.5px solid var(--border-default); padding-left: 12px;">
           <select id="team-member-select"
                   style="font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 0.5px solid var(--border-default); background: var(--bg-input); color: var(--text-primary); font-family: inherit; min-width: 160px;">
-            <option value="all" ${selectedMember === "all" ? "selected" : ""}>All team (${teamMembers.length})</option>
+                        <option value="all" ${selectedMember === "all" ? "selected" : ""}>All team (${getMembersForPeriod(teamMembers).length})</option>
             <optgroup label="Team members">
               ${teamMembers
+								.filter((m) => m.status !== "removed")
 								.map(
 									(m) => `
                 <option value="${escapeHtml(m.name)}" ${selectedMember === m.name ? "selected" : ""}>${escapeHtml(m.name)}</option>
@@ -991,6 +994,22 @@ async function renderStats() {
 								)
 								.join("")}
             </optgroup>
+            ${
+							teamMembers.some((m) => m.status === "removed")
+								? `
+            <optgroup label="Former team members">
+              ${teamMembers
+								.filter((m) => m.status === "removed")
+								.map(
+									(m) => `
+                <option value="${escapeHtml(m.name)}" ${selectedMember === m.name ? "selected" : ""}>${escapeHtml(m.name)} (until ${escapeHtml(m.lastDay)})</option>
+              `,
+								)
+								.join("")}
+            </optgroup>
+            `
+								: ""
+						}
             <optgroup label="—">
               <option value="self" ${selectedMember === "self" ? "selected" : ""}>My stats</option>
             </optgroup>
@@ -1602,9 +1621,11 @@ async function renderTeamComplianceTable(teamEntries) {
 	/* Start from the FULL roster (module-level teamMembers, cached from
 	 * getTeamMemberList) so a member who tracked zero hours this period
 	 * still gets a row — with an empty entries array — instead of being
-	 * invisible because they have no entries to derive a name from. */
+	 * invisible because they have no entries to derive a name from.
+	 * Removed members are included only for periods that overlap their
+	 * time on the team (see getMembersForPeriod). */
 	const byMember = {};
-	teamMembers.forEach((m) => {
+	getMembersForPeriod(teamMembers, range).forEach((m) => {
 		byMember[m.name] = [];
 	});
 	teamEntries.forEach((e) => {
@@ -1777,9 +1798,11 @@ async function renderTeamAlerts(teamEntries, expectedHours) {
 
 	/* Same roster-driven approach as renderTeamComplianceTable: start from
 	 * the full team roster so a zero-hours member is still counted in the
-	 * workload/specialization checks below rather than vanishing entirely. */
+	 * workload/specialization checks below rather than vanishing entirely.
+	 * Removed members only count for periods overlapping their time on
+	 * the team, so they don't skew team size or thresholds afterwards. */
 	const byMember = {};
-	teamMembers.forEach((m) => {
+	getMembersForPeriod(teamMembers).forEach((m) => {
 		byMember[m.name] = [];
 	});
 	teamEntries.forEach((e) => {
@@ -2943,6 +2966,23 @@ async function getExpectedHours(name, entries = []) {
 	const effectiveStart =
 		joinDate && joinDate > range.startDate ? joinDate : range.startDate;
 
+	/* Removed members: expectations stop after their last working day.
+	 * Their tracked data is untouched; only the expectation ends, so
+	 * past periods are unchanged and later periods expect nothing. */
+	let effectiveEnd = range.endDate;
+	if (name !== "self") {
+		const roster = await getTeamRoster();
+		const record = roster[name];
+		if (
+			record?.status === "removed" &&
+			record.lastDay &&
+			record.lastDay < effectiveEnd
+		) {
+			effectiveEnd = record.lastDay;
+		}
+	}
+	if (effectiveEnd < effectiveStart) return 0;
+
 	/* Manager-marked OOO weeks drop out of expected hours entirely, same as
 	 * a real self-logged full-OOO week. Only applies to team members. */
 	if (name !== "self" && oooOverrides[name]) {
@@ -2953,7 +2993,7 @@ async function getExpectedHours(name, entries = []) {
 				const day = new Date(monday);
 				day.setDate(monday.getDate() + i);
 				const dateStr = formatDateISO(day);
-				if (dateStr >= effectiveStart && dateStr <= range.endDate) {
+				if (dateStr >= effectiveStart && dateStr <= effectiveEnd) {
 					oooDates.add(dateStr);
 				}
 			}
@@ -2962,11 +3002,40 @@ async function getExpectedHours(name, entries = []) {
 
 	return countExpectedHoursUpToNow(
 		effectiveStart,
-		range.endDate,
+		effectiveEnd,
 		TARGETS.dailyTrackableHours,
 		oooDates,
 		startHour,
 	);
+}
+
+/**
+ * isMemberInPeriod
+ * Whether a team member belongs in the roster for a given period.
+ * Active members always do. Removed members only do if their last
+ * working day falls on or after the period's start, so any period
+ * that overlaps their time on the team still includes them.
+ *
+ * @param {Object} member - From getTeamMemberList ({ status, lastDay, ... })
+ * @param {Object} range  - { startDate, endDate }
+ * @returns {boolean}
+ */
+function isMemberInPeriod(member, range) {
+	if (member.status !== "removed" || !member.lastDay) return true;
+	return member.lastDay >= range.startDate;
+}
+
+/**
+ * getMembersForPeriod
+ * Filters a roster to the members who belong in the given period
+ * (defaults to the currently selected period).
+ *
+ * @param {Array<Object>} members - From getTeamMemberList
+ * @param {Object} [range]        - { startDate, endDate }
+ * @returns {Array<Object>}
+ */
+function getMembersForPeriod(members, range = getPeriodRange()) {
+	return members.filter((m) => isMemberInPeriod(m, range));
 }
 
 /**
@@ -3584,7 +3653,9 @@ export async function getStatsContext() {
 	 * depend on the dashboard having refreshed recently — this local
 	 * const also shadows the module-level variable, making the
 	 * dependency explicit instead of an implicit closure fallthrough. */
-	const teamMembers = await getTeamMemberList();
+	/* Only members who were on the team during this period. Removed
+	 * members still appear for periods overlapping their time here. */
+	const teamMembers = getMembersForPeriod(await getTeamMemberList());
 
 	const range = getPeriodRange();
 	const tierMap = await getTierMap();
