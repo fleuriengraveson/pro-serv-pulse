@@ -281,21 +281,30 @@ document.addEventListener("click", (e) => {
  *
  * @param {Date|string} [refDate] - Date within the week to export; defaults to today.
  */
-async function syncWeekAfterChange(refDate) {
-	try {
-		const { autoExportWeek } = await import("./sync.js");
-		// refDate may be a "YYYY-MM-DD" string (e.g. newEntry.date) or a Date already.
-		// new Date("YYYY-MM-DD") parses as UTC and can roll back a Monday entry
-		// into the previous local day/week — use parseDate for strings instead.
-		const resolvedDate = refDate
-			? typeof refDate === "string"
-				? parseDate(refDate)
-				: refDate
-			: new Date();
-		await autoExportWeek(appState, resolvedDate);
-	} catch (e) {
-		/* sync not available, ignore */
-	}
+let syncQueue = Promise.resolve();
+
+function syncWeekAfterChange(refDate) {
+	// refDate may be a "YYYY-MM-DD" string (e.g. newEntry.date) or a Date already.
+	// new Date("YYYY-MM-DD") parses as UTC and can roll back a Monday entry
+	// into the previous local day/week — use parseDate for strings instead.
+	const resolvedDate = refDate
+		? typeof refDate === "string"
+			? parseDate(refDate)
+			: refDate
+		: new Date();
+
+	/* The local save has already happened, so the UI must not wait on the
+	 * sync folder — a slow or stalled Drive/permission call would otherwise
+	 * leave the details box open. Exports are queued so writes to the same
+	 * week file never overlap. */
+	syncQueue = syncQueue.then(async () => {
+		try {
+			const { autoExportWeek } = await import("./sync.js");
+			await autoExportWeek(appState, resolvedDate);
+		} catch (e) {
+			console.warn("Sync after change failed:", e.message);
+		}
+	});
 }
 
 /* ============================================================================
@@ -1850,7 +1859,6 @@ function attachEventListeners() {
 
 				/* NORMAL CLICK: Open the edit dropdown */
 				showEditDropdown(slot, block);
-				lastClickedSlot = slot;
 			});
 		});
 

@@ -1132,7 +1132,11 @@ async function attachSettingsListeners() {
 		}
 	}
 
-	await updateSyncStatusUI();
+	/* Don't block on this: the connect/disconnect buttons below must be
+	 * wired up even if reading the sync status is slow or stalls. */
+	updateSyncStatusUI().catch((e) =>
+		console.warn("Sync status refresh failed:", e.message),
+	);
 
 	/* Connect export folder */
 	document

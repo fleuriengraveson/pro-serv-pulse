@@ -85,6 +85,7 @@ let teamRefreshTimer = null; // setInterval id for the periodic re-import (null 
 let onVisibilityChange = null; // visibilitychange handler ref, kept so we can detach it
 let isRefreshing = false; // guard so two refreshes can't overlap if an import runs long
 let lastImportedAt = null; // Date of the most recent successful import (used by the freshness label, next pass)
+let statsActive = false; // true while the stats view is showing; background imports only re-render then
 
 const TEAM_REFRESH_MS = 60000; // how often to re-check the sync folder while stats is open (60s)
 let selectedMember = "all"; // 'all', a member name, or 'self'
@@ -112,27 +113,10 @@ const PERIODS = [
  */
 export async function initStats(state) {
 	appState = state;
+	statsActive = true;
 
 	/* Load team members if manager */
 	if (appState.settings.role === "manager") {
-		/* Auto-import from sync folder if connected */
-		try {
-			const { autoImportTeamData, getSyncStatus } = await import("./sync.js");
-			const importStatus = await getSyncStatus("import");
-			if (importStatus.connected && importStatus.hasPermission) {
-				const result = await autoImportTeamData();
-				lastImportedAt = new Date(); // record freshness so the header label shows on first render
-				await loadOOOOverrides();
-				if (result.imported > 0 || result.updated > 0) {
-					console.log(
-						`Auto-imported: ${result.imported} new, ${result.updated} updated`,
-					);
-				}
-			}
-		} catch (e) {
-			console.warn("Auto-import not available:", e.message);
-		}
-
 		teamMembers = await getTeamMemberList();
 		/* Default to 'all' for managers, 'self' for contributors */
 		if (
@@ -146,7 +130,13 @@ export async function initStats(state) {
 		teamMembers = [];
 	}
 
+	/* Render from local data first — never block the page on the sync
+	 * folder, which can be slow or stall (Drive, permission checks). */
 	await renderStats();
+
+	/* Pull fresh team data from the sync folder in the background and
+	 * re-render once it lands. (No-op for contributors.) */
+	refreshTeamData(true);
 
 	/* Begin auto-refreshing team data while the manager stays on this view.
 	 * (No-op for contributors.) Torn down by cleanupStats() on view switch. */
@@ -186,13 +176,15 @@ async function refreshTeamData(forceRender = false) {
 		const oooChanged = await loadOOOOverrides();
 
 		/* Redraw when data changed, OR when a manual refresh forces it so the
-		 * "Updated HH:MM" label always reflects the click even on no-change days. */
+		 * "Updated HH:MM" label always reflects the click even on no-change days.
+		 * Skip if the manager has already left the stats view. */
 		if (
-			forceRender ||
-			result.imported > 0 ||
-			result.updated > 0 ||
-			oooChanged ||
-			result.rosterChanged
+			statsActive &&
+			(forceRender ||
+				result.imported > 0 ||
+				result.updated > 0 ||
+				oooChanged ||
+				result.rosterChanged)
 		) {
 			teamMembers = await getTeamMemberList();
 			await renderStats();
@@ -246,6 +238,7 @@ function stopTeamAutoRefresh() {
  * the auto-refresh timer/listener don't keep running on other views.
  */
 export function cleanupStats() {
+	statsActive = false;
 	stopTeamAutoRefresh();
 }
 

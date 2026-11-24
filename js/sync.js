@@ -40,6 +40,31 @@ const HANDLE_DB_NAME = "chronos-sync-handles";
 const HANDLE_DB_VERSION = 1;
 const HANDLE_STORE = "handles";
 
+/* Upper bounds for browser calls that can stall indefinitely (a wedged
+ * IndexedDB open, or a permission query against a Drive-backed folder).
+ * Without these, a stall leaves callers awaiting forever with no error. */
+const HANDLE_DB_TIMEOUT_MS = 5000;
+const PERMISSION_QUERY_TIMEOUT_MS = 5000;
+/* requestPermission may show a prompt the person needs time to answer */
+const PERMISSION_REQUEST_TIMEOUT_MS = 60000;
+
+/**
+ * withTimeout
+ * Rejects (and logs a warning) if `promise` hasn't settled within `ms`.
+ */
+function withTimeout(promise, ms, label) {
+	let timer;
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => {
+			const err = new Error(`${label} timed out after ${ms}ms`);
+			err.name = "TimeoutError";
+			console.warn(`Sync: ${err.message}`);
+			reject(err);
+		}, ms);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /* ============================================================================
  * SYNC WRITE LOCK
  * --------------------------------------------------------------------------
@@ -81,9 +106,16 @@ export function isSyncSupported() {
 /**
  * openHandleDB
  * Opens (or creates) the IndexedDB database for storing directory handles.
+ * One connection is cached and reused; opening a new one per call and never
+ * closing it leaks connections, which can block later opens/upgrades.
  */
+let handleDBPromise = null;
+
 function openHandleDB() {
-	return new Promise((resolve, reject) => {
+	if (handleDBPromise) return handleDBPromise;
+
+	let cached;
+	const opening = new Promise((resolve, reject) => {
 		const request = indexedDB.open(HANDLE_DB_NAME, HANDLE_DB_VERSION);
 		request.onupgradeneeded = () => {
 			const db = request.result;
@@ -91,9 +123,59 @@ function openHandleDB() {
 				db.createObjectStore(HANDLE_STORE);
 			}
 		};
-		request.onsuccess = () => resolve(request.result);
+		request.onsuccess = () => {
+			const db = request.result;
+			const reset = () => {
+				if (handleDBPromise === cached) handleDBPromise = null;
+			};
+			db.onversionchange = () => {
+				db.close();
+				reset();
+			};
+			db.onclose = reset;
+			resolve(db);
+		};
 		request.onerror = () => reject(request.error);
+		request.onblocked = () =>
+			console.warn("Sync: handle database open is blocked by another tab");
 	});
+
+	cached = withTimeout(
+		opening,
+		HANDLE_DB_TIMEOUT_MS,
+		"Opening sync handle database",
+	).catch((err) => {
+		/* Don't cache a failure, and close the connection if the open
+		 * eventually succeeds after we've given up on it. */
+		if (handleDBPromise === cached) handleDBPromise = null;
+		opening.then((db) => db.close()).catch(() => {});
+		throw err;
+	});
+	handleDBPromise = cached;
+	return cached;
+}
+
+/**
+ * runHandleTx
+ * Runs a single request against the handle store, bounded by a timeout.
+ *
+ * @param {"readonly"|"readwrite"} mode
+ * @param {(store: IDBObjectStore) => IDBRequest} makeRequest
+ * @param {string} label - Used in the timeout warning
+ */
+async function runHandleTx(mode, makeRequest, label) {
+	const db = await openHandleDB();
+	return withTimeout(
+		new Promise((resolve, reject) => {
+			const tx = db.transaction(HANDLE_STORE, mode);
+			const request = makeRequest(tx.objectStore(HANDLE_STORE));
+			tx.oncomplete = () => resolve(request.result);
+			tx.onerror = () => reject(tx.error);
+			tx.onabort = () => reject(tx.error);
+		}),
+		HANDLE_DB_TIMEOUT_MS,
+		label,
+	);
 }
 
 /**
@@ -104,13 +186,11 @@ function openHandleDB() {
  * @param {FileSystemDirectoryHandle} handle
  */
 async function saveHandle(key, handle) {
-	const db = await openHandleDB();
-	return new Promise((resolve, reject) => {
-		const tx = db.transaction(HANDLE_STORE, "readwrite");
-		tx.objectStore(HANDLE_STORE).put(handle, key);
-		tx.oncomplete = () => resolve();
-		tx.onerror = () => reject(tx.error);
-	});
+	await runHandleTx(
+		"readwrite",
+		(store) => store.put(handle, key),
+		`Saving ${key} folder handle`,
+	);
 }
 
 /**
@@ -121,13 +201,12 @@ async function saveHandle(key, handle) {
  * @returns {Promise<FileSystemDirectoryHandle|null>}
  */
 async function loadHandle(key) {
-	const db = await openHandleDB();
-	return new Promise((resolve, reject) => {
-		const tx = db.transaction(HANDLE_STORE, "readonly");
-		const request = tx.objectStore(HANDLE_STORE).get(key);
-		request.onsuccess = () => resolve(request.result || null);
-		request.onerror = () => reject(request.error);
-	});
+	const result = await runHandleTx(
+		"readonly",
+		(store) => store.get(key),
+		`Loading ${key} folder handle`,
+	);
+	return result || null;
 }
 
 /**
@@ -137,13 +216,11 @@ async function loadHandle(key) {
  * @param {string} key - 'export' or 'import'
  */
 async function removeHandle(key) {
-	const db = await openHandleDB();
-	return new Promise((resolve, reject) => {
-		const tx = db.transaction(HANDLE_STORE, "readwrite");
-		tx.objectStore(HANDLE_STORE).delete(key);
-		tx.oncomplete = () => resolve();
-		tx.onerror = () => reject(tx.error);
-	});
+	await runHandleTx(
+		"readwrite",
+		(store) => store.delete(key),
+		`Removing ${key} folder handle`,
+	);
 }
 
 /* ============================================================================
@@ -166,12 +243,22 @@ async function verifyPermission(handle, readWrite = true) {
 	const options = { mode: readWrite ? "readwrite" : "read" };
 
 	/* Check if we already have permission */
-	if ((await handle.queryPermission(options)) === "granted") {
+	const current = await withTimeout(
+		handle.queryPermission(options),
+		PERMISSION_QUERY_TIMEOUT_MS,
+		"Checking folder permission",
+	);
+	if (current === "granted") {
 		return true;
 	}
 
 	/* Request permission — this shows the browser prompt */
-	if ((await handle.requestPermission(options)) === "granted") {
+	const requested = await withTimeout(
+		handle.requestPermission(options),
+		PERMISSION_REQUEST_TIMEOUT_MS,
+		"Requesting folder permission",
+	);
+	if (requested === "granted") {
 		return true;
 	}
 
@@ -251,7 +338,20 @@ export async function getSyncStatus(purpose = "export") {
 		};
 	}
 
-	const handle = await loadHandle(purpose);
+	let handle;
+	try {
+		handle = await loadHandle(purpose);
+	} catch (err) {
+		/* Handle store unreachable — report as not connected so the UI can
+		 * still render and offer a reconnect instead of hanging. */
+		return {
+			connected: false,
+			name: "",
+			hasPermission: false,
+			supported: true,
+			error: err.message,
+		};
+	}
 	if (!handle) {
 		return {
 			connected: false,
@@ -263,7 +363,16 @@ export async function getSyncStatus(purpose = "export") {
 
 	/* Check if we still have permission (without prompting) */
 	const mode = purpose === "export" ? "readwrite" : "read";
-	const permission = await handle.queryPermission({ mode });
+	let permission = "prompt";
+	try {
+		permission = await withTimeout(
+			handle.queryPermission({ mode }),
+			PERMISSION_QUERY_TIMEOUT_MS,
+			"Checking folder permission",
+		);
+	} catch (err) {
+		/* Treat an unanswered check as "needs permission" */
+	}
 
 	return {
 		connected: true,
@@ -326,14 +435,19 @@ window.addEventListener("beforeunload", flushPendingFullBackup);
  * @returns {Promise<{found:boolean, entryCount?:number, exportDate?:string, error?:string}>}
  */
 export async function checkForBackup(userName) {
-	const handle = await loadHandle("export");
-	if (!handle) return { found: false, error: "No folder connected" };
+	let handle;
+	try {
+		handle = await loadHandle("export");
+		if (!handle) return { found: false, error: "No folder connected" };
 
-	const hasPermission = await verifyPermission(
-		handle,
-		false,
-	); /* read-only check */
-	if (!hasPermission) return { found: false, error: "Permission denied" };
+		const hasPermission = await verifyPermission(
+			handle,
+			false,
+		); /* read-only check */
+		if (!hasPermission) return { found: false, error: "Permission denied" };
+	} catch (err) {
+		return { found: false, error: err.message };
+	}
 
 	const safeName = (userName || "unnamed")
 		.toLowerCase()
